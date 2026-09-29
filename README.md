@@ -6,7 +6,8 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 ## How it fits together
 
 ```
- Pin Rescue ──► 🪙 Gold + 📦 chests ─┐
+ Kingdom Def. ► 🪙, 🪖, 🥩 loot + 📦 ─┐  (and your town powers its defenses)
+ Pin Rescue ──► 🪙 Gold + 📦 chests ─┤
  Gate Rush ───► 🪖 Troops, 🪙, 📦 boss chests ┼──► TOWN: upgrade buildings ──► bonuses in the mini-games
  Frost Survival ► 🥩 Food, 📦 on expand ┘       Kitchen/Vault produce 🥩/🪙 over time
                                              chests drop power-up cards: 💡 🛡️ 🔥
@@ -14,6 +15,7 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 
 | Mode | Inspired by | How it plays |
 |---|---|---|
+| 👑 **Kingdom Defense** (3D, endless) | Kingshot hero-defense ads | Played on **your own town**: its buildings stand around the Town Hall at their current levels. Walk your knight with the joystick; he slashes nearby enemies and body-blocks the red horde marching down the road. Enemies drop coins: pick them up and spend them on dashed build pads along the road (archer towers, cannons, mage towers, soldiers, hero upgrades, hall repair). Endless waves get tougher, with a Warlord boss every 5 waves. Your town decides the defenses: Walls add Town Hall HP, the Forge unlocks cannons and adds damage, the Mage Tower unlocks mage towers, the Barracks unlocks soldiers, the Hunter's Lodge speeds up archers, the Kitchen heals the hero, the Vault gives starting coins, and the Town Hall caps tower level. Rewards: gold, troops, food loot and chests. |
 | 🏕️ **Frost Survival** (3D, continuous) | Whiteout Survival / Frozen City idle-camp ads | Move with the joystick (or WASD). Outside the fence your axes spin and cut down wolves and polar bears, and their meat stacks on your back. Drop it at the grill; customers buy the steaks at the counter. Every steak sold also ships 🥩 1 food to the town. Spend camp cash on build pads: cashier, **hunters** (they hunt and deliver meat for you), crossbow towers, axes, backpack, faster grill. **Expand camp** grows the fence (up to tier 5), unlocks more pads, brings stronger beasts and higher prices, and sends a chest to town. With hunters hired the camp keeps earning **offline** (2h cap, +1h per Hunter's Lodge level). |
 | 🪖 **Gate Rush** (3D, endless) | Last War / Kingshot "math gate" ads | Drag to steer your army; it fires automatically. Enemy waves charge down the road: grunts, fast runners, armored elites and brutes, plus an **Ice Giant boss every ~600 m** (the first at 450 m) that crushes your squad until you kill it. Pick the right gates, or **shoot red gates to turn them blue**. Shoot barrels open for soldiers, fire rate or damage. There are no levels: enemy toughness, wave size and speed rise the further you run. Rewards scale with distance, kills and bosses (a boss run earns a chest), and your best distance is saved. |
 | 📌 **Pin Rescue** (3D) | Hero Wars / Evony "pull the pin" ads | Tap the pins in the right order: lava kills, water turns lava to stone, orcs must die, and the gold must reach the knight. It's rendered in 3D on top of the same 2D particle physics, so every level stays verified solvable. |
@@ -22,16 +24,16 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 | Building | Effect |
 |---|---|
 | 🏰 Town Hall | Level cap for every other building |
-| ⚔️ Barracks | Gate Rush: +3 starting soldiers per level |
-| 🔨 Forge | Frost Survival: +20% axe, crossbow and hunter damage per level |
+| ⚔️ Barracks | Gate Rush: +3 starting soldiers per level · Kingdom Defense: unlocks soldiers |
+| 🔨 Forge | +20% damage per level in Frost Survival and Kingdom Defense · unlocks cannons |
 | 🏹 Hunter's Lodge | Frost Survival: hunters +25% faster, +1h offline time per level |
 | 🍲 Kitchen | Produces food per hour; camp steaks sell for +10% per level |
 | 💰 Vault | Produces gold per hour; +10% gold from mini-games per level |
-| 🔮 Mage Tower | Chests unlock 15% faster per level |
-| 🧱 Walls | Frost Survival: +25 max health per level |
+| 🔮 Mage Tower | Chests unlock 15% faster per level · Kingdom Defense: unlocks mage towers |
+| 🧱 Walls | Frost Survival: +25 max health · Kingdom Defense: +40 Town Hall HP per level |
 
 ### Chests and power-ups
-Winning a Pin Rescue level, beating a boss in Gate Rush, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
+Winning a Pin Rescue level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
 💡 **Hint** (Pin Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
 ## Test it
@@ -62,6 +64,7 @@ js/kit3d.js             shared Three.js helpers (layer, renderer, fit, primitive
 js/main.js              hub (town, chests, modes, shop), game launcher/loop, win/lose flows, daily reward
 js/games/pinrescue.js   particle-physics pin puzzle, 3D view
 js/games/gaterush.js    endless 3D runner: shooting squad, gates, waves, bosses
+js/games/kingdefense.js Kingshot-style hero defense on your own town
 js/games/frostsurvival.js 3D idle-arcade camp (Three.js)
 js/vendor/three.min.js  Three.js r158 (MIT), vendored so it works offline and inside Capacitor
 ```

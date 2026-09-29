@@ -14,7 +14,7 @@
       noAds: false,
       lastDaily: 0,
       levels: { pin: 1, gate: 1, frost: 1 },
-      best: { gate: 0 },   // endless-run records
+      best: { gate: 0, kingdom: 0 }, // endless-run records
       town: { hall: 1, barracks: 0, forge: 0, lodge: 0, kitchen: 0, vault: 0, tower: 0, walls: 0 },
       prod: {},            // building id -> timestamp production was last collected
       chests: [null, null, null, null],

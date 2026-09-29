@@ -6,8 +6,9 @@
 
   Save.load();
 
-  const ORDER = ['frost', 'gate', 'pin'];
+  const ORDER = ['kingdom', 'frost', 'gate', 'pin'];
   const REWARDS = {
+    kingdom: ['🪙 Gold', '🪖 Troops', '🥩 Loot', '📦 Chests'],
     pin: ['🪙 Gold', '📦 Chests'],
     gate: ['🪖 Troops', '🪙 Gold', '📦 Boss chests'],
     frost: ['🥩 Food', '📦 Chests', '💤 Offline'],
@@ -372,8 +373,10 @@
     Monetization.track('run_over', { game: id, stats: res.stats });
     const chestDef = res.chest && Town.CHESTS[res.chest];
     const collect = async (mult, watchedAd) => {
-      Save.grant({ coins: res.rewards.coins * mult, troops: (res.rewards.troops || 0) * mult });
-      let msg = `+${fmt(res.rewards.coins * mult)} 🪙  +${fmt((res.rewards.troops || 0) * mult)} 🪖`;
+      const got = {};
+      for (const [k, v] of Object.entries(res.rewards)) got[k] = v * mult;
+      Save.grant(got);
+      let msg = Object.entries(got).filter(([, v]) => v).map(([k, v]) => `+${fmt(v)} ${Town.RES[k].icon}`).join('  ');
       if (res.chest) msg += Town.addChest(res.chest) >= 0 ? `  ${chestDef.icon}` : '  (chest slots full)';
       UI.toast(msg);
       if (watchedAd) Monetization.resetInterstitialCounter();
