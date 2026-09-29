@@ -18,39 +18,39 @@
       <!-- ============ HUB ============ -->
       <section id="hub" class="screen active">
         <header class="topbar">
-          <div class="brand">Game<span>Hub</span></div>
           <div class="wallet">
-            <button class="pill" data-open="shop"><span>🪙</span><b id="coins">0</b><i>+</i></button>
-            <button class="pill gem" data-open="shop"><span>💎</span><b id="gems">0</b><i>+</i></button>
+            <button class="pill" data-open="shop" aria-label="Gold"><span>🪙</span><b id="res-coins">0</b></button>
+            <div class="pill" aria-label="Food"><span>🥩</span><b id="res-food">0</b></div>
+            <div class="pill" aria-label="Troops"><span>🪖</span><b id="res-troops">0</b></div>
+            <button class="pill gem" data-open="shop" aria-label="Gems"><span>💎</span><b id="res-gems">0</b><i>+</i></button>
           </div>
         </header>
 
         <main class="hub-main" id="hub-main">
-          <!-- Home tab -->
+          <!-- Town tab -->
           <div class="tab active" data-tab="home">
-            <div class="hero-banner">
-              <div>
-                <h1>The games from the ads.</h1>
-                <p>Finally real. Finally playable.</p>
+            <div class="town-card">
+              <div id="town-view"></div>
+              <div class="town-bar">
+                <div><b>Your town</b><small>Tap a building to upgrade it</small></div>
+                <button class="btn small gold" id="daily-btn">🎁 Daily</button>
               </div>
-              <button class="btn small gold" id="daily-btn">🎁 Daily</button>
             </div>
 
-            <div class="section-title">Game modes</div>
+            <div class="section-title">Chests</div>
+            <div id="chest-slots" class="chest-slots"></div>
+
+            <div class="section-title">Play for resources</div>
             <div id="game-list" class="game-list"></div>
+
+            <div class="section-title">Power-ups</div>
+            <div id="item-list" class="item-list"></div>
 
             <div class="section-title">Coming soon</div>
             <div class="game-list soon">
               <div class="game-card locked"><div class="art" style="--c1:#2d3a4a;--c2:#4b5d73">🏰</div><div class="info"><h3>Castle Merge</h3><p>Merge troops, raid castles</p></div><span class="lock">🔒</span></div>
               <div class="game-card locked"><div class="art" style="--c1:#3a2d4a;--c2:#5d4b73">🚪</div><div class="info"><h3>Choose a Door</h3><p>Pick the right path… or else</p></div><span class="lock">🔒</span></div>
             </div>
-          </div>
-
-          <!-- Upgrades tab -->
-          <div class="tab" data-tab="upgrades">
-            <div class="section-title">Barracks</div>
-            <p class="muted">Permanent upgrades that carry into every run.</p>
-            <div id="upgrade-list" class="upgrade-list"></div>
           </div>
 
           <!-- Shop tab -->
@@ -68,13 +68,12 @@
               <label class="row"><span>Vibration</span><input type="checkbox" id="opt-vibe" /></label>
               <button class="btn danger" id="reset-btn">Reset progress</button>
             </div>
-            <p class="muted tiny">GameHub prototype · v0.1</p>
+            <p class="muted tiny">GameHub prototype · v0.3</p>
           </div>
         </main>
 
         <nav class="bottom-nav">
-          <button class="active" data-nav="home"><span>🏠</span>Home</button>
-          <button data-nav="upgrades"><span>⚔️</span>Barracks</button>
+          <button class="active" data-nav="home"><span>🏰</span>Town</button>
           <button data-nav="shop"><span>🛒</span>Shop</button>
           <button data-nav="settings"><span>⚙️</span>Settings</button>
         </nav>
@@ -102,9 +101,10 @@
 
   <script src="js/core.js"></script>
   <script src="js/monetization.js"></script>
+  <script src="js/vendor/three.min.js"></script>
+  <script src="js/town.js"></script>
   <script src="js/games/pinrescue.js"></script>
   <script src="js/games/gaterush.js"></script>
-  <script src="js/vendor/three.min.js"></script>
   <script src="js/games/frostsurvival.js"></script>
   <script src="js/main.js"></script>
 </body>

@@ -2,39 +2,69 @@
  * FROST SURVIVAL – 3D idle-arcade camp (Whiteout Survival / "Frozen City" style ads).
  * Walk with the joystick. Outside the fence your axes spin and cut down beasts,
  * meat stacks on your back. Drop it at the grill, sell steaks to the queue at the
- * counter, pick up the cash and spend it on build pads. Buy "Next camp" to clear the level.
+ * counter, pick up the cash and spend it on build pads. The camp is one continuous game:
+ * "Expand camp" grows the fence and raises the stakes. Hunters hunt for you, even offline.
+ * Every steak sold also ships 1 food to the town.
  */
 (function () {
   'use strict';
   const { Save, UI, sfx, vibrate, fmt, clamp, roundRect } = GH;
 
-  const CAMP = { x0: -10, x1: 10, z0: -2, z1: 16 };
+  const CAMP = { x0: -10, x1: 10, z0: -2, z1: 16 }; // grows east and south with the camp tier
+  const MAX_SIZE_TIER = 5;
   const GATE = 2.6;
   const STACK_H = 0.15;
   const PLAYER_R = 0.4;
+  const HUNTER_CAP = 8;
   const GRILL = { x: 0, z: 5.5 };
   const GRILL_IN = { x: 0, z: 2.2 };
   const CASHIER = { x: -8.4, z: 8 };
   const CASHPAD = { x: -7.2, z: 12 };
   const QUEUE = { x: -11.6, z: 8, gap: 1.25 };
-  const WALLS = [
-    { x0: -10.3, x1: -GATE, z0: -2.3, z1: -1.7 },
-    { x0: GATE, x1: 10.3, z0: -2.3, z1: -1.7 },
-    { x0: -10.3, x1: 10.3, z0: 15.7, z1: 16.3 },
-    { x0: 9.7, x1: 10.3, z0: -2.3, z1: 16.3 },
-    { x0: -10.3, x1: -9.7, z0: -2.3, z1: 16.3 },
-    { x0: -10.7, x1: -9.3, z0: 6.3, z1: 9.7 }, // counter
-  ];
+  let WALLS = [];
 
-  // Build pads. cost(k) gets multiplied by the level price factor.
+  function setCampSize(tier) {
+    const t = Math.min(tier, MAX_SIZE_TIER);
+    CAMP.x1 = 10 + (t - 1) * 5;
+    CAMP.z1 = 16 + (t - 1) * 4;
+    const { x0, x1, z0, z1 } = CAMP;
+    WALLS = [
+      { x0: x0 - 0.3, x1: -GATE, z0: z0 - 0.3, z1: z0 + 0.3 },
+      { x0: GATE, x1: x1 + 0.3, z0: z0 - 0.3, z1: z0 + 0.3 },
+      { x0: x0 - 0.3, x1: x1 + 0.3, z0: z1 - 0.3, z1: z1 + 0.3 },
+      { x0: x1 - 0.3, x1: x1 + 0.3, z0: z0 - 0.3, z1: z1 + 0.3 },
+      { x0: x0 - 0.3, x1: x0 + 0.3, z0: z0 - 0.3, z1: z1 + 0.3 },
+      { x0: -10.7, x1: -9.3, z0: 6.3, z1: 9.7 }, // counter
+    ];
+  }
+
+  const steakPriceFor = (tier) => Math.round((6 + (tier - 1) * 2) * GH.Town.bonus.steakMult());
+
+  /** What the hunters earned while the camp was closed. */
+  function offlineCalc(st, now = Date.now()) {
+    const hunters = (st && st.built && st.built.hunter) || 0;
+    if (!hunters || !st.lastSeen) return null;
+    const secs = Math.min((now - st.lastSeen) / 1000, GH.Town.bonus.offlineHours() * 3600);
+    if (secs < 60) return null;
+    const meat = Math.floor((secs / 60) * 2 * hunters * GH.Town.bonus.hunterSpeed()); // 2 meat/min per hunter
+    if (meat < 1) return null;
+    const sells = !!st.built.cashier;
+    return { secs, hunters, meat, sells, cash: sells ? Math.round(meat * steakPriceFor(st.tier || 1) * 0.4) : 0 };
+  }
+
+  // Build pads. max/tier may depend on the camp tier; pos() for pads that move as the camp grows.
   const PADS = [
     { id: 'cashier', icon: '🧑‍💼', label: 'Cashier', x: -7.2, z: 4.6, cost: () => 30 },
-    { id: 'axe', icon: '🪓', label: '+1 Axe', x: 4.5, z: 4.5, cost: (k) => 25 + k * 30, max: 5 },
-    { id: 'pack', icon: '🎒', label: '+5 Carry', x: 4.5, z: 8.2, cost: (k) => 20 + k * 25, max: 5 },
+    { id: 'axe', icon: '🪓', label: '+1 Axe', x: 4.5, z: 4.5, cost: (k) => 25 + k * 30, max: (t) => Math.min(9, 3 + 2 * t) },
+    { id: 'pack', icon: '🎒', label: '+5 Carry', x: 4.5, z: 8.2, cost: (k) => 20 + k * 25, max: (t) => Math.min(9, 3 + 2 * t) },
     { id: 'tower1', icon: '🏹', label: 'Crossbow', x: -5, z: 0.4, cost: () => 50, requires: 'cashier', tower: { x: -5, z: -3.4 } },
-    { id: 'grill', icon: '🔥', label: 'Faster grill', x: 0, z: 9.6, cost: (k) => 40 + k * 40, max: 4, requires: 'cashier' },
+    { id: 'grill', icon: '🔥', label: 'Faster grill', x: 0, z: 9.6, cost: (k) => 40 + k * 40, max: (t) => Math.min(8, 2 + 2 * t), requires: 'cashier' },
+    { id: 'hunter', icon: '🧔', label: 'Hunter', x: -4.2, z: 12.8, cost: (k) => 90 + k * 90, max: (t) => Math.min(5, t), requires: 'cashier' },
     { id: 'tower2', icon: '🏹', label: 'Crossbow', x: 5, z: 0.4, cost: () => 110, requires: 'tower1', tower: { x: 5, z: -3.4 } },
-    { id: 'next', icon: '🏕️', label: 'Next camp', x: 5, z: 12.6, cost: () => 200, requires: 'tower1' },
+    { id: 'tower3', icon: '🏹', label: 'Crossbow', x: 12, z: 0.4, cost: () => 220, tier: 2, tower: { x: 12, z: -3.4 } },
+    { id: 'tower4', icon: '🏹', label: 'Crossbow', x: 18, z: 0.4, cost: () => 380, tier: 3, tower: { x: 18, z: -3.4 } },
+    { id: 'tower5', icon: '🏹', label: 'Crossbow', x: 24, z: 0.4, cost: () => 600, tier: 4, tower: { x: 24, z: -3.4 } },
+    { id: 'expand', icon: '🏕️', label: 'Expand camp', pos: () => ({ x: CAMP.x1 - 3, z: CAMP.z1 - 3.2 }), cost: (k) => 200 * Math.pow(1.9, k), max: () => Infinity, requires: 'tower1', noScale: true },
   ];
 
   const BEASTS = {
@@ -55,7 +85,7 @@
         snow: lam('#dfe8f2'), camp: lam('#d9a066'), pine: lam('#3f78a3'), pineDark: lam('#2f5f86'),
         white: lam('#ffffff'), skin: lam('#ffd2a6'), black: lam('#1a1a1a'), red: lam('#ff2a3a'),
         steel: lam('#d5dde6'), handle: lam('#7a4a22'), blue: lam('#3a7bd5'), blueDark: lam('#24549c'),
-        orange: lam('#f07a2e'), orangeDark: lam('#c95a1a'), teal: lam('#2aa198'), cream: lam('#f1e6d2'),
+        hunter: lam('#4f7d3a'), orange: lam('#f07a2e'), orangeDark: lam('#c95a1a'), teal: lam('#2aa198'), cream: lam('#f1e6d2'),
         fire: new T.MeshBasicMaterial({ color: '#ffb02e' }), fireCore: new T.MeshBasicMaterial({ color: '#fff1a8' }),
         arrow: new T.MeshBasicMaterial({ color: '#ffd23a' }),
       },
@@ -214,43 +244,52 @@
 
   // ------------------------------------------------------------------ game
   class FrostSurvival {
-    constructor({ api, level, save }) {
+    constructor({ api }) {
       this.api = api;
-      this.level = level;
       this.title = 'Frost Survival';
-      const L = level;
-      this.hpScale = 1 + (L - 1) * 0.35;
-      this.priceMult = 1 + (L - 1) * 0.5;
-      this.steakPrice = 6 + (L - 1) * 2;
-      this.maxBeasts = Math.min(10, 4 + L);
-      this.dmgMult = 1 + (save.upgrades.frostDmg || 0) * 0.2;
-      this.maxHp = 100 + (save.upgrades.frostWall || 0) * 25;
+      this.dmgMult = GH.Town.bonus.frostDmg();          // Forge
+      this.maxHp = 100 + GH.Town.bonus.frostHp();       // Walls
 
       this.load();
+      setCampSize(this.tier);
       this.buildScene();
       this.bindInput();
-      api.setHudButtons([{ label: '💵×2', cls: 'gold ad', onClick: () => this.boost() }]);
+      api.setHudButtons([{ label: this.boostLabel(), cls: 'gold' + (Save.data.items.hotgrill ? '' : ' ad'), onClick: (el) => this.boost(el) }]);
+      api.setLevelLabel(`Camp tier ${this.tier}`);
       this.time = 0;
       this.saveT = 0;
+      this.offlineWelcome();
     }
+
+    get tier() { return this.st.tier; }
+    get hpScale() { return 1 + (this.tier - 1) * 0.35; }
+    get priceMult() { return 1 + (this.tier - 1) * 0.25; }
+    get steakPrice() { return steakPriceFor(this.tier); }
+    get maxBeasts() { return Math.min(12, 4 + this.tier) + this.lvl('hunter'); }
 
     // ---------------------------------------------------------------- state
     load() {
       const s = Save.data.frostCamp;
-      const fresh = { level: this.level, cash: 0, built: {}, paid: {}, raw: 0, cooked: 0, pile: [] };
-      this.st = s && s.level === this.level ? Object.assign(fresh, s) : fresh;
+      const fresh = { tier: 1, cash: 0, built: {}, paid: {}, raw: 0, cooked: 0, pile: [], lastSeen: 0 };
+      this.st = s ? Object.assign(fresh, s) : fresh;
+      if (this.st.level) { delete this.st.level; delete this.st.built.next; delete this.st.paid.next; } // v0.2 per-level camps
     }
 
     persist() {
+      this.st.lastSeen = Date.now();
       Save.data.frostCamp = this.st;
+      Save.data.levels.frost = this.tier;
       try { localStorage.setItem('gamehub_save_v1', JSON.stringify(Save.data)); } catch (e) { /* ignore */ }
     }
 
     lvl(id) { return this.st.built[id] || 0; }
-    padCost(p) { return Math.round((p.cost(this.lvl(p.id)) * this.priceMult) / 5) * 5; }
+    padCost(p) { return Math.round((p.cost(this.lvl(p.id)) * (p.noScale ? 1 : this.priceMult)) / 5) * 5; }
+    padMax(p) { return p.max ? p.max(this.tier) : 1; }
+    padPos(p) { return p.pos ? p.pos() : p; }
     padVisible(p) {
       if (p.requires && !this.lvl(p.requires)) return false;
-      return this.lvl(p.id) < (p.max || 1);
+      if (p.tier && this.tier < p.tier) return false;
+      return this.lvl(p.id) < this.padMax(p);
     }
     get axes() { return 2 + this.lvl('axe'); }
     get cap() { return 8 + this.lvl('pack') * 5; }
@@ -266,6 +305,7 @@
         <div class="fs-goal"></div>
         <div class="fs-cash"><span>💵</span><b>0</b></div>
         <div class="fs-boost" hidden></div>
+        <div class="fs-town"></div>
         <div class="fs-joy idle"><i></i></div>`;
       const wrap = document.getElementById('canvas-wrap');
       wrap.appendChild(this.layer);
@@ -275,6 +315,7 @@
         goal: this.layer.querySelector('.fs-goal'),
         cash: this.layer.querySelector('.fs-cash b'),
         boost: this.layer.querySelector('.fs-boost'),
+        town: this.layer.querySelector('.fs-town'),
         joy: this.layer.querySelector('.fs-joy'),
         knob: this.layer.querySelector('.fs-joy i'),
       };
@@ -307,11 +348,10 @@
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
       scene.add(ground);
-      const floor = new T.Mesh(new T.PlaneGeometry(CAMP.x1 - CAMP.x0, CAMP.z1 - CAMP.z0), m.camp);
-      floor.rotation.x = -Math.PI / 2;
-      floor.position.set((CAMP.x0 + CAMP.x1) / 2, 0.01, (CAMP.z0 + CAMP.z1) / 2);
-      floor.receiveShadow = true;
-      scene.add(floor);
+      this.floor = new T.Mesh(new T.PlaneGeometry(1, 1), m.camp);
+      this.floor.rotation.x = -Math.PI / 2;
+      this.floor.receiveShadow = true;
+      scene.add(this.floor);
 
       this.buildTrees();
       this.buildFence();
@@ -382,10 +422,10 @@
       const { m } = assets();
       const spots = [];
       const rnd = GH.rng(4242);
-      for (let i = 0; i < 900 && spots.length < 190; i++) {
-        const x = (rnd() - 0.5) * 110, z = (rnd() - 0.5) * 110 - 8;
-        const nearCamp = x > -16 && x < 16 && z > -6 && z < 34; // keep the camera's line of sight clear
-        const hunting = x > -26 && x < 26 && z > -42 && z < -5;
+      for (let i = 0; i < 1400 && spots.length < 190; i++) {
+        const x = (rnd() - 0.5) * 130 + 8, z = (rnd() - 0.5) * 120 - 4;
+        const nearCamp = x > -16 && x < 36 && z > -6 && z < 50; // room for the biggest camp + camera line of sight
+        const hunting = x > -26 && x < 42 && z > -42 && z < -5;
         const street = x < -9 && x > -34 && z > 3 && z < 17;
         if (nearCamp || street) continue;
         if (hunting && rnd() > 0.06) continue;
@@ -407,6 +447,9 @@
     buildFence() {
       const T = THREE;
       const { m } = assets();
+      if (this.fence) for (const f of this.fence) { this.scene.remove(f); f.dispose(); }
+      this.floor.scale.set(CAMP.x1 - CAMP.x0, CAMP.z1 - CAMP.z0, 1);
+      this.floor.position.set((CAMP.x0 + CAMP.x1) / 2, 0.01, (CAMP.z0 + CAMP.z1) / 2);
       const posts = [];
       const step = 0.55;
       for (let x = CAMP.x0; x <= CAMP.x1 + 0.01; x += step) {
@@ -417,12 +460,10 @@
         if (z < 6.2 || z > 9.8) posts.push([CAMP.x0, z]);
         posts.push([CAMP.x1, z]);
       }
-      const geo = new T.CylinderGeometry(0.2, 0.22, 1.5, 6);
-      geo.translate(0, 0.75, 0);
-      const tip = new T.ConeGeometry(0.2, 0.45, 6);
-      tip.translate(0, 1.72, 0);
-      const a = new T.InstancedMesh(geo, m.wood, posts.length);
-      const b = new T.InstancedMesh(tip, m.cream, posts.length);
+      this.postGeo = this.postGeo || new T.CylinderGeometry(0.2, 0.22, 1.5, 6).translate(0, 0.75, 0);
+      this.tipGeo = this.tipGeo || new T.ConeGeometry(0.2, 0.45, 6).translate(0, 1.72, 0);
+      const a = new T.InstancedMesh(this.postGeo, m.wood, posts.length);
+      const b = new T.InstancedMesh(this.tipGeo, m.cream, posts.length);
       const o = new T.Object3D();
       posts.forEach(([x, z], i) => {
         o.position.set(x, 0, z);
@@ -432,6 +473,7 @@
       });
       a.castShadow = b.castShadow = true;
       this.scene.add(a, b);
+      this.fence = [a, b];
     }
 
     buildStations() {
@@ -493,6 +535,7 @@
 
       this.worker = null;
       this.towers = [];
+      this.hunters = [];
     }
 
     // Reflect saved/built state in the world.
@@ -520,8 +563,25 @@
         this.scene.add(grp);
         this.towers.push({ id: def.id, grp, head, x: def.tower.x, z: def.tower.z, cd: 0 });
       }
+      this.syncHunters();
       this.syncAxes();
       this.syncStacks();
+    }
+
+    syncHunters() {
+      const { m, g } = assets();
+      while (this.hunters.length < this.lvl('hunter')) {
+        const grp = person(m.hunter, m.handle);
+        const spear = mesh(g.box, m.handle, 0.38, 0.95, 0.15, 0.07, 0.07, 1.5);
+        spear.rotation.x = -0.5;
+        const tip = mesh(g.box, m.steel, 0.38, 1.3, 0.75, 0.14, 0.05, 0.3);
+        tip.rotation.x = -0.5;
+        const stack = new THREE.Group();
+        grp.add(spear, tip, stack);
+        grp.position.set(-2 + this.hunters.length * 1.2, 0, 12.8);
+        this.scene.add(grp);
+        this.hunters.push({ grp, stack, meshes: [], carry: 0, state: 'hunt', phase: 0, swing: 0, depT: 0, spear, tip });
+      }
     }
 
     syncAxes() {
@@ -557,6 +617,7 @@
         (i, p) => { const k = i % 8; p.set(k < 4 ? -0.28 : 0.28, 0.07 + Math.floor(i / 8) * STACK_H, -1.2 + (k % 4) * 0.8); });
       this.syncStack(this.cashMeshes, this.cashGroup, this.st.pile.length, m.cash, g.cash,
         (i, p) => { const k = i % 6; p.set(-0.35 + (k % 2) * 0.7, 0.05 + Math.floor(i / 6) * 0.1, -0.45 + Math.floor(k / 2) * 0.45); });
+      for (const h of this.hunters || []) this.syncStack(h.meshes, h.stack, h.carry, m.raw, g.meat, (i, p) => p.set(0, 0.75 + i * STACK_H, -0.5), HUNTER_CAP);
     }
 
     // ---------------------------------------------------------------- input
@@ -664,11 +725,11 @@
       const p = this.player.position;
       let x, z, tries = 0;
       do {
-        x = (Math.random() - 0.5) * 36;
+        x = -18 + Math.random() * (CAMP.x1 + 26);
         z = -7 - Math.random() * 22;
         tries++;
       } while (!anywhere && tries < 20 && (x - p.x) ** 2 + (z - p.z) ** 2 < 14 * 14);
-      const kind = Math.random() < 0.28 + this.level * 0.03 ? 'bear' : 'wolf';
+      const kind = Math.random() < Math.min(0.6, 0.25 + this.tier * 0.05) ? 'bear' : 'wolf';
       const def = BEASTS[kind];
       const grp = beastMesh(kind);
       grp.position.set(x, 0, z);
@@ -698,13 +759,145 @@
       }
     }
 
-    boost() {
+    boostLabel() { const n = Save.data.items.hotgrill || 0; return n ? `🔥 ×${n}` : '💵×2'; }
+
+    boost(el) {
       if (this.blocked()) return;
+      const refresh = () => { if (el) { el.innerHTML = this.boostLabel(); el.classList.toggle('ad', !Save.data.items.hotgrill); } };
+      if (Save.useItem('hotgrill')) { this.boostT = 90; UI.toast('🔥 Hot Grill: ×2 cash for 90s!'); refresh(); return; }
       this.paused = true;
       Monetization.showRewarded('frost_cash_boost').then((ok) => {
         this.paused = false;
         if (ok) { this.boostT = 90; Monetization.resetInterstitialCounter(); UI.toast('💵 ×2 cash for 90s!'); }
       });
+    }
+
+    offlineWelcome() {
+      const off = offlineCalc(this.st);
+      this.st.lastSeen = Date.now();
+      if (!off) return;
+      const h = Math.floor(off.secs / 3600), mnt = Math.floor((off.secs % 3600) / 60);
+      const away = h ? `${h}h ${mnt}m` : `${mnt}m`;
+      const claim = (mult) => {
+        if (off.sells) {
+          this.st.cash += off.cash * mult;
+          Save.data.food += off.meat * mult;
+        } else {
+          this.st.raw = Math.min(80, this.st.raw + off.meat * mult);
+        }
+        this.syncStacks();
+        this.persist();
+        Save.save();
+        sfx('coin');
+      };
+      const what = off.sells
+        ? `<div class="chips center big"><span class="chip">💵 ${fmt(off.cash)}</span><span class="chip">🥩 ${fmt(off.meat)} to town</span></div>`
+        : `<div class="chips center big"><span class="chip">🥩 ${fmt(Math.min(80, off.meat))} raw meat</span></div><p class="sub">Hire a cashier and your camp sells it while you're away.</p>`;
+      UI.modal({
+        cls: 'win', icon: '💤', title: 'Welcome back!',
+        sub: `While you were away (${away}) your ${off.hunters} hunter${off.hunters > 1 ? 's' : ''} kept hunting.`,
+        body: what,
+        buttons: [
+          { label: 'Claim ×2', cls: 'gold ad', onClick: async () => { const ok = await Monetization.showRewarded('frost_offline_x2'); if (ok) Monetization.resetInterstitialCounter(); claim(ok ? 2 : 1); } },
+          { label: 'Claim', cls: 'green', onClick: () => claim(1) },
+        ],
+      });
+    }
+
+    /** Move a raw steak into the grill pile with a flying animation. */
+    depositRaw(from) {
+      const { g, m } = assets();
+      const i = this.st.raw;
+      this.st.raw++;
+      this.rawInFlight = (this.rawInFlight || 0) + 1;
+      this.fly(g.meat, m.raw, from, () => this.rawGroup.localToWorld(new THREE.Vector3((i % 2) * 0.62, 0.07 + Math.floor(i / 2) * STACK_H, 0)), 0.3, () => { this.rawInFlight--; this.syncStacks(); });
+    }
+
+    /** Next waypoint towards goal: everyone enters and leaves the camp through the north gate. */
+    route(p, goal) {
+      const pi = inCamp(p), gi = inCamp(goal);
+      if (pi === gi) return goal;
+      const inner = { x: 0, z: CAMP.z0 + 2.2 }, outer = { x: 0, z: CAMP.z0 - 2.2 };
+      if (pi) return Math.abs(p.x) < 1.2 && p.z < CAMP.z0 + 2.6 ? outer : inner;
+      return Math.abs(p.x) < 1.2 && p.z > CAMP.z0 - 2.6 ? inner : outer;
+    }
+
+    updateHunters(dt) {
+      const { g, m } = assets();
+      const speed = 3.6 * GH.Town.bonus.hunterSpeed();
+      const dps = 2 * this.dmgMult * GH.Town.bonus.hunterSpeed();
+      for (const h of this.hunters) {
+        const p = h.grp.position;
+        let goal = null;
+        h.swing = Math.max(0, h.swing - dt);
+        if (h.state === 'hunt') {
+          let drop = null, dd = 14 * 14;
+          for (const d of this.drops) {
+            if (d.taken || d.t < 0.35) continue;
+            const k = dist2(d.mm.position, p.x, p.z);
+            if (k < dd) { dd = k; drop = d; }
+          }
+          let beast = null, bd = Infinity;
+          if (!drop) {
+            for (const b of this.beasts) {
+              if (b.dead) continue;
+              const k = dist2(b.grp.position, p.x, p.z);
+              if (k < bd) { bd = k; beast = b; }
+            }
+          }
+          if (drop) {
+            goal = drop.mm.position;
+            if (dd < 1.3 * 1.3) {
+              drop.taken = true;
+              this.scene.remove(drop.mm);
+              const idx = h.carry++;
+              this.fly(g.meat, m.raw, drop.mm.position, () => h.grp.localToWorld(new THREE.Vector3(0, 0.75 + idx * STACK_H, -0.5)), 0.25, () => this.syncStacks(), 1);
+            }
+          } else if (beast) {
+            const reach = beast.def.r + 1.2;
+            if (bd < reach * reach) {
+              goal = null;
+              h.grp.rotation.y = Math.atan2(beast.grp.position.x - p.x, beast.grp.position.z - p.z);
+              this.damageBeast(beast, dps * dt);
+              h.swing = 0.2;
+            } else goal = beast.grp.position;
+          } else {
+            goal = { x: 0, z: CAMP.z0 - 7 };
+          }
+          if (h.carry >= HUNTER_CAP || (h.carry > 0 && !drop && !beast)) h.state = 'return';
+        } else {
+          goal = GRILL_IN;
+          if (dist2(GRILL_IN, p.x, p.z) < 1.3 * 1.3) {
+            goal = null;
+            h.depT -= dt;
+            if (h.depT <= 0 && h.carry > 0) {
+              h.depT = 0.1;
+              const from = h.grp.localToWorld(new THREE.Vector3(0, 0.75 + (h.carry - 1) * STACK_H, -0.5));
+              h.carry--;
+              this.syncStacks();
+              this.depositRaw(from);
+            }
+            if (h.carry === 0) h.state = 'hunt';
+          }
+        }
+        let moving = false;
+        if (goal) {
+          const w = this.route(p, goal);
+          const dx = w.x - p.x, dz = w.z - p.z, d = Math.hypot(dx, dz);
+          if (d > 0.3) {
+            const st = Math.min(d, speed * dt);
+            p.x += (dx / d) * st; p.z += (dz / d) * st;
+            h.grp.rotation.y = Math.atan2(dx, dz);
+            moving = true;
+          }
+          const gx = p.x - GRILL.x, gz = p.z - GRILL.z, gd = Math.hypot(gx, gz);
+          if (gd < 1.5 && gd > 0.001) { p.x = GRILL.x + (gx / gd) * 1.5; p.z = GRILL.z + (gz / gd) * 1.5; }
+        }
+        h.phase += dt * 13;
+        animLegs(h.grp, h.phase, moving);
+        const sw = h.swing > 0 ? Math.sin(this.time * 30) * 0.6 : 0;
+        h.spear.rotation.x = h.tip.rotation.x = -0.5 + sw;
+      }
     }
 
     // ---------------------------------------------------------------- update
@@ -794,7 +987,7 @@
           else if (this.hp > 0) { this.hp -= b.def.dps * dt; this.hurtT = 2.5; if (Math.random() < dt * 3) { sfx('hit'); vibrate(15); } }
         } else {
           b.wanderT -= dt;
-          if (b.wanderT <= 0) { b.tx = clamp(bp.x + (Math.random() - 0.5) * 12, -22, 22); b.tz = clamp(bp.z + (Math.random() - 0.5) * 12, -32, -6); b.wanderT = 2 + Math.random() * 3; }
+          if (b.wanderT <= 0) { b.tx = clamp(bp.x + (Math.random() - 0.5) * 12, -22, CAMP.x1 + 12); b.tz = clamp(bp.z + (Math.random() - 0.5) * 12, -32, -6); b.wanderT = 2 + Math.random() * 3; }
           const wx = b.tx - bp.x, wz = b.tz - bp.z, wd = Math.hypot(wx, wz);
           if (wd > 0.3) { mx = wx / wd; mz = wz / wd; speed = b.def.spd; }
         }
@@ -894,12 +1087,12 @@
         const from = this.backTop(this.carry - 1);
         this.carry--;
         this.syncStacks();
-        const i = this.st.raw;
-        this.st.raw++;
-        this.rawInFlight = (this.rawInFlight || 0) + 1;
-        this.fly(g.meat, m.raw, from, () => this.rawGroup.localToWorld(new T.Vector3((i % 2) * 0.62, 0.07 + Math.floor(i / 2) * STACK_H, 0)), 0.3, () => { this.rawInFlight--; this.syncStacks(); });
+        this.depositRaw(from);
         sfx('pop');
       }
+
+      // --- hunters
+      this.updateHunters(dt);
 
       // --- cooking
       const cookedCap = 48;
@@ -962,6 +1155,8 @@
       this.cashShown += (this.st.cash - this.cashShown) * Math.min(1, dt * 10);
       if (Math.abs(this.st.cash - this.cashShown) < 0.5) this.cashShown = this.st.cash;
       this.ui.cash.textContent = fmt(Math.round(this.cashShown));
+      const townTxt = `🏰 🥩 ${fmt(Save.data.food)}${this.hunters.length ? ` · 🧔 ${this.hunters.length}` : ''}`;
+      if (townTxt !== this.townTxt) { this.townTxt = townTxt; this.ui.town.textContent = townTxt; }
       this.updateGuide();
 
       this.saveT += dt;
@@ -977,7 +1172,7 @@
         this.custT = 3 + Math.random() * 2;
         const grp = person(m.orange, m.orangeDark);
         grp.position.set(-30, 0, 8 + (Math.random() - 0.5) * 3);
-        const need = 1 + Math.floor(Math.random() * (2 + Math.min(this.level, 3)));
+        const need = 1 + Math.floor(Math.random() * (2 + Math.min(this.tier, 3)));
         const bub = textSprite((c, w, h, t) => bubble(c, w, h, t));
         bub.position.y = 2.25;
         grp.add(bub);
@@ -1017,6 +1212,7 @@
         if (c.state === 'front' && c.got >= c.need) {
           c.state = 'leave';
           const price = this.steakPrice * (this.boostT > 0 ? 2 : 1);
+          Save.data.food += c.need; // every steak sold also feeds the town
           for (let i = 0; i < c.need; i++) this.billQueue.push({ t: i * 0.09, price });
           sfx('coin');
           for (const o of this.customers) if (o !== c && o.state !== 'leave') o.slot = Math.max(0, o.slot - 1);
@@ -1043,7 +1239,9 @@
         if (!vis) continue;
         const cost = this.padCost(def);
         const paid = this.st.paid[def.id] || 0;
-        const on = dist2(def, P.x, P.z) < 1.25 * 1.25;
+        const pos = this.padPos(def);
+        pad.tile.position.x = pos.x; pad.tile.position.z = pos.z;
+        const on = dist2(pos, P.x, P.z) < 1.25 * 1.25;
         if (on && this.st.cash > 0 && this.padT <= 0 && paid < cost) {
           this.padT = 0.03;
           const chunk = Math.min(this.st.cash, Math.max(1, Math.ceil(cost / 40)), cost - paid);
@@ -1052,16 +1250,19 @@
           this.st.paid[def.id] = paid + chunk;
           if (Math.random() < 0.5) {
             const { g, m } = assets();
-            this.fly(g.cash, m.cash, P.clone().setY(1.3), () => new THREE.Vector3(def.x, 0.1, def.z), 0.2, null, 0.8);
+            this.fly(g.cash, m.cash, P.clone().setY(1.3), () => new THREE.Vector3(pos.x, 0.1, pos.z), 0.2, null, 0.8);
           }
           if (paid + chunk >= cost) { this.complete(def); continue; }
         }
         const left = cost - (this.st.paid[def.id] || 0);
-        const key = `${left}`;
+        const key = `${left}|${this.tier}`;
         if (key !== pad.shownKey) {
           pad.shownKey = key;
           const lv = this.lvl(def.id);
-          pad.tile.userData.redraw(def.icon, def.max ? `${def.label} ${lv + 1}/${def.max}` : def.label, '$' + fmt(left), 1 - left / cost);
+          const max = this.padMax(def);
+          const label = def.id === 'expand' ? (this.tier < MAX_SIZE_TIER ? `Expand · tier ${this.tier + 1}` : `Upgrade · tier ${this.tier + 1}`)
+            : max > 1 && max < Infinity ? `${def.label} ${lv + 1}/${max}` : def.label;
+          pad.tile.userData.redraw(def.icon, label, '$' + fmt(left), 1 - left / cost);
         }
       }
     }
@@ -1072,18 +1273,33 @@
       this.padT = 0.5;
       sfx('level');
       vibrate([20, 30, 20]);
-      Monetization.track('frost_build', { id: def.id, level: this.level });
-      if (def.id === 'next') {
-        this.persist();
-        this.done = true;
-        Save.data.frostCamp = null;
-        Save.save();
-        this.api.win({ coins: 60 + this.level * 25, text: `🏕️ Camp ${this.level} complete!` });
-        return;
-      }
-      UI.toast({ cashier: 'Cashier hired!', axe: `${this.axes + 1} axes!`, pack: 'Bigger backpack!', grill: 'Grill upgraded!', tower1: 'Crossbow built!', tower2: 'Crossbow built!' }[def.id] || 'Built!');
+      Monetization.track('frost_build', { id: def.id, tier: this.tier });
+      if (def.id === 'expand') return this.expand();
+      UI.toast({ cashier: 'Cashier hired!', axe: `${this.axes} axes!`, pack: 'Bigger backpack!', grill: 'Grill upgraded!', hunter: 'A hunter joined your camp!' }[def.id] || (def.tower ? 'Crossbow built!' : 'Built!'));
       this.syncStations();
       this.persist();
+    }
+
+    expand() {
+      this.st.tier++;
+      setCampSize(this.tier);
+      this.buildFence();
+      this.api.setLevelLabel(`Camp tier ${this.tier}`);
+      for (const pad of this.pads) pad.shownKey = '';
+      // milestone rewards go to the town
+      const gold = Math.round(150 * this.tier * GH.Town.bonus.goldMult());
+      const chest = this.tier % 3 === 0 ? 'gold' : 'silver';
+      const slot = GH.Town.addChest(chest);
+      Save.data.coins += gold;
+      this.persist();
+      Save.save();
+      sfx('win');
+      UI.modal({
+        cls: 'win', icon: '🏕️', title: `Camp tier ${this.tier}!`,
+        sub: this.tier <= MAX_SIZE_TIER ? 'Your camp grew bigger. Stronger beasts roam outside, and steaks sell for more.' : 'Your camp is at full size. Beasts and prices keep rising.',
+        body: `<div class="chips center big"><span class="chip">🪙 ${fmt(gold)}</span></div><div class="loot-list"><div class="loot"><span>${GH.Town.CHESTS[chest].icon}</span><b>${slot >= 0 ? GH.Town.CHESTS[chest].name + ' sent to town' : 'Chest slots full!'}</b></div></div>`,
+        buttons: [{ label: 'Keep building', cls: 'green' }],
+      });
     }
 
     updateGuide() {
@@ -1099,7 +1315,7 @@
       if (this.carry >= this.cap || (this.carry > 0 && inCamp(P))) { target = GRILL_IN; text = 'Drop the meat at the grill 🔥'; }
       else if (this.st.pile.length >= 3) { target = CASHPAD; text = 'Pick up your cash 💵'; }
       else if (!this.worker && front && this.st.cooked > 0) { target = CASHIER; text = 'Stand at the counter to sell steaks'; }
-      else if (afford) { target = afford.def; text = `Build: ${afford.def.label}`; }
+      else if (afford) { target = this.padPos(afford.def); text = afford.def.id === 'expand' ? 'Expand your camp 🏕️' : `Build: ${afford.def.label}`; }
       else if (this.carry > 0) { target = nearestBeast(); text = `Keep hunting (${this.carry}/${this.cap}) or drop meat at the grill`; }
       else { target = nearestBeast(); text = 'Go hunt beasts outside the gate 🪓'; }
       this.guideTarget = target;
@@ -1134,9 +1350,12 @@
   GH.Games.frost = {
     id: 'frost',
     name: 'Frost Survival',
-    tagline: 'Hunt beasts, cook, sell, build your camp.',
+    tagline: 'Hunt, cook, sell. Grow your camp.',
     icon: '🏕️',
     colors: ['#2a5c8a', '#7fd4ff'],
     create: (opts) => new FrostSurvival(opts),
+    continuous: true,
+    levelLabel: () => `Camp tier ${(Save.data.frostCamp && Save.data.frostCamp.tier) || 1}`,
+    offlinePreview: () => offlineCalc(Save.data.frostCamp),
   };
 })();

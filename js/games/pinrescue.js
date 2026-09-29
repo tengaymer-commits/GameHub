@@ -154,7 +154,7 @@
       this.hintPin = -1;
       this.load();
       api.setHudButtons([
-        { label: '💡 Hint', cls: 'gold ad', onClick: () => this.hint() },
+        { label: this.hintLabel(), cls: 'gold' + (GH.Save.data.items.hint ? '' : ' ad'), onClick: (el) => this.hint(el) },
         { label: '↻', cls: 'ghost', onClick: () => this.load() },
       ]);
     }
@@ -231,17 +231,25 @@
       vibrate(15);
     }
 
-    async hint() {
+    hintLabel() { const n = GH.Save.data.items.hint || 0; return n ? `💡 Hint ×${n}` : '💡 Hint'; }
+
+    async hint(el) {
       if (this.state !== 'play') return;
       const next = this.def.solution.find((i) => !this.pins[i].removed);
       if (next === undefined) return;
       // A wrong pin already pulled? Hints can't save you – suggest a restart.
       const wrong = this.pulled.some((i) => !this.def.solution.includes(i));
       if (wrong) { GH.UI.toast('Restart the level first ↻'); return; }
-      this.paused = true;
-      const ok = await Monetization.showRewarded('pin_hint');
-      this.paused = false;
-      if (ok) { this.hintPin = next; Monetization.resetInterstitialCounter(); }
+      // Hint cards from chests are spent first; otherwise a rewarded ad pays for it.
+      if (GH.Save.useItem('hint')) {
+        this.hintPin = next;
+      } else {
+        this.paused = true;
+        const ok = await Monetization.showRewarded('pin_hint');
+        this.paused = false;
+        if (ok) { this.hintPin = next; Monetization.resetInterstitialCounter(); }
+      }
+      if (el) { el.innerHTML = this.hintLabel(); el.classList.toggle('ad', !GH.Save.data.items.hint); }
     }
 
     handlePos(pin) {

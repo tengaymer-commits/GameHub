@@ -1,15 +1,38 @@
 # GameHub: the games from the ads
 
-A mobile-first hub of the "fake ad" games people keep seeing in ads, built so they're actually playable.
-All three modes run from one app, share one currency, and use one monetization layer.
+A mobile-first game built around the "fake ad" game formats people keep seeing in ads, made actually playable.
+The hub is a **3D town** you build up. Every mini-game feeds it with resources, and the town powers up the mini-games in return.
+
+## How it fits together
+
+```
+ Pin Rescue ──► 🪙 Gold + 📦 chests ─┐
+ Gate Rush ───► 🪖 Troops, 🪙 + 📦 ──┼──► TOWN: upgrade buildings ──► bonuses in the mini-games
+ Frost Survival ► 🥩 Food, 📦 on expand ┘       Kitchen/Vault produce 🥩/🪙 over time
+                                             chests drop power-up cards: 💡 🛡️ 🔥
+```
 
 | Mode | Inspired by | How it plays |
 |---|---|---|
-| 📌 **Pin Rescue** | Hero Wars / Evony "pull the pin" ads | Tap pins in the right order. Gold must reach the knight, lava kills, and water turns lava to stone. Defeat every orc. 6 hand-made puzzles, then mirrored variants. |
-| 🪖 **Gate Rush** | Last War / Whiteout / Kingshot "math gate" ads | Drag to steer your squad through `+`/`×` gates and away from `-`/`÷` gates. Dodge saws, beat enemy squads, then take down the Ice Giant. Levels are generated from a seed, so each level number always plays the same. |
-| 🏕️ **Frost Survival** (3D) | Whiteout Survival / Frozen City idle-camp ads | Move with the joystick (or WASD on desktop). Outside the fence your axes spin and cut down wolves and polar bears. The meat stacks on your back. Drop it at the grill, sell steaks to the customers queuing at the counter, pick up the cash, and spend it on build pads: cashier, crossbow towers, more axes, a bigger backpack, a faster grill. Buy **Next camp** to clear the level. Camp progress is saved mid-level. |
+| 🏕️ **Frost Survival** (3D, continuous) | Whiteout Survival / Frozen City idle-camp ads | Move with the joystick (or WASD). Outside the fence your axes spin and cut down wolves and polar bears, and their meat stacks on your back. Drop it at the grill; customers buy the steaks at the counter. Every steak sold also ships 🥩 1 food to the town. Spend camp cash on build pads: cashier, **hunters** (they hunt and deliver meat for you), crossbow towers, axes, backpack, faster grill. **Expand camp** grows the fence (up to tier 5), unlocks more pads, brings stronger beasts and higher prices, and sends a chest to town. With hunters hired the camp keeps earning **offline** (2h cap, +1h per Hunter's Lodge level). |
+| 🪖 **Gate Rush** | Last War / Kingshot "math gate" ads | Drag to steer your squad through `+`/`×` gates, dodge saws, beat enemy squads and the Ice Giant. Survivors join the town as troops. |
+| 📌 **Pin Rescue** | Hero Wars / Evony "pull the pin" ads | Pull pins in the right order: lava kills, water turns lava to stone, orcs must die, and the gold must reach the knight. |
 
-The hub also has persistent coins and gems, a **daily reward**, **Barracks** (permanent upgrades that act as a coin sink), a **Shop**, settings, and two "Coming soon" slots for new modes.
+### Town buildings
+| Building | Effect |
+|---|---|
+| 🏰 Town Hall | Level cap for every other building |
+| ⚔️ Barracks | Gate Rush: +3 starting soldiers per level |
+| 🔨 Forge | Frost Survival: +20% axe, crossbow and hunter damage per level |
+| 🏹 Hunter's Lodge | Frost Survival: hunters +25% faster, +1h offline time per level |
+| 🍲 Kitchen | Produces food per hour; camp steaks sell for +10% per level |
+| 💰 Vault | Produces gold per hour; +10% gold from mini-games per level |
+| 🔮 Mage Tower | Chests unlock 15% faster per level |
+| 🧱 Walls | Frost Survival: +25 max health per level |
+
+### Chests and power-ups
+Winning a Pin Rescue or Gate Rush level, or expanding the camp, drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
+💡 **Hint** (Pin Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
 ## Test it
 
@@ -34,7 +57,8 @@ index.html              hub + game screen markup, banner ad slot
 css/style.css           all UI styling (safe-area aware, portrait)
 js/core.js              save data (localStorage), sfx synth, canvas Stage (360x640 letterboxed), modal/toast UI
 js/monetization.js      ads + IAP + analytics interface (mocked in the browser)
-js/main.js              hub tabs, game launcher/loop, win/lose flows, daily reward, barracks, shop
+js/town.js              town buildings, bonuses, production, chests, 3D town view
+js/main.js              hub (town, chests, modes, shop), game launcher/loop, win/lose flows, daily reward
 js/games/pinrescue.js   particle-physics pin puzzle
 js/games/gaterush.js    runner with gates/squads/boss
 js/games/frostsurvival.js 3D idle-arcade camp (Three.js)
@@ -55,11 +79,13 @@ Every game only calls `Monetization.*`, never an ad SDK directly. Swapping the m
 |---|---|---|
 | Banner 320×50 | Banner | Bottom of every screen. Hidden with *Remove Ads*. |
 | Every 3rd finished level | Interstitial | After win/lose. Frequency-capped, skipped after a rewarded ad and with *Remove Ads*. |
-| Claim ×3 coins | Rewarded | Victory screen |
+| Gold ×3 | Rewarded | Victory screen |
+| Open chest now / halve timer | Rewarded or gems | Chest slots |
+| Offline earnings ×2 | Rewarded | Frost Survival welcome-back screen |
 | Revive | Rewarded, or 10 💎 | Gate Rush |
-| Hint / Skip level | Rewarded | Pin Rescue |
-| 2× cash for 90s | Rewarded | Frost Survival HUD button |
-| Daily ×2, Free coins | Rewarded | Hub / Shop |
+| Hint / Skip level | Rewarded (or a Hint card) | Pin Rescue |
+| 2× cash for 90s | Rewarded (or a Hot Grill card) | Frost Survival HUD button |
+| Daily ×2, Free supplies | Rewarded | Hub / Shop |
 | Remove Ads, Starter Pack, gem packs | IAP | Shop |
 
 Tuning lives in `Monetization.config` (interstitial frequency, cooldowns) and in the `products` list.

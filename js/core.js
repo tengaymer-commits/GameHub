@@ -7,15 +7,20 @@
 
   function defaults() {
     return {
-      coins: 150,
+      coins: 150,          // shown as Gold
       gems: 10,
+      food: 40,
+      troops: 20,
       noAds: false,
       lastDaily: 0,
       levels: { pin: 1, gate: 1, frost: 1 },
-      upgrades: { gateStart: 0, frostDmg: 0, frostWall: 0 },
+      town: { hall: 1, barracks: 0, forge: 0, lodge: 0, kitchen: 0, vault: 0, tower: 0, walls: 0 },
+      prod: {},            // building id -> timestamp production was last collected
+      chests: [null, null, null, null],
+      items: { hint: 1, reinforce: 1, hotgrill: 1 },
       settings: { sound: true, vibe: true },
       stats: { levelsSinceInterstitial: 0, lastFreeCoinsAd: 0 },
-      frostCamp: null, // in-progress Frost Survival camp
+      frostCamp: null,     // the continuous Frost Survival camp
     };
   }
 
@@ -29,6 +34,15 @@
         if (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k])) Object.assign(d[k], raw[k]);
         else d[k] = raw[k];
       }
+      // v0.1 saves had "Barracks" upgrades; carry them over to town buildings.
+      if (raw.upgrades && !raw.town) {
+        const u = raw.upgrades;
+        d.town.barracks = u.gateStart || 0;
+        d.town.forge = u.frostDmg || 0;
+        d.town.walls = u.frostWall || 0;
+        d.town.hall = Math.max(1, d.town.barracks, d.town.forge, d.town.walls);
+      }
+      delete d.upgrades;
       this.data = d;
     },
     save() {
@@ -38,6 +52,21 @@
     reset() { this.data = defaults(); this.save(); },
     addCoins(n) { this.data.coins = Math.max(0, this.data.coins + Math.round(n)); this.save(); },
     addGems(n) { this.data.gems = Math.max(0, this.data.gems + Math.round(n)); this.save(); },
+    /** Add several resources at once, e.g. { coins: 50, food: 10 }. */
+    grant(res) {
+      for (const [k, v] of Object.entries(res || {})) {
+        if (k === 'items') for (const [id, n] of Object.entries(v)) this.data.items[id] = (this.data.items[id] || 0) + n;
+        else if (typeof this.data[k] === 'number') this.data[k] = Math.max(0, this.data[k] + Math.round(v));
+      }
+      this.save();
+    },
+    canAfford(cost) { return Object.entries(cost).every(([k, v]) => (this.data[k] || 0) >= v); },
+    useItem(id) {
+      if (!this.data.items[id]) return false;
+      this.data.items[id]--;
+      this.save();
+      return true;
+    },
   };
 
   // ---------------------------------------------------------------- Audio (tiny synth, no assets)

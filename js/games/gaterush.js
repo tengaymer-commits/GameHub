@@ -31,19 +31,19 @@
       this.stage = stage;
       this.api = api;
       this.levelNum = level;
-      this.startCount = 3 + (save.upgrades.gateStart || 0) * 2;
+      this.startCount = 3 + GH.Town.bonus.gateStart(); // Barracks in town
       this.revived = false;
       this.title = 'Gate Rush';
       this.generate();
       this.reset();
-      api.setHudButtons([]);
+      api.setHudButtons([{ label: this.reinforceLabel(), cls: 'gold', onClick: (el) => this.reinforce(el) }]);
     }
 
     generate() {
       const r = rng(this.levelNum * 7919 + 13);
       const ri = (a, b) => a + Math.floor(r() * (b - a + 1));
       const L = this.levelNum;
-      let E = this.startCount; // expected army size if the player plays well
+      let E = 3; // expected army size of a player with no Barracks bonus
       const rows = [];
       let d = 600;
       const n = Math.min(8 + L, 22);
@@ -208,8 +208,20 @@
     victory() {
       this.state = 'done';
       this.boss.hp = 0;
-      const coins = 25 + this.levelNum * 5 + Math.floor(this.n / 2);
-      this.api.win({ coins, text: `🪖 ${fmt(this.n)} soldiers survived` });
+      const coins = 25 + this.levelNum * 5 + Math.floor(this.n / 4);
+      // surviving soldiers march home and join the town's troops
+      this.api.win({ coins, troops: Math.ceil(this.n / 2), text: `🪖 ${fmt(this.n)} soldiers survived` });
+    }
+
+    reinforceLabel() { return `🛡️ +10 ×${GH.Save.data.items.reinforce || 0}`; }
+
+    reinforce(el) {
+      if (this.state === 'done') return;
+      if (!GH.Save.useItem('reinforce')) { GH.UI.toast('No Reinforcement cards. Get them from chests!'); return; }
+      this.n += 10;
+      this.floaters.push({ text: '+10', good: true, t: 0 });
+      sfx('level');
+      if (el) el.innerHTML = this.reinforceLabel();
     }
 
     revive() {
