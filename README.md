@@ -56,9 +56,9 @@ Every game only calls `Monetization.*`, never an ad SDK directly. Swapping the m
 | Banner 320×50 | Banner | Bottom of every screen. Hidden with *Remove Ads*. |
 | Every 3rd finished level | Interstitial | After win/lose. Frequency-capped, skipped after a rewarded ad and with *Remove Ads*. |
 | Claim ×3 coins | Rewarded | Victory screen |
-| Revive | Rewarded, or 10 💎 | Gate Rush, Frost Defense |
+| Revive | Rewarded, or 10 💎 | Gate Rush |
 | Hint / Skip level | Rewarded | Pin Rescue |
-| Reroll upgrades | Rewarded | Frost Defense level-up |
+| 2× cash for 90s | Rewarded | Frost Survival HUD button |
 | Daily ×2, Free coins | Rewarded | Hub / Shop |
 | Remove Ads, Starter Pack, gem packs | IAP | Shop |
 
