@@ -381,3 +381,8 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .kd-call[hidden], .kd-boss[hidden] { display: none; }
 .kd-boss { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; font-weight: 900; color: #ff4d5e; text-shadow: 0 2px 6px #000; white-space: nowrap; pointer-events: none; }
 .kd-bonus .loot b { font-size: 13px; font-weight: 700; }
+.kd-edge { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; pointer-events: none; animation: pulse-edge .6s infinite alternate; }
+.kd-edge[hidden] { display: none; }
+.kd-edge i { width: 0; height: 0; border-left: 13px solid transparent; border-right: 13px solid transparent; border-bottom: 22px solid #ff4d5e; filter: drop-shadow(0 0 3px rgba(0,0,0,.8)); }
+.kd-edge b { margin-top: 2px; padding: 1px 8px; border-radius: 999px; background: #ff4d5e; color: #fff; font-size: 13px; }
+@keyframes pulse-edge { to { opacity: .6; } }

@@ -110,12 +110,14 @@
         <div class="kd-hall"><span>🏰</span><div class="bar"><i></i></div></div>
         <button class="btn gold small kd-call" hidden>⚔️ Call wave now</button>
         <div class="kd-boss" hidden>👹 WARLORD INCOMING</div>
+        <div class="kd-edge" hidden><i></i><b></b></div>
         <div class="fs-joy idle"><i></i></div>`);
       const el = this.ly.el;
       this.ui = {
         wave: el.querySelector('.kd-wave b'), sub: el.querySelector('.kd-wave small'), coins: el.querySelector('.kd-coins b'),
         hallBar: el.querySelector('.kd-hall i'), call: el.querySelector('.kd-call'), boss: el.querySelector('.kd-boss'),
         joy: el.querySelector('.fs-joy'), knob: el.querySelector('.fs-joy i'),
+        edge: el.querySelector('.kd-edge'), edgeArrow: el.querySelector('.kd-edge i'), edgeText: el.querySelector('.kd-edge b'),
       };
       this.ui.call.addEventListener('click', () => this.callEarly());
       this.renderer = K.renderer(el);
@@ -123,7 +125,7 @@
       scene.background = new T.Color('#9fd3f0');
       scene.fog = new T.Fog('#9fd3f0', 40, 85);
       this.camera = new T.PerspectiveCamera(50, 1, 0.5, 200);
-      this.camOffset = new T.Vector3(0, 17, 12);
+      this.camOffset = new T.Vector3(0, 20, 14);
       scene.add(new T.HemisphereLight('#ffffff', '#6f8f5a', 1.9));
       const sun = (this.sun = new T.DirectionalLight('#fff3dd', 2.3));
       sun.castShadow = true;
@@ -174,7 +176,8 @@
       this.heroBar = this.bar('#4ade80');
 
       // instanced crowds: enemies, soldiers, projectiles, coins
-      const mk = (geo, mat, n, shadow = true) => { const m = new T.InstancedMesh(geo, mat, n); m.castShadow = shadow; m.count = 0; scene.add(m); return m; };
+      // frustumCulled off: three.js caches an instanced mesh's bounds from its first frame, so moving crowds would vanish
+      const mk = (geo, mat, n, shadow = true) => { const m = new T.InstancedMesh(geo, mat, n); m.castShadow = shadow; m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
       this.enBody = mk(new T.CapsuleGeometry(0.3, 0.35, 3, 8), new T.MeshLambertMaterial({ color: '#ffffff' }), 260);
       this.enHead = mk(new T.SphereGeometry(0.24, 10, 8), new T.MeshLambertMaterial({ color: '#ffffff' }), 260);
       this.enHelm = mk(new T.ConeGeometry(0.26, 0.3, 8), K.lam('#6b2a22'), 260);
@@ -275,7 +278,7 @@
       this.coinsHave = this.bonus.startCoins;
       this.coinsShown = this.coinsHave;
       this.hall = { hp: this.bonus.hallHp, max: this.bonus.hallHp };
-      this.hero = { x: 0, z: 1, hp: 120, max: 120, swingT: 0, deadT: 0, lvl: 0, hurtT: 0 };
+      this.hero = { x: -3, z: -9, hp: 120, max: 120, swingT: 0, deadT: 0, lvl: 0, hurtT: 0 };
       this.kills = 0;
       this.time = 0;
       this.revived = false;
@@ -884,6 +887,30 @@
       const sub = this.state === 'prep' ? `next wave in ${Math.ceil(this.prepT)}s` : `${this.enemies.length + this.queue.length} enemies left`;
       if (sub !== this.uiS) { this.uiS = sub; this.ui.sub.textContent = sub; }
       this.ui.hallBar.style.width = Math.max(0, (this.hall.hp / this.hall.max) * 100) + '%';
+      this.updateEdgeMarker();
+    }
+
+    /** Arrow on the screen edge pointing at the enemy closest to the Town Hall when it is off-screen. */
+    updateEdgeMarker() {
+      let lead = null;
+      for (const e of this.enemies) if (!lead || e.s > lead.s) lead = e;
+      const ui = this.ui;
+      if (!lead) { ui.edge.hidden = true; return; }
+      const el = this.ly.el, r = el.getBoundingClientRect();
+      const v = new THREE.Vector3(lead.x, 1, lead.z).project(this.camera);
+      let x = ((v.x + 1) / 2) * r.width, y = ((1 - v.y) / 2) * r.height;
+      if (v.z > 1) { x = r.width - x; y = r.height - y; } // behind the camera: mirror
+      const m = 44, top = 100, bottom = r.height - 60;
+      const onScreen = v.z <= 1 && x > m && x < r.width - m && y > top && y < bottom;
+      ui.edge.hidden = onScreen;
+      if (onScreen) return;
+      const cx = r.width / 2, cy = r.height / 2;
+      const ang = Math.atan2(y - cy, x - cx);
+      const px = clamp(x, m, r.width - m), py = clamp(y, top, bottom);
+      ui.edge.style.transform = `translate(${px}px, ${py}px) translate(-50%, -50%)`;
+      ui.edgeArrow.style.transform = `rotate(${ang + Math.PI / 2}rad)`;
+      const txt = `${this.enemies.length}`;
+      if (ui.edgeText.textContent !== txt) ui.edgeText.textContent = txt;
     }
 
     draw() { this.renderer.render(this.scene, this.camera); }

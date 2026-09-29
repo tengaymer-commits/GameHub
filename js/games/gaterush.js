@@ -1,6 +1,7 @@
 /*
  * GATE RUSH – endless 3D army runner (Last War / Whiteout / Kingshot "math gate" ads).
- * Drag to steer. Your squad fires automatically. Shoot enemy waves before they reach
+ * Drag to steer your leader; the army follows him and he alone decides which gate
+ * you take. Your squad fires automatically. Shoot enemy waves before they reach
  * you, pick (or shoot up) the right gates, break barrels for upgrades and survive the
  * Ice Giant bosses. Difficulty keeps rising with distance; how far can you get?
  */
@@ -98,6 +99,7 @@
       const lower = new T.InstancedMesh(new T.ConeGeometry(1.3, 2.6, 7), K.lam('#2f5f86'), N);
       const cap = new T.InstancedMesh(new T.ConeGeometry(0.6, 1, 7), K.lam('#ffffff'), N);
       lower.castShadow = true;
+      lower.frustumCulled = cap.frustumCulled = false; // they scroll
       for (let i = 0; i < N; i++) {
         const side = i % 2 ? 1 : -1;
         this.trees.push({ x: side * (7.5 + Math.random() * 9), z: -130 + (i / N) * 150, s: 0.8 + Math.random() * 0.6 });
@@ -106,7 +108,8 @@
       scene.add(lower, cap);
 
       // instanced soldiers
-      const mk = (geo, mat, n) => { const m = new T.InstancedMesh(geo, mat, n); m.castShadow = true; m.count = 0; scene.add(m); return m; };
+      // frustumCulled off: three.js caches an instanced mesh's bounds from its first frame, so moving crowds would vanish
+      const mk = (geo, mat, n) => { const m = new T.InstancedMesh(geo, mat, n); m.castShadow = true; m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
       this.solBody = mk(new T.CapsuleGeometry(0.2, 0.3, 3, 8), K.lam('#3a7bd5'), MAX_VIS);
       this.solHead = mk(new T.SphereGeometry(0.17, 10, 8), K.lam('#ffd2a6'), MAX_VIS);
       this.solHelm = mk(new T.SphereGeometry(0.19, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), K.lam('#24549c'), MAX_VIS);
@@ -120,6 +123,20 @@
       this.popMesh.castShadow = false;
       this.dummy = new T.Object3D();
       this.col = new T.Color();
+
+      // the commander walking in front of the army
+      const L = (this.leader = K.person('#d4a017', null));
+      L.add(K.mesh(K.geo.sphere, K.std('#ffd84a', { metalness: 0.7, roughness: 0.3 }), 0, 1.45, 0, 0.64, 0.5, 0.64));
+      L.add(K.box(0.9, 1, 0.06, K.lam('#c0392b'), 0, 0.85, 0.28));
+      L.add(K.box(0.05, 2.2, 0.05, K.lam('#6e4424'), 0.42, 1.2, 0.1));
+      L.add(K.box(0.7, 0.45, 0.03, K.lam('#3a7bd5'), 0.78, 2.05, 0.1));
+      L.scale.setScalar(1.55);
+      scene.add(L);
+      const chev = new T.Shape();
+      chev.moveTo(0, 0.9); chev.lineTo(0.8, -0.3); chev.lineTo(0.3, -0.3); chev.lineTo(0, 0.2); chev.lineTo(-0.3, -0.3); chev.lineTo(-0.8, -0.3); chev.closePath();
+      this.chevron = new T.Mesh(new T.ShapeGeometry(chev), new T.MeshBasicMaterial({ color: '#ffd23a', transparent: true, opacity: 0.85, depthWrite: false }));
+      this.chevron.rotation.x = -Math.PI / 2;
+      scene.add(this.chevron);
 
       this.boss3 = this.makeBoss();
       this.boss3.visible = false;
@@ -205,7 +222,7 @@
       this.n = this.startN;
       this.peak = this.n;
       this.shownN = this.n;
-      this.x = 0; this.targetX = 0;
+      this.x = 0; this.targetX = 0; this.sx = 0; // x = leader, sx = army centre (follows the leader)
       this.dist = 0;
       this.time = 0;
       this.fireT = 0;
@@ -222,6 +239,7 @@
     get scaleHp() { const d = this.dist; return 1 + d / 200 + Math.pow(d / 700, 2); }
     get speed() { return this.boss && this.boss.contact ? 0 : 9 + Math.min(5, this.dist / 300); }
     get squadR() { return 0.45 + 0.34 * Math.sqrt(Math.min(this.n, MAX_VIS)); }
+    get leaderZ() { return -(0.27 * Math.sqrt(Math.min(this.n, MAX_VIS)) + 1.3); }
 
     // ---------------------------------------------------------------- spawning
     spawnRow() {
@@ -365,7 +383,7 @@
       s.className = 'gr-float';
       s.textContent = text;
       s.style.color = color;
-      const p = this.K.toScreen(new THREE.Vector3(this.x, 2.5, 0), this.camera, this.ly.el);
+      const p = this.K.toScreen(new THREE.Vector3(this.x, 3, this.leaderZ), this.camera, this.ly.el);
       s.style.left = p.x + 'px'; s.style.top = p.y - 40 + 'px';
       this.ly.el.appendChild(s);
       setTimeout(() => s.remove(), 900);
@@ -381,16 +399,18 @@
       k = Math.min(k, this.n);
       if (k <= 0) return;
       this.n -= k;
-      this.pop(this.x, 0.8, -this.squadR * 0.5, '#3a8dff', Math.min(8, 2 + k));
+      this.pop(this.sx, 0.8, -this.squadR * 0.5, '#3a8dff', Math.min(8, 2 + k));
     }
 
     // ---------------------------------------------------------------- update
     update(dt) {
       this.time += dt;
       if (this.keyDir) this.targetX += this.keyDir * 12 * dt;
+      this.targetX = clamp(this.targetX, -ROAD + 0.7, ROAD - 0.7);
+      this.x += (this.targetX - this.x) * Math.min(1, dt * 14);
+      // the army trails its leader, staying on the road
       const lim = ROAD - Math.min(this.squadR, 3.2) * 0.9;
-      this.targetX = clamp(this.targetX, -lim, lim);
-      this.x += (this.targetX - this.x) * Math.min(1, dt * 12);
+      this.sx = clamp(this.sx + (this.x - this.sx) * Math.min(1, dt * 4), -lim, lim);
       this.shownN += (this.n - this.shownN) * Math.min(1, dt * 12);
 
       const running = this.state === 'run';
@@ -450,10 +470,12 @@
       for (const e of this.enemies) {
         if (e.dead) continue;
         e.z += (v + (running ? e.k.speed : 0)) * dt;
-        if (running && e.z > -30) e.x += clamp(this.x - e.x, -1, 1) * e.k.home * dt;
+        if (running && e.z > -30) e.x += clamp(this.sx - e.x, -1, 1) * e.k.home * dt;
         e.phase += dt * 10;
         if (e.hitT > 0) e.hitT -= dt;
-        if (e.z > -sr * 0.7 - e.k.r && e.z < 1.5 && Math.abs(e.x - this.x) < sr + e.k.r) {
+        const hitsArmy = e.z > -sr * 0.7 - e.k.r && e.z < 1.5 && Math.abs(e.x - this.sx) < sr + e.k.r;
+        const hitsLeader = e.z > this.leaderZ - 0.5 - e.k.r && e.z < 1.5 && Math.abs(e.x - this.x) < 0.5 + e.k.r;
+        if (hitsArmy || hitsLeader) {
           e.dead = true;
           this.lose(e.k.kills);
           sfx('hit'); vibrate(e.kind === 'brute' ? 60 : 12);
@@ -468,7 +490,7 @@
       for (const row of this.gates) {
         row.z += v * dt;
         row.group.position.z = row.z;
-        if (!row.done && row.z > -sr * 0.5) {
+        if (!row.done && row.z > this.leaderZ) { // the leader walks through the gate: his side counts
           row.done = true;
           const s = this.x < 0 ? 0 : 1;
           const g = row.sides[s];
@@ -479,7 +501,7 @@
           this.n = Math.min(MAX_ARMY, this.n);
           const diff = this.n - before;
           this.float((diff >= 0 ? '+' : '') + fmt(diff), diff >= 0 ? '#5dff8f' : '#ff5a6a');
-          if (diff >= 0) { sfx('coin'); vibrate(10); } else { sfx('bad'); vibrate(30); this.pop(this.x, 0.8, 0, '#3a8dff', 6); }
+          if (diff >= 0) { sfx('coin'); vibrate(10); } else { sfx('bad'); vibrate(30); this.pop(this.sx, 0.8, 0, '#3a8dff', 6); }
           row.meshes[1 - s].visible = false;
         }
       }
@@ -501,12 +523,12 @@
         const B = this.boss;
         if (!B.contact) {
           B.z += (v + (running ? 1.4 : 0)) * dt;
-          if (B.z > -sr - 1.6) { B.contact = true; B.z = -sr - 1.6; }
+          if (B.z > this.leaderZ - 1.6) { B.contact = true; B.z = this.leaderZ - 1.6; }
         } else if (running) {
           B.crush = (B.crush || 0) + dt * (3 + this.bosses * 1.5);
           if (B.crush >= 1) { this.lose(Math.floor(B.crush)); B.crush %= 1; sfx('hit'); vibrate(20); }
         }
-        B.x += clamp(this.x - B.x, -1, 1) * 0.6 * dt;
+        B.x += clamp(this.sx - B.x, -1, 1) * 0.6 * dt;
         if (B.hitT > 0) B.hitT -= dt;
         this.boss3.position.set(B.x + (B.hitT > 0 ? (Math.random() - 0.5) * 0.2 : 0), 0, B.z);
         const sw = Math.sin(this.time * (B.contact ? 10 : 4)) * (B.contact ? 0.9 : 0.3);
@@ -534,7 +556,7 @@
       const vis = Math.min(this.n, MAX_VIS);
       for (let i = 0; i < shooters; i++) {
         const f = FORM[Math.floor(Math.random() * vis)];
-        this.bullets.push({ x: this.x + f[0] + 0.12, z: f[1] - 0.6, dmg });
+        this.bullets.push({ x: this.sx + f[0] + 0.12, z: f[1] - 0.6, dmg });
       }
       if (Math.random() < 0.25) sfx('tap');
     }
@@ -599,7 +621,7 @@
       for (let i = 0; i < vis; i++) {
         const [ox, oz] = FORM[i];
         const bob = run ? Math.abs(Math.sin(this.time * 14 + i)) * 0.08 : 0;
-        const x = this.x + ox, z = oz;
+        const x = this.sx + ox, z = oz + 0.2;
         d.rotation.set(0, 0, 0); d.scale.setScalar(1);
         d.position.set(x, 0.45 + bob, z); d.updateMatrix(); this.solBody.setMatrixAt(i, d.matrix);
         d.position.set(x, 0.92 + bob, z); d.updateMatrix(); this.solHead.setMatrixAt(i, d.matrix);
@@ -645,8 +667,26 @@
       if (this.popMesh.instanceColor) this.popMesh.instanceColor.needsUpdate = true;
 
       // camera follows loosely
-      this.camera.position.set(this.x * 0.45, 9.5, 10.5);
-      this.camera.lookAt(this.x * 0.3, 0, -9);
+      const cx = (this.x + this.sx) / 2;
+      this.camera.position.set(cx * 0.45, 9.5, 10.5);
+      this.camera.lookAt(cx * 0.3, 0, -9);
+
+      // leader, his heading chevron and the gate he is about to take
+      const lz = this.leaderZ;
+      const lb = run ? Math.abs(Math.sin(this.time * 12)) * 0.1 : 0;
+      this.leader.position.set(this.x, lb, lz);
+      this.leader.rotation.y = clamp((this.x - this.targetX) * 0.25, -0.5, 0.5); // leans into turns; cape faces the camera
+      K.animLegs(this.leader, this.time * 12, run);
+      this.leader.visible = this.n > 0;
+      this.chevron.position.set(this.x, 0.06, lz - 1.6 - Math.abs(Math.sin(this.time * 4)) * 0.4);
+      const next = this.gates.find((r) => !r.done);
+      for (const row of this.gates) {
+        row.meshes.forEach((m, s) => {
+          const chosen = row === next && (this.x < 0 ? 0 : 1) === s;
+          m.scale.setScalar(chosen ? 1.06 + Math.sin(this.time * 8) * 0.03 : 1);
+          m.children[0].material.opacity = row === next && !chosen ? 0.55 : 1;
+        });
+      }
 
       // HUD
       const dist = `${fmt(Math.floor(this.dist))} m`;
@@ -655,7 +695,7 @@
       if (buffs !== this.uiBuffs) { this.uiBuffs = buffs; this.ui.buffs.textContent = buffs; }
       const cnt = fmt(Math.max(0, Math.round(this.shownN)));
       if (cnt !== this.uiCnt) { this.uiCnt = cnt; this.ui.count.textContent = cnt; }
-      const p = K.toScreen(new THREE.Vector3(this.x, 1.6 + this.squadR * 0.3, -this.squadR * 0.6), this.camera, this.ly.el);
+      const p = K.toScreen(new THREE.Vector3(this.x, 3.7, lz), this.camera, this.ly.el); // count rides above the leader
       this.ui.count.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`;
     }
 

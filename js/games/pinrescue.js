@@ -572,6 +572,7 @@
       for (const t of ['gold', 'lava', 'water', 'stone', 'hot']) {
         const m = new T.InstancedMesh(sph, this.mats[t], 700);
         m.castShadow = t !== 'water';
+        m.frustumCulled = false; // particles move; cached bounds from frame 1 would cull them
         m.count = 0;
         scene.add(m);
         this.partMesh[t] = m;
