@@ -6,10 +6,12 @@
 
   Save.load();
 
-  const ORDER = ['kingdom', 'frost', 'gate', 'pin'];
+  const ORDER = ['kingdom', 'frost', 'merge', 'gate', 'tower', 'pin'];
   const REWARDS = {
     kingdom: ['🪙 Gold', '🪖 Troops', '🥩 Loot', '📦 Chests'],
     pin: ['🪙 Gold', '📦 Chests'],
+    tower: ['🪙 Gold', '📦 Chests'],
+    merge: ['🪙 Gold', '🪖 Troops', '📦 Chests'],
     gate: ['🪖 Troops', '🪙 Gold', '📦 Boss chests'],
     frost: ['🥩 Food', '📦 Chests', '💤 Offline'],
   };
@@ -415,9 +417,9 @@
       } });
       buttons.push({ label: 'Revive for 💎 10', cls: 'ghost', disabled: Save.data.gems < 10, onClick: () => { Save.addGems(-10); game.revive(); } });
     }
-    if (id === 'pin') {
+    if (id === 'pin' || Games[id].skippable) {
       buttons.push({ label: 'Skip level', cls: 'ghost ad', onClick: async () => {
-        const ok = await Monetization.showRewarded('pin_skip');
+        const ok = await Monetization.showRewarded(id + '_skip');
         if (ok) { Monetization.resetInterstitialCounter(); Save.data.levels[id] = Math.max(Save.data.levels[id], level + 1); Save.save(); launch(id, level + 1); }
         else showLose({ reason, canRevive });
       } });

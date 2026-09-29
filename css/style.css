@@ -386,3 +386,25 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .kd-edge i { width: 0; height: 0; border-left: 13px solid transparent; border-right: 13px solid transparent; border-bottom: 22px solid #ff4d5e; filter: drop-shadow(0 0 3px rgba(0,0,0,.8)); }
 .kd-edge b { margin-top: 2px; padding: 1px 8px; border-radius: 999px; background: #ff4d5e; color: #fff; font-size: 13px; }
 @keyframes pulse-edge { to { opacity: .6; } }
+
+/* ---------- Hero Tower ---------- */
+.ht-tip { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); padding: 6px 14px; border-radius: 12px; background: rgba(255, 201, 60, .92); color: #3a2400; font-weight: 800; font-size: 14px; text-align: center; pointer-events: none; }
+.ht-tip[hidden] { display: none; }
+
+/* ---------- Merge Army ---------- */
+.ma-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+.ma-top .fs-cash { position: static; }
+.ma-power { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 12px; background: rgba(20, 26, 46, .8); color: #fff; font-weight: 900; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ma-power small { color: var(--muted); font-weight: 700; }
+.ma-power .foe { color: #ff8a8a; }
+.ma-tip { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); text-align: center; padding: 5px 12px; border-radius: 10px; background: rgba(255, 201, 60, .92); color: #3a2400; font-weight: 800; font-size: 13px; pointer-events: none; }
+.ma-tip[hidden] { display: none; }
+.ma-bar { position: absolute; left: 10px; right: 10px; bottom: 12px; display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 8px; transition: opacity .2s; }
+.ma-bar.fighting { opacity: 0; pointer-events: none; }
+.ma-buy { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; border-radius: 14px; background: #f4f1ea; color: #2a2a2a; box-shadow: inset 0 -4px 0 rgba(0,0,0,.15); }
+.ma-buy span { font-size: 24px; line-height: 1; }
+.ma-buy b { font-size: 12px; }
+.ma-buy i { font-style: normal; font-weight: 900; font-size: 14px; color: #8a5a00; }
+.ma-buy[disabled] { opacity: .5; }
+.ma-fight { border-radius: 14px; background: linear-gradient(180deg, #ff6b5a, #d9443a); color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.25); }
+.ma-fight[disabled] { filter: grayscale(1); opacity: .6; }

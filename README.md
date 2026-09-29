@@ -7,6 +7,8 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 
 ```
  Kingdom Def. ► 🪙, 🪖, 🥩 loot + 📦 ─┐  (and your town powers its defenses)
+ Merge Army ──► 🪙, 🪖 + 📦 chests ───┤
+ Hero Tower ──► 🪙 Gold + 📦 chests ─┤
  Pin Rescue ──► 🪙 Gold + 📦 chests ─┤
  Gate Rush ───► 🪖 Troops, 🪙, 📦 boss chests ┼──► TOWN: upgrade buildings ──► bonuses in the mini-games
  Frost Survival ► 🥩 Food, 📦 on expand ┘       Kitchen/Vault produce 🥩/🪙 over time
@@ -17,6 +19,8 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 |---|---|---|
 | 👑 **Kingdom Defense** (3D, endless) | Kingshot hero-defense ads | Played on **your own town**: its buildings stand around the Town Hall at their current levels. Walk your knight with the joystick; he slashes nearby enemies and body-blocks the red horde marching down the road. A red edge marker points to the horde while it's off-screen. Enemies drop coins: pick them up and spend them on dashed build pads along the road (archer towers, cannons, mage towers, soldiers, hero upgrades, hall repair). Endless waves get tougher, with a Warlord boss every 5 waves. Your town decides the defenses: Walls add Town Hall HP, the Forge unlocks cannons and adds damage, the Mage Tower unlocks mage towers, the Barracks unlocks soldiers, the Hunter's Lodge speeds up archers, the Kitchen heals the hero, the Vault gives starting coins, and the Town Hall caps tower level. Rewards: gold, troops, food loot and chests. |
 | 🏕️ **Frost Survival** (3D, continuous) | Whiteout Survival / Frozen City idle-camp ads | Move with the joystick (or WASD). Outside the fence your axes spin and cut down wolves and polar bears, and their meat stacks on your back. Drop it at the grill; customers buy the steaks at the counter. Every steak sold also ships 🥩 1 food to the town. Spend camp cash on build pads: cashier, **hunters** (they hunt and deliver meat for you), crossbow towers, axes, backpack, faster grill. **Expand camp** grows the fence (up to tier 5), unlocks more pads, brings stronger beasts and higher prices, and sends a chest to town. With hunters hired the camp keeps earning **offline** (2h cap, +1h per Hunter's Lodge level). |
+| ⚔️ **Merge Army** (3D) | Top War "merge and battle" ads | Buy swordsmen and archers, drag two identical units together to merge them into a stronger one (up to level 8), arrange the formation, then press **FIGHT** for an automatic 3D battle. Your army carries over between levels, coin costs rise with each purchase, and a lost battle pays consolation coins so you can't get stuck. Town: Barracks +15% unit HP, Forge +20% damage, Vault more coins per level. |
+| 🗼 **Hero Tower** (3D) | Hero Wars / Evony "power number" tower ads | Your hero has a power number. Tap a room to fight what's inside: weaker monsters are absorbed, stronger ones kill you. Potions add power, and from level 3 a **×2 potion** has to be saved for the right moment, because the boss on top only falls to a well-ordered climb. Levels are generated from a solution, so every level is solvable; "always take the smallest" fails from level 3. Town: each Town Hall level adds starting power. Hints and level skips via cards or ads. |
 | 🪖 **Gate Rush** (3D, endless) | Last War / Kingshot "math gate" ads | Drag to steer your commander at the front of the army; the soldiers follow him and **his lane alone decides the gate** (the chosen gate lights up, the count rides above his head). The army fires automatically. Enemy waves charge down the road: grunts, fast runners, armored elites and brutes, plus an **Ice Giant boss every ~600 m** (the first at 450 m) that crushes your squad until you kill it. Pick the right gates, or **shoot red gates to turn them blue**. Shoot barrels open for soldiers, fire rate or damage. There are no levels: enemy toughness, wave size and speed rise the further you run. Rewards scale with distance, kills and bosses (a boss run earns a chest), and your best distance is saved. |
 | 📌 **Pin Rescue** (3D) | Hero Wars / Evony "pull the pin" ads | Tap the pins in the right order: lava kills, water turns lava to stone, orcs must die, and the gold must reach the knight. It's rendered in 3D on top of the same 2D particle physics, so every level stays verified solvable. |
 
@@ -33,7 +37,7 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 | 🧱 Walls | Frost Survival: +25 max health · Kingdom Defense: +40 Town Hall HP per level |
 
 ### Chests and power-ups
-Winning a Pin Rescue level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
+Winning a Pin Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
 💡 **Hint** (Pin Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
 ## Test it
@@ -65,6 +69,8 @@ js/main.js              hub (town, chests, modes, shop), game launcher/loop, win
 js/games/pinrescue.js   particle-physics pin puzzle, 3D view
 js/games/gaterush.js    endless 3D runner: shooting squad, gates, waves, bosses
 js/games/kingdefense.js Kingshot-style hero defense on your own town
+js/games/mergearmy.js   merge-and-battle army game
+js/games/herotower.js   power-number tower puzzle (level generator + 3D view)
 js/games/frostsurvival.js 3D idle-arcade camp (Three.js)
 js/vendor/three.min.js  Three.js r158 (MIT), vendored so it works offline and inside Capacitor
 ```
