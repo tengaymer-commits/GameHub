@@ -1,0 +1,10 @@
+{
+  "name": "GameHub – The Games From The Ads",
+  "short_name": "GameHub",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#141a2e",
+  "theme_color": "#141a2e",
+  "icons": [{ "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
