@@ -69,7 +69,7 @@ js/vendor/three.min.js  Three.js r158 (MIT), vendored so it works offline and in
 ### Adding a new game mode
 Create `js/games/<name>.js` that registers `GH.Games.<id> = { id, name, tagline, icon, colors, create(opts) }`.
 `create` returns an object with `update(dt)`, `draw(ctx)`, and optionally `onDown/onMove/onUp(point)`, `revive()`, `destroy()`.
-When the level ends, call `opts.api.win({coins, text})` or `opts.api.lose({reason, canRevive})`. The shell handles rewards, ads and progression.
+When a level ends, call `opts.api.win({coins, troops, text})` or `opts.api.lose({reason, canRevive})`. Endless modes call `opts.api.runOver({title, stats, rewards, chest, canRevive})`. The shell handles rewards, chests, ads and progression. 3D modes can build on `GH.K3` (`js/kit3d.js`).
 Then add the id to `ORDER` in `main.js`, add a `levels.<id>` default in `core.js`, and include the script in `index.html`.
 
 ## Monetization hooks (already placed)
