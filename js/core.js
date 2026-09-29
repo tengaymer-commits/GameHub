@@ -15,6 +15,7 @@
       upgrades: { gateStart: 0, frostDmg: 0, frostWall: 0 },
       settings: { sound: true, vibe: true },
       stats: { levelsSinceInterstitial: 0, lastFreeCoinsAd: 0 },
+      frostCamp: null, // in-progress Frost Survival camp
     };
   }
 

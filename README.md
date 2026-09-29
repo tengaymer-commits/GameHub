@@ -7,13 +7,13 @@ All three modes run from one app, share one currency, and use one monetization l
 |---|---|---|
 | 📌 **Pin Rescue** | Hero Wars / Evony "pull the pin" ads | Tap pins in the right order. Gold must reach the knight, lava kills, and water turns lava to stone. Defeat every orc. 6 hand-made puzzles, then mirrored variants. |
 | 🪖 **Gate Rush** | Last War / Whiteout / Kingshot "math gate" ads | Drag to steer your squad through `+`/`×` gates and away from `-`/`÷` gates. Dodge saws, beat enemy squads, then take down the Ice Giant. Levels are generated from a seed, so each level number always plays the same. |
-| ❄️ **Frost Defense** | Whiteout Survival / Kingshot horde ads | Drag your archer along the wall while it auto-fires. Level up and pick upgrades (multishot, pierce, frost nova, allies…). Survive 5 waves and the boss, and don't let the furnace freeze. |
+| 🏕️ **Frost Survival** (3D) | Whiteout Survival / Frozen City idle-camp ads | Move with the joystick (or WASD on desktop). Outside the fence your axes spin and cut down wolves and polar bears. The meat stacks on your back. Drop it at the grill, sell steaks to the customers queuing at the counter, pick up the cash, and spend it on build pads: cashier, crossbow towers, more axes, a bigger backpack, a faster grill. Buy **Next camp** to clear the level. Camp progress is saved mid-level. |
 
 The hub also has persistent coins and gems, a **daily reward**, **Barracks** (permanent upgrades that act as a coin sink), a **Shop**, settings, and two "Coming soon" slots for new modes.
 
 ## Test it
 
-The game is plain HTML/CSS/JS with no build step.
+The game is plain HTML/CSS/JS with no build step. Frost Survival uses Three.js (WebGL), which is included in `js/vendor/`.
 
 ```bash
 # from the repo root
@@ -37,7 +37,8 @@ js/monetization.js      ads + IAP + analytics interface (mocked in the browser)
 js/main.js              hub tabs, game launcher/loop, win/lose flows, daily reward, barracks, shop
 js/games/pinrescue.js   particle-physics pin puzzle
 js/games/gaterush.js    runner with gates/squads/boss
-js/games/frostdefense.js  horde defense with roguelite upgrades
+js/games/frostsurvival.js 3D idle-arcade camp (Three.js)
+js/vendor/three.min.js  Three.js r158 (MIT), vendored so it works offline and inside Capacitor
 ```
 
 ### Adding a new game mode

@@ -10,8 +10,8 @@
 
   const UPGRADES = [
     { id: 'gateStart', icon: '🪖', name: 'Recruits', game: 'Gate Rush', desc: (l) => `Start with ${3 + l * 2} → ${3 + (l + 1) * 2} soldiers`, cost: (l) => 100 + l * 120, max: 10 },
-    { id: 'frostDmg', icon: '🏹', name: 'Arrow Forge', game: 'Frost Defense', desc: (l) => `Arrow damage +${l * 20}% → +${(l + 1) * 20}%`, cost: (l) => 150 + l * 150, max: 10 },
-    { id: 'frostWall', icon: '🧱', name: 'Thick Walls', game: 'Frost Defense', desc: (l) => `Wall HP ${100 + l * 25} → ${100 + (l + 1) * 25}`, cost: (l) => 120 + l * 120, max: 10 },
+    { id: 'frostDmg', icon: '🪓', name: 'Axe Forge', game: 'Frost Survival', desc: (l) => `Axe & crossbow damage +${l * 20}% → +${(l + 1) * 20}%`, cost: (l) => 150 + l * 150, max: 10 },
+    { id: 'frostWall', icon: '🧥', name: 'Warm Coat', game: 'Frost Survival', desc: (l) => `Max health ${100 + l * 25} → ${100 + (l + 1) * 25}`, cost: (l) => 120 + l * 120, max: 10 },
   ];
 
   // ================================================================= HUB

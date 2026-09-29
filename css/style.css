@@ -245,3 +245,33 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { transform: scale(.8); opacity: 0; } }
 @keyframes pulse { to { filter: hue-rotate(40deg) brightness(1.15); } }
+
+/* ---------- Frost Survival (3D) ---------- */
+.fs-layer { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
+.fs-layer canvas { display: block; }
+.fs-cash {
+  position: absolute; top: 10px; right: 10px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px 4px 8px; border-radius: 12px;
+  background: rgba(12, 40, 22, .78); border: 2px solid #3cb94a;
+  font-weight: 900; font-size: 20px; font-variant-numeric: tabular-nums; color: #fff;
+}
+.fs-goal {
+  position: absolute; top: 10px; left: 10px; right: 130px;
+  padding: 7px 10px; border-radius: 10px;
+  background: rgba(20, 26, 46, .72); color: #fff; font-size: 13px; font-weight: 700; line-height: 1.25;
+}
+.fs-boost {
+  position: absolute; top: 52px; right: 10px;
+  padding: 3px 10px; border-radius: 999px; background: #ffc93c; color: #3a2400; font-weight: 900; font-size: 12px;
+}
+.fs-joy {
+  position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+  background: rgba(20, 40, 70, .25); border: 3px solid rgba(255, 255, 255, .75);
+  pointer-events: none; transition: opacity .15s;
+}
+.fs-joy i {
+  position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%;
+  background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .3);
+}
+.fs-joy.idle { opacity: .5; }
