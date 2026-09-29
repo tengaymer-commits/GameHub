@@ -460,8 +460,8 @@
     loop(now) {
       if (!this.running) return;
       requestAnimationFrame(this.loop);
-      const dt = Math.min(0.05, (now - this.last) / 1000);
-      this.last = now;
+      const dt = Math.max(0, Math.min(0.05, (now - this.last) / 1000));
+      this.last = Math.max(this.last, now);
       this.t += dt;
       for (const g of Object.values(this.groups)) {
         if (g.scale.x < 1) g.scale.setScalar(Math.min(1, g.scale.x + dt * 2.5));

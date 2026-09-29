@@ -337,3 +337,33 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .fs-town { position: absolute; top: 52px; left: 10px; padding: 3px 10px; border-radius: 999px; background: rgba(20, 26, 46, .72); color: #fff; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .chest.ready, .loot { animation: none; } }
+
+/* ---------- Gate Rush (3D) ---------- */
+.gr-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+.gr-dist, .gr-buffs:not(:empty) { padding: 4px 12px; border-radius: 999px; background: rgba(20, 26, 46, .75); color: #fff; font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; }
+.gr-buffs:not(:empty) { font-size: 14px; }
+.gr-boss { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); width: min(80%, 300px); text-align: center; color: #fff; font-size: 13px; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.gr-boss .bar { height: 12px; margin-top: 4px; border-radius: 6px; background: rgba(0, 0, 0, .5); overflow: hidden; }
+.gr-boss .bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff4d5e, #ff9f1c); transition: width .1s; }
+.gr-count { position: absolute; left: 0; top: 0; padding: 3px 12px; border-radius: 999px; background: #1c4fa0; color: #fff; font-weight: 900; font-size: 17px; border: 2px solid #fff; pointer-events: none; font-variant-numeric: tabular-nums; }
+.gr-ready { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(10, 14, 26, .35); color: #fff; text-align: center; padding: 20px; pointer-events: none; }
+.gr-ready[hidden], .gr-boss[hidden] { display: none; }
+.gr-ready b { font-size: 30px; text-shadow: 0 2px 6px #000; }
+.gr-ready span { font-size: 15px; font-weight: 700; color: #ffc93c; text-shadow: 0 1px 4px #000; }
+.gr-ready i { font-style: normal; font-size: 44px; animation: swipe 1.2s ease-in-out infinite alternate; }
+@keyframes swipe { from { transform: translateX(-50px); } to { transform: translateX(50px); } }
+.gr-float { position: absolute; transform: translate(-50%, 0); font-weight: 900; font-size: 26px; text-shadow: 0 2px 4px #000, 0 0 2px #000; pointer-events: none; white-space: nowrap; animation: float-up .9s ease-out forwards; }
+@keyframes float-up { to { transform: translate(-50%, -50px); opacity: 0; } }
+.run-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 8px; }
+.run-stats div { display: flex; flex-direction: column; padding: 8px; border-radius: 12px; background: #0e1324; }
+.run-stats small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.run-stats b { font-size: 20px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .gr-ready i, .gr-float { animation: none; } }
+
+/* ---------- Pin Rescue (3D) ---------- */
+.pr-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; pointer-events: none; }
+.pr-hud span:not(:empty) { padding: 4px 12px; border-radius: 999px; background: rgba(20, 14, 12, .75); color: #ffd84a; font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; }
+.pr-hud .pr-orcs { color: #ff8080; }
+.pr-hud .pr-orcs.done { color: #80ff9a; }
+.pr-tip { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 12px; background: rgba(255, 201, 60, .92); color: #3a2400; font-weight: 800; font-size: 14px; white-space: nowrap; pointer-events: none; }
+.pr-tip[hidden] { display: none; }

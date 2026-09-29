@@ -9,7 +9,7 @@
   const ORDER = ['frost', 'gate', 'pin'];
   const REWARDS = {
     pin: ['🪙 Gold', '📦 Chests'],
-    gate: ['🪖 Troops', '🪙 Gold', '📦 Chests'],
+    gate: ['🪖 Troops', '🪙 Gold', '📦 Boss chests'],
     frost: ['🥩 Food', '📦 Chests', '💤 Offline'],
   };
   let town = null;
@@ -251,6 +251,7 @@
     setLevelLabel(t) { $('#hud-level').textContent = t; },
     win(res) { setTimeout(() => showWin(res), 250); },
     lose(res) { setTimeout(() => showLose(res), 250); },
+    runOver(res) { setTimeout(() => showRunOver(res), 350); },
   };
 
   function launch(id, level) {
@@ -274,8 +275,9 @@
   function loop(now) {
     raf = requestAnimationFrame(loop);
     if (!current) return;
-    const dt = Math.min(0.033, (now - last) / 1000);
-    last = now;
+    // rAF timestamps can predate the performance.now() taken at launch; never step backwards
+    const dt = Math.max(0, Math.min(0.033, (now - last) / 1000));
+    last = Math.max(last, now);
     const g = current.game;
     if (!g.paused && UI.modalCount === 0 && !document.querySelector('.ad-player')) g.update(dt);
     stage.begin();
@@ -359,6 +361,40 @@
         { label: 'Next level ▶', cls: 'green', onClick: async () => { await next(1, false); launch(id, level + 1); } },
         { label: 'Back to town', cls: 'ghost', onClick: async () => { await next(1, false); goHome(); } },
       ],
+    });
+  }
+
+  /** End of an endless run: rewards are granted once, when the player leaves this screen. */
+  function showRunOver(res) {
+    if (!current) return;
+    const { id, game } = current;
+    sfx('lose');
+    Monetization.track('run_over', { game: id, stats: res.stats });
+    const chestDef = res.chest && Town.CHESTS[res.chest];
+    const collect = async (mult, watchedAd) => {
+      Save.grant({ coins: res.rewards.coins * mult, troops: (res.rewards.troops || 0) * mult });
+      let msg = `+${fmt(res.rewards.coins * mult)} 🪙  +${fmt((res.rewards.troops || 0) * mult)} 🪖`;
+      if (res.chest) msg += Town.addChest(res.chest) >= 0 ? `  ${chestDef.icon}` : '  (chest slots full)';
+      UI.toast(msg);
+      if (watchedAd) Monetization.resetInterstitialCounter();
+      else await Monetization.maybeInterstitial('run_over');
+    };
+    const buttons = [];
+    if (res.canRevive && game.revive) {
+      buttons.push({ label: 'Revive and keep running', cls: 'gold ad', onClick: async () => {
+        if (await Monetization.showRewarded('revive')) { Monetization.resetInterstitialCounter(); game.revive(); } else showRunOver(res);
+      } });
+      buttons.push({ label: 'Revive for 💎 10', cls: 'ghost', disabled: Save.data.gems < 10, onClick: () => { Save.addGems(-10); game.revive(); } });
+    }
+    buttons.push({ label: 'Rewards ×2', cls: 'gold ad', onClick: async () => { const ok = await Monetization.showRewarded('run_x2'); await collect(ok ? 2 : 1, ok); launch(id); } });
+    buttons.push({ label: 'Collect & run again', cls: 'green', onClick: async () => { await collect(1, false); launch(id); } });
+    buttons.push({ label: 'Collect & back to town', cls: 'ghost', onClick: async () => { await collect(1, false); goHome(); } });
+    UI.modal({
+      cls: res.title === 'New record!' ? 'win' : 'lose', icon: res.title === 'New record!' ? '🏆' : '🏁', title: res.title,
+      body: `<div class="run-stats">${res.stats.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>
+        <div class="chips center big">${Town.rewardChips(res.rewards)}</div>
+        ${chestDef ? `<div class="loot-list"><div class="loot"><span>${chestDef.icon}</span><b>${chestDef.name}</b></div></div>` : ''}`,
+      buttons,
     });
   }
 

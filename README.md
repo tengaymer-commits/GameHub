@@ -7,7 +7,7 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 
 ```
  Pin Rescue ──► 🪙 Gold + 📦 chests ─┐
- Gate Rush ───► 🪖 Troops, 🪙 + 📦 ──┼──► TOWN: upgrade buildings ──► bonuses in the mini-games
+ Gate Rush ───► 🪖 Troops, 🪙, 📦 boss chests ┼──► TOWN: upgrade buildings ──► bonuses in the mini-games
  Frost Survival ► 🥩 Food, 📦 on expand ┘       Kitchen/Vault produce 🥩/🪙 over time
                                              chests drop power-up cards: 💡 🛡️ 🔥
 ```
@@ -15,8 +15,8 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 | Mode | Inspired by | How it plays |
 |---|---|---|
 | 🏕️ **Frost Survival** (3D, continuous) | Whiteout Survival / Frozen City idle-camp ads | Move with the joystick (or WASD). Outside the fence your axes spin and cut down wolves and polar bears, and their meat stacks on your back. Drop it at the grill; customers buy the steaks at the counter. Every steak sold also ships 🥩 1 food to the town. Spend camp cash on build pads: cashier, **hunters** (they hunt and deliver meat for you), crossbow towers, axes, backpack, faster grill. **Expand camp** grows the fence (up to tier 5), unlocks more pads, brings stronger beasts and higher prices, and sends a chest to town. With hunters hired the camp keeps earning **offline** (2h cap, +1h per Hunter's Lodge level). |
-| 🪖 **Gate Rush** | Last War / Kingshot "math gate" ads | Drag to steer your squad through `+`/`×` gates, dodge saws, beat enemy squads and the Ice Giant. Survivors join the town as troops. |
-| 📌 **Pin Rescue** | Hero Wars / Evony "pull the pin" ads | Pull pins in the right order: lava kills, water turns lava to stone, orcs must die, and the gold must reach the knight. |
+| 🪖 **Gate Rush** (3D, endless) | Last War / Kingshot "math gate" ads | Drag to steer your army; it fires automatically. Enemy waves charge down the road: grunts, fast runners, armored elites and brutes, plus an **Ice Giant boss every ~600 m** (the first at 450 m) that crushes your squad until you kill it. Pick the right gates, or **shoot red gates to turn them blue**. Shoot barrels open for soldiers, fire rate or damage. There are no levels: enemy toughness, wave size and speed rise the further you run. Rewards scale with distance, kills and bosses (a boss run earns a chest), and your best distance is saved. |
+| 📌 **Pin Rescue** (3D) | Hero Wars / Evony "pull the pin" ads | Tap the pins in the right order: lava kills, water turns lava to stone, orcs must die, and the gold must reach the knight. It's rendered in 3D on top of the same 2D particle physics, so every level stays verified solvable. |
 
 ### Town buildings
 | Building | Effect |
@@ -31,7 +31,7 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 | 🧱 Walls | Frost Survival: +25 max health per level |
 
 ### Chests and power-ups
-Winning a Pin Rescue or Gate Rush level, or expanding the camp, drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
+Winning a Pin Rescue level, beating a boss in Gate Rush, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
 💡 **Hint** (Pin Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
 ## Test it
@@ -58,9 +58,10 @@ css/style.css           all UI styling (safe-area aware, portrait)
 js/core.js              save data (localStorage), sfx synth, canvas Stage (360x640 letterboxed), modal/toast UI
 js/monetization.js      ads + IAP + analytics interface (mocked in the browser)
 js/town.js              town buildings, bonuses, production, chests, 3D town view
+js/kit3d.js             shared Three.js helpers (layer, renderer, fit, primitives)
 js/main.js              hub (town, chests, modes, shop), game launcher/loop, win/lose flows, daily reward
-js/games/pinrescue.js   particle-physics pin puzzle
-js/games/gaterush.js    runner with gates/squads/boss
+js/games/pinrescue.js   particle-physics pin puzzle, 3D view
+js/games/gaterush.js    endless 3D runner: shooting squad, gates, waves, bosses
 js/games/frostsurvival.js 3D idle-arcade camp (Three.js)
 js/vendor/three.min.js  Three.js r158 (MIT), vendored so it works offline and inside Capacitor
 ```
@@ -82,7 +83,7 @@ Every game only calls `Monetization.*`, never an ad SDK directly. Swapping the m
 | Gold ×3 | Rewarded | Victory screen |
 | Open chest now / halve timer | Rewarded or gems | Chest slots |
 | Offline earnings ×2 | Rewarded | Frost Survival welcome-back screen |
-| Revive | Rewarded, or 10 💎 | Gate Rush |
+| Revive / Rewards ×2 | Rewarded, or 10 💎 | Gate Rush run-over screen |
 | Hint / Skip level | Rewarded (or a Hint card) | Pin Rescue |
 | 2× cash for 90s | Rewarded (or a Hot Grill card) | Frost Survival HUD button |
 | Daily ×2, Free supplies | Rewarded | Hub / Shop |

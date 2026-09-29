@@ -5,7 +5,7 @@
  */
 (function () {
   'use strict';
-  const { roundRect, outlinedText, sfx, vibrate, clamp } = GH;
+  const { sfx, vibrate, clamp } = GH;
 
   const W = 360, H = 640;
   const R = 5;            // particle radius
@@ -142,8 +142,6 @@
     };
   }
 
-  const COLORS = { gold: '#ffc83a', lava: '#ff5a1f', water: '#39a8ff', stone: '#80808c' };
-
   // ------------------------------------------------------------ Game
   class PinRescue {
     constructor({ stage, api, level }) {
@@ -152,6 +150,7 @@
       this.levelNum = level;
       this.grid = new Array(COLS * ROWS);
       this.hintPin = -1;
+      this.initView();
       this.load();
       api.setHudButtons([
         { label: this.hintLabel(), cls: 'gold' + (GH.Save.data.items.hint ? '' : ' ad'), onClick: (el) => this.hint(el) },
@@ -186,6 +185,7 @@
       this.hintPin = -1;
       this.pulled = [];
       this.api.setTitle && this.api.setTitle(this.def.name);
+      if (this.scene) this.buildLevelView();
     }
 
     makeEnt(p, kind) {
@@ -196,7 +196,7 @@
       const sp = D + 0.6;
       for (let yy = y + R; yy <= y + h - R; yy += sp) {
         for (let xx = x + R; xx <= x + w - R; xx += sp) {
-          this.parts.push({ x: xx + (Math.random() - 0.5) * 0.6, y: yy, vx: 0, vy: 0, t: type, hot: 0 });
+          this.parts.push({ x: xx + (Math.random() - 0.5) * 0.6, y: yy, vx: 0, vy: 0, t: type, hot: 0, z: (Math.random() - 0.5) * 1.8 }); // z is visual depth only
         }
       }
     }
@@ -513,157 +513,240 @@
       }
     }
 
-    // ------------------------------------------------ drawing
-    draw(ctx) {
-      // background
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#3a2c2a'); g.addColorStop(1, '#241a1a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = 'rgba(0,0,0,.18)';
-      for (let y = 70; y < 610; y += 24) {
-        for (let x = (y / 24) % 2 ? 0 : 20; x < W; x += 40) ctx.fillRect(x + 1, y + 1, 38, 22);
-      }
-      // hero room glow
-      ctx.fillStyle = 'rgba(255,220,120,.05)';
-      ctx.fillRect(this.zone.x, this.zone.y, this.zone.w, this.zone.h);
+    // ------------------------------------------------ 3D view
+    // The puzzle is simulated in 360x640 "level pixels" (y down). The 3D world uses
+    // 1 unit = 20 px with y up and the puzzle on the z = 0 plane.
+    initView() {
+      const T = THREE, K = (this.K = GH.K3);
+      this.ly = K.layer(`
+        <div class="pr-hud"><span class="pr-gold">💰 0/0</span><span class="pr-orcs"></span></div>
+        <div class="pr-tip"></div>`);
+      const el = this.ly.el;
+      this.ui = { gold: el.querySelector('.pr-gold'), orcs: el.querySelector('.pr-orcs'), tip: el.querySelector('.pr-tip') };
+      this.renderer = K.renderer(el);
+      const scene = (this.scene = new T.Scene());
+      scene.background = new T.Color('#1e1614');
+      this.camera = new T.PerspectiveCamera(50, 1, 1, 200);
+      this.camera.position.set(3, 17, 38);
+      this.camera.lookAt(0, 15.2, 0);
+      scene.add(new T.HemisphereLight('#fff4e0', '#3a2c2a', 1.4));
+      const sun = new T.DirectionalLight('#ffffff', 2.2);
+      sun.position.set(-8, 30, 22);
+      sun.target.position.set(0, 14, 0);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 20, bottom: -20, near: 1, far: 80 });
+      scene.add(sun, sun.target);
+      this.heroLight = new T.PointLight('#ffcf6a', 8, 12);
+      scene.add(this.heroLight);
 
-      // particles
-      for (const p of this.parts) {
-        ctx.fillStyle = p.hot > 0 ? '#c9a08a' : COLORS[p.t];
-        ctx.beginPath(); ctx.arc(p.x, p.y, R + 1.2, 0, Math.PI * 2); ctx.fill();
+      // dungeon back wall with brick texture
+      const bt = K.canvasTex(256, 256);
+      const c = bt.ctx;
+      c.fillStyle = '#3b2d29'; c.fillRect(0, 0, 256, 256);
+      for (let y = 0; y < 256; y += 32) for (let x = (y / 32) % 2 ? -32 : 0; x < 256; x += 64) {
+        c.fillStyle = `hsl(12, 16%, ${17 + ((x * 7 + y * 3) % 7)}%)`;
+        c.fillRect(x + 2, y + 2, 60, 28);
       }
-      // lava glow + gold shine
-      ctx.globalCompositeOperation = 'lighter';
-      for (const p of this.parts) {
-        if (p.t === 'lava') { ctx.fillStyle = 'rgba(255,120,30,.18)'; ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fill(); }
-      }
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = 'rgba(255,255,220,.8)';
-      for (const p of this.parts) if (p.t === 'gold') ctx.fillRect(p.x - 2.5, p.y - 3, 2, 2);
-      ctx.fillStyle = 'rgba(255,255,255,.5)';
-      for (const p of this.parts) if (p.t === 'water') ctx.fillRect(p.x - 2, p.y - 3, 2, 2);
+      bt.tex.wrapS = bt.tex.wrapT = T.RepeatWrapping;
+      bt.tex.repeat.set(4, 6);
+      const back = new T.Mesh(new T.PlaneGeometry(40, 50), new T.MeshLambertMaterial({ map: bt.tex }));
+      back.position.set(0, 14, -1.4);
+      back.receiveShadow = true;
+      scene.add(back);
 
-      // walls
+      // materials
+      this.mats = {
+        wall: K.std('#8a7462', { roughness: 0.9 }),
+        wallTop: K.std('#a58b75', { roughness: 0.9 }),
+        pin: K.std('#e8bf4a', { metalness: 0.75, roughness: 0.28 }),
+        pinHint: K.std('#5dff8f', { emissive: '#1f9d4a', emissiveIntensity: 0.9, metalness: 0.3 }),
+        gold: K.std('#ffc83a', { metalness: 0.8, roughness: 0.25, emissive: '#6b4a00', emissiveIntensity: 0.35 }),
+        lava: K.std('#ff5a1f', { emissive: '#ff3a00', emissiveIntensity: 1.2, roughness: 0.6 }),
+        water: K.std('#39a8ff', { transparent: true, opacity: 0.82, roughness: 0.1 }),
+        stone: K.std('#80808c', { roughness: 0.95 }),
+        hot: K.std('#c9a08a', { emissive: '#7a2a00', emissiveIntensity: 0.6 }),
+      };
+      const sph = new T.SphereGeometry(0.31, 10, 8);
+      this.partMesh = {};
+      for (const t of ['gold', 'lava', 'water', 'stone', 'hot']) {
+        const m = new T.InstancedMesh(sph, this.mats[t], 700);
+        m.castShadow = t !== 'water';
+        m.count = 0;
+        scene.add(m);
+        this.partMesh[t] = m;
+      }
+      this.coinPool = [];
+      for (let i = 0; i < 40; i++) {
+        const m = K.mesh(new T.CylinderGeometry(0.25, 0.25, 0.08, 12), this.mats.gold);
+        m.rotation.x = Math.PI / 2; m.visible = false;
+        scene.add(m); this.coinPool.push(m);
+      }
+      this.ringPool = [];
+      for (let i = 0; i < 4; i++) {
+        const m = new T.Mesh(new T.TorusGeometry(1, 0.12, 8, 24), new T.MeshBasicMaterial({ color: '#ffffff', transparent: true }));
+        m.visible = false; scene.add(m); this.ringPool.push(m);
+      }
+      this.dummy = new T.Object3D();
+
+      this.onResize = () => K.fit(this.renderer, this.camera, el, 10, 38, 44, 80);
+      window.addEventListener('resize', this.onResize);
+      this.onResize();
+
+      const ray = new T.Raycaster(), plane = new T.Plane(new T.Vector3(0, 0, 1), 0), hit = new T.Vector3();
+      this.onPtr = (e) => {
+        if (this.paused || GH.UI.modalCount || e.target.closest('button')) return;
+        e.preventDefault();
+        const r = el.getBoundingClientRect();
+        ray.setFromCamera(new T.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
+        if (ray.ray.intersectPlane(plane, hit)) this.onDown({ x: hit.x * 20 + 180, y: 640 - hit.y * 20 });
+      };
+      el.addEventListener('pointerdown', this.onPtr);
+    }
+
+    /** Rebuild the static parts of the scene for the current level. */
+    buildLevelView() {
+      const T = THREE, K = this.K;
+      if (this.levelGroup) this.scene.remove(this.levelGroup);
+      const g = (this.levelGroup = new T.Group());
       for (const w of this.walls) {
-        ctx.fillStyle = '#7a6656';
-        ctx.fillRect(w.x, w.y, w.w, w.h);
-        ctx.fillStyle = 'rgba(255,255,255,.12)';
-        ctx.fillRect(w.x, w.y, w.w, 2);
-        ctx.strokeStyle = '#3b2f28';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(w.x + 0.5, w.y + 0.5, w.w - 1, w.h - 1);
+        const m = K.box(w.w / 20, w.h / 20, 2.6, this.mats.wall, (w.x + w.w / 2 - 180) / 20, (640 - w.y - w.h / 2) / 20, 0);
+        m.receiveShadow = true;
+        g.add(m);
       }
+      this.pinMeshes = this.pins.map((pin) => {
+        const grp = new T.Group();
+        const horiz = pin.dir === 'left' || pin.dir === 'right';
+        const len = (horiz ? pin.w : pin.h) / 20;
+        const rod = K.mesh(new T.CylinderGeometry(0.22, 0.22, len, 12), this.mats.pin);
+        if (horiz) rod.rotation.z = Math.PI / 2;
+        const ring = K.mesh(new T.TorusGeometry(0.5, 0.14, 8, 20), this.mats.pin);
+        const off = len / 2 + 0.5;
+        const dirv = { left: [-1, 0], right: [1, 0], up: [0, 1], down: [0, -1] }[pin.dir];
+        ring.position.set(dirv[0] * off, dirv[1] * off, 0);
+        grp.add(rod, ring);
+        grp.userData = { rod, ring, base: [(pin.x + pin.w / 2 - 180) / 20, (640 - pin.y - pin.h / 2) / 20], dirv };
+        g.add(grp);
+        return grp;
+      });
+      this.heroMesh = this.makeKnight();
+      this.enemyMeshes = this.enemies.map(() => this.makeOrc());
+      g.add(this.heroMesh, ...this.enemyMeshes);
+      this.scene.add(g);
+      const z = this.zone;
+      this.heroLight.position.set((z.x + z.w / 2 - 180) / 20, (640 - z.y - z.h / 2) / 20, 3);
+    }
 
-      // entities
-      this.drawKnight(ctx, this.hero);
-      for (const e of this.enemies) this.drawOrc(ctx, e);
+    makeKnight() {
+      const K = this.K, g = K.person('#2f6fe0', null);
+      g.add(K.mesh(K.geo.sphere, K.std('#c9ced8', { metalness: 0.7, roughness: 0.3 }), 0, 1.42, 0, 0.62, 0.5, 0.62));
+      g.add(K.box(0.08, 0.3, 0.08, K.lam('#ff4d5e'), 0, 1.75, 0));
+      g.add(K.box(0.1, 0.9, 0.05, K.std('#e8eef8', { metalness: 0.8, roughness: 0.2 }), 0.45, 0.9, 0.15));
+      g.add(K.box(0.3, 0.08, 0.08, K.lam('#8a6414'), 0.45, 0.5, 0.15));
+      g.scale.setScalar(1.3);
+      return g;
+    }
 
-      // pins
-      this.pins.forEach((pin, i) => this.drawPin(ctx, pin, i === this.hintPin));
+    makeOrc() {
+      const K = this.K, g = K.person('#4c8a2e', null, '#6fb544');
+      g.add(K.mesh(new THREE.ConeGeometry(0.08, 0.3, 6), K.lam('#ffffff'), -0.18, 1.62, 0.05), K.mesh(new THREE.ConeGeometry(0.08, 0.3, 6), K.lam('#ffffff'), 0.18, 1.62, 0.05));
+      g.add(K.box(0.1, 0.07, 0.03, K.basic('#ff2a2a'), -0.1, 1.38, 0.26), K.box(0.1, 0.07, 0.03, K.basic('#ff2a2a'), 0.1, 1.38, 0.26));
+      const club = K.box(0.16, 0.9, 0.16, K.lam('#7a4a22'), 0.45, 0.95, 0.1);
+      club.rotation.z = -0.4;
+      g.add(club);
+      g.userData.club = club;
+      g.scale.setScalar(1.45);
+      return g;
+    }
 
-      // fx
-      for (const f of this.flyers) {
-        const t = f.t, hx = this.hero.x + this.hero.w / 2, hy = this.hero.y + 8;
-        const x = f.x + (hx - f.x) * t, y = f.y + (hy - f.y) * t - Math.sin(t * Math.PI) * 40;
-        ctx.fillStyle = '#ffe070';
-        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+    placeEnt(mesh, e, isOrc) {
+      const x = (e.x + e.w / 2 - 180) / 20, y = (640 - e.y - e.h) / 20;
+      mesh.position.set(x, y, 0.2);
+      const walking = isOrc && e.vx && e.alive;
+      this.K.animLegs(mesh, this.time * 16, walking);
+      if (isOrc) {
+        mesh.rotation.y = walking ? e.face * 1.1 : 0;
+        if (!e.alive) { const k = Math.max(0, 1 - e.deadT * 1.6); mesh.scale.setScalar(1.45 * k); mesh.visible = k > 0.02; }
+        if (e.attackT > 0) mesh.userData.club.rotation.z = -0.4 - Math.sin(this.time * 30) * 0.8;
+      } else if (!e.alive) {
+        mesh.rotation.z = Math.min(1.5, e.deadT * 4);
       }
-      for (const f of this.fx) {
+    }
+
+    draw() {
+      if (!this.scene) return;
+      const d = this.dummy;
+      // particles
+      const n = { gold: 0, lava: 0, water: 0, stone: 0, hot: 0 };
+      for (const p of this.parts) {
+        const t = p.hot > 0 ? 'hot' : p.t;
+        const m = this.partMesh[t];
+        if (n[t] >= 700) continue;
+        d.position.set((p.x - 180) / 20, (640 - p.y) / 20, p.z || 0);
+        d.scale.setScalar(t === 'water' ? 1.1 : 1);
+        d.updateMatrix();
+        m.setMatrixAt(n[t]++, d.matrix);
+      }
+      for (const t in n) { this.partMesh[t].count = n[t]; this.partMesh[t].instanceMatrix.needsUpdate = true; }
+      // lava glows
+      this.mats.lava.emissiveIntensity = 1 + Math.sin(this.time * 4) * 0.2;
+
+      // pins slide out along their direction
+      this.pins.forEach((pin, i) => {
+        const g = this.pinMeshes[i];
+        const { base, dirv, rod, ring } = g.userData;
+        g.position.set(base[0] + dirv[0] * pin.off / 20, base[1] + dirv[1] * pin.off / 20, 0);
+        g.visible = pin.off < 450;
+        const mat = i === this.hintPin ? this.mats.pinHint : this.mats.pin;
+        rod.material = ring.material = mat;
+      });
+      if (this.hintPin >= 0) this.mats.pinHint.emissiveIntensity = 0.6 + Math.sin(this.time * 8) * 0.4;
+
+      // characters
+      this.placeEnt(this.heroMesh, this.hero, false);
+      this.enemies.forEach((e, i) => this.placeEnt(this.enemyMeshes[i], e, true));
+
+      // collected coins fly to the knight
+      const hx = (this.hero.x + this.hero.w / 2 - 180) / 20, hy = (640 - this.hero.y) / 20 + 1;
+      this.coinPool.forEach((m, i) => {
+        const f = this.flyers[i];
+        m.visible = !!f;
+        if (!f) return;
+        const sx = (f.x - 180) / 20, sy = (640 - f.y) / 20;
+        m.position.set(sx + (hx - sx) * f.t, sy + (hy - sy) * f.t + Math.sin(f.t * Math.PI) * 2, 1);
+        m.rotation.z = f.t * 12;
+      });
+      const rings = this.fx.filter((f) => f.kind === 'poof');
+      this.ringPool.forEach((m, i) => {
+        const f = rings[i];
+        m.visible = !!f;
+        if (!f) return;
         const k = f.t / f.life;
-        if (f.kind === 'poof') {
-          ctx.strokeStyle = `rgba(255,255,255,${1 - k})`;
-          ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 30, 0, Math.PI * 2); ctx.stroke();
-        } else {
-          ctx.fillStyle = `rgba(230,230,240,${0.5 * (1 - k)})`;
-          ctx.beginPath(); ctx.arc(f.x, f.y - k * 30, 6 + k * 8, 0, Math.PI * 2); ctx.fill();
-        }
-      }
+        m.position.set((f.x - 180) / 20, (640 - f.y) / 20, 0.5);
+        m.scale.setScalar(0.5 + k * 2);
+        m.material.opacity = 1 - k;
+      });
+      this.heroLight.intensity = this.collected ? 14 : 8;
 
-      // top info
-      outlinedText(ctx, `💰 ${this.collected}/${this.goldNeed}`, 70, 38, 18, '#ffd84a');
+      // HUD
+      const gold = `💰 ${this.collected}/${this.goldNeed}`;
+      if (gold !== this.uiGold) { this.uiGold = gold; this.ui.gold.textContent = gold; }
       const alive = this.enemies.filter((e) => e.alive).length;
-      if (this.enemies.length) outlinedText(ctx, `👹 ${alive}`, 300, 38, 18, alive ? '#ff8080' : '#80ff9a');
-      if (this.levelNum <= LEVELS.length && this.time < 6 && this.pulled.length === 0) {
-        ctx.globalAlpha = Math.min(1, (6 - this.time));
-        outlinedText(ctx, this.def.tip, W / 2, 38 + (this.enemies.length ? 0 : 0), 14, '#fff');
-        ctx.globalAlpha = 1;
-      }
+      const orcs = this.enemies.length ? `👹 ${alive}` : '';
+      if (orcs !== this.uiOrcs) { this.uiOrcs = orcs; this.ui.orcs.textContent = orcs; this.ui.orcs.classList.toggle('done', !alive); }
+      const tip = this.levelNum <= LEVELS.length && this.pulled.length === 0 && this.time < 8 ? this.def.tip : '';
+      if (tip !== this.uiTip) { this.uiTip = tip; this.ui.tip.textContent = tip; this.ui.tip.hidden = !tip; }
+
+      this.renderer.render(this.scene, this.camera);
     }
 
-    drawPin(ctx, pin, hint) {
-      let { x, y, w, h } = pin;
-      const o = pin.off;
-      if (pin.dir === 'left') x -= o; else if (pin.dir === 'right') x += o; else if (pin.dir === 'up') y -= o; else y += o;
-      if (pin.removed && o > 400) return;
-      const horiz = pin.dir === 'left' || pin.dir === 'right';
-      const grad = horiz ? ctx.createLinearGradient(0, y, 0, y + h) : ctx.createLinearGradient(x, 0, x + w, 0);
-      grad.addColorStop(0, '#fff6c8'); grad.addColorStop(0.5, '#e0b64a'); grad.addColorStop(1, '#8a6414');
-      ctx.fillStyle = grad;
-      roundRect(ctx, x, y, w, h, 3);
-      ctx.fill();
-      ctx.strokeStyle = '#5a3f0a'; ctx.lineWidth = 1; ctx.stroke();
-      // handle ring
-      const hp = this.handlePos({ ...pin, off: o });
-      let hx = hp.x, hy = hp.y;
-      if (pin.dir === 'left') hx -= 8; else if (pin.dir === 'right') hx += 8; else if (pin.dir === 'up') hy -= 8; else hy += 8;
-      ctx.lineWidth = 5; ctx.strokeStyle = '#8a6414';
-      ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.stroke();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#ffd765';
-      ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.stroke();
-      if (hint) {
-        const pulse = 0.5 + 0.5 * Math.sin(this.time * 8);
-        ctx.strokeStyle = `rgba(80,255,140,${0.5 + pulse * 0.5})`;
-        ctx.lineWidth = 4;
-        roundRect(ctx, x - 5, y - 5, w + 10, h + 10, 6); ctx.stroke();
-        outlinedText(ctx, '👆', hx, hy + 22 + pulse * 6, 22);
-      }
+    destroy() {
+      window.removeEventListener('resize', this.onResize);
+      this.renderer.dispose();
+      this.renderer.forceContextLoss();
+      this.ly.destroy();
+      this.scene = null;
     }
-
-    drawKnight(ctx, e) {
-      const cx = e.x + e.w / 2, by = e.y + e.h;
-      ctx.save();
-      if (!e.alive) { ctx.globalAlpha = Math.max(0.35, 1 - e.deadT); ctx.translate(cx, by); ctx.rotate(-Math.min(1.4, e.deadT * 4)); ctx.translate(-cx, -by); }
-      // body
-      ctx.fillStyle = '#2f6fe0'; roundRect(ctx, cx - 10, by - 24, 20, 20, 5); ctx.fill();
-      ctx.fillStyle = '#1b3f8a'; ctx.fillRect(cx - 8, by - 6, 6, 6); ctx.fillRect(cx + 2, by - 6, 6, 6);
-      // head + helmet
-      ctx.fillStyle = '#ffd2a6'; ctx.beginPath(); ctx.arc(cx, by - 30, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#c9ced8'; ctx.beginPath(); ctx.arc(cx, by - 32, 10, Math.PI, 0); ctx.fill();
-      ctx.fillStyle = '#ff4d5e'; ctx.fillRect(cx - 1.5, by - 46, 3, 6);
-      ctx.fillStyle = '#222'; ctx.fillRect(cx - 4, by - 30, 2, 3); ctx.fillRect(cx + 2, by - 30, 2, 3);
-      // sword
-      ctx.fillStyle = '#e8eef8'; ctx.fillRect(cx + 11, by - 32, 3, 18);
-      ctx.fillStyle = '#8a6414'; ctx.fillRect(cx + 8, by - 16, 9, 3);
-      ctx.restore();
-      if (!e.alive) outlinedText(ctx, '✖', cx, by - 50, 16, '#ff4d5e');
-      else if (this.collected > 0) outlinedText(ctx, '😄', cx, by - 54, 14);
-    }
-
-    drawOrc(ctx, e) {
-      const cx = e.x + e.w / 2, by = e.y + e.h;
-      ctx.save();
-      if (!e.alive) {
-        ctx.globalAlpha = Math.max(0, 1 - e.deadT * 1.5);
-        if (ctx.globalAlpha <= 0) { ctx.restore(); return; }
-        ctx.filter = 'grayscale(1)';
-      }
-      const bob = e.vx ? Math.sin(this.time * 18) * 2 : 0;
-      ctx.fillStyle = '#4c8a2e'; roundRect(ctx, cx - 12, by - 26 + bob, 24, 22, 6); ctx.fill();
-      ctx.fillStyle = '#5a3a1a'; ctx.fillRect(cx - 12, by - 12 + bob, 24, 5);
-      ctx.fillStyle = '#6fb544'; ctx.beginPath(); ctx.arc(cx, by - 32 + bob, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx - 9, by - 42 + bob); ctx.lineTo(cx - 6, by - 50 + bob); ctx.lineTo(cx - 3, by - 42 + bob); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(cx + 9, by - 42 + bob); ctx.lineTo(cx + 6, by - 50 + bob); ctx.lineTo(cx + 3, by - 42 + bob); ctx.fill();
-      ctx.fillStyle = '#ff2a2a'; ctx.fillRect(cx - 6, by - 35 + bob, 4, 3); ctx.fillRect(cx + 2, by - 35 + bob, 4, 3);
-      ctx.fillStyle = '#fff'; ctx.fillRect(cx - 5, by - 27 + bob, 2, 3); ctx.fillRect(cx + 3, by - 27 + bob, 2, 3);
-      // club
-      const sx = cx + (e.face > 0 ? 12 : -16);
-      ctx.fillStyle = '#7a4a22'; ctx.fillRect(sx, by - 36 + bob, 5, 22);
-      ctx.restore();
-    }
-
-    destroy() {}
   }
 
   function overlap(a, b) {
