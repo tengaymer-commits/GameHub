@@ -1,44 +1,86 @@
 /*
- * MERGE ARMY – the Top War style "merge and battle" ad.
- * Buy swordsmen and archers, drag two identical units together to merge them into a
- * stronger one, arrange your formation, then press FIGHT for an automatic 3D battle.
- * Your army carries over between levels. Town bonuses: Barracks (+HP), Forge (+damage),
- * Vault (more coins each level).
+ * MERGE ARMY – 2048 meets the Top War "merge and battle" ad.
+ * Your army stands on a 4x4 board. Swipe and every soldier slides that way; two equal
+ * soldiers that collide merge into one of double value (2 → 4 → 8 … → 2048), and a new
+ * recruit appears after every swipe. Each level gives a number of swipes. When you are
+ * ready (or out of swipes) press FIGHT for an automatic 3D battle. The army carries over.
+ * Classes alternate with level: odd levels fight in melee, even levels shoot arrows.
+ * When the board jams, Regroup lines the army up biggest-to-smallest so merges open up again.
+ * Town bonuses: Barracks (+HP), Forge (+damage), Vault (+swipes per level).
  */
 (function () {
   'use strict';
   const { Save, UI, sfx, vibrate, fmt, clamp, rng } = GH;
 
-  const COLS = 5, ROWS = 3, CELL = 1.8, MAX_LVL = 8;
+  const N = 4, CELL = 1.8, MAX_LVL = 11, ENEMY_ROWS = 3;
+  const ANIM = 0.12;
+  const REGROUP_COST = 3;
+  const NAMES = ['', 'Recruit', 'Archer', 'Knight', 'Ranger', 'Champion', 'Sniper', 'Warlord', 'Marksman', 'Hero', 'Legend', 'King'];
+  const TILE = ['#cdc1b4', '#eee4da', '#ede0c8', '#f2b179', '#f59563', '#f67c5f', '#f65e3b', '#edcf72', '#edcc61', '#edc850', '#edc53f', '#edc22e'];
+  const roleOf = (lvl) => (lvl % 2 === 1 ? 'sword' : 'bow');
+  const valueOf = (lvl) => Math.pow(2, lvl);          // what the badge shows, 2048-style
   const cellPos = (i, enemy) => {
-    const c = i % COLS, r = Math.floor(i / COLS);
-    return { x: (c - 2) * CELL, z: (enemy ? -1 : 1) * (2.2 + r * CELL) };
+    const c = i % N, r = Math.floor(i / N);
+    return { x: (c - (N - 1) / 2) * CELL, z: (enemy ? -1 : 1) * (2.2 + r * CELL) };
   };
   const STATS = {
     sword: { hp: 30, dmg: 6, range: 1.3, rate: 1, speed: 2.6 },
     bow: { hp: 18, dmg: 5, range: 6.5, rate: 0.8, speed: 2 },
   };
-  const unitValue = (u) => Math.pow(2, u.lvl - 1);
+  // each merge multiplies HP and damage by GROW (> 2), so one big soldier beats the two it came from:
+  // that is what makes playing the 2048 board well pay off in battle
+  const GROW = 2.4;
+  const mult = (lvl) => Math.pow(GROW, lvl - 1);
+  const unitPower = (lvl) => { const s = STATS[roleOf(lvl)]; return Math.sqrt(s.hp * s.dmg) * mult(lvl); };
+
+  /** One 2048 move. Returns the new grid, per-tile moves and whether anything changed. */
+  function slide(grid, dir) {
+    const out = new Array(N * N).fill(null);
+    const moves = [];
+    let merges = 0;
+    for (let k = 0; k < N; k++) {
+      const idx = [];
+      for (let j = 0; j < N; j++) {
+        if (dir === 'left') idx.push(k * N + j);
+        else if (dir === 'right') idx.push(k * N + (N - 1 - j));
+        else if (dir === 'up') idx.push(j * N + k);          // row 0 = front line, top of the screen
+        else idx.push((N - 1 - j) * N + k);
+      }
+      const tiles = idx.filter((i) => grid[i]).map((i) => ({ ...grid[i], from: i }));
+      let w = 0;
+      for (let t = 0; t < tiles.length; t++) {
+        const a = tiles[t], b = tiles[t + 1], to = idx[w++];
+        if (b && b.lvl === a.lvl && a.lvl < MAX_LVL) {
+          out[to] = { id: a.id, lvl: a.lvl + 1, merged: true };
+          moves.push({ id: a.id, from: a.from, to }, { id: b.id, from: b.from, to, gone: true });
+          merges++;
+          t++;
+        } else {
+          out[to] = { id: a.id, lvl: a.lvl };
+          moves.push({ id: a.id, from: a.from, to });
+        }
+      }
+    }
+    const moved = merges > 0 || moves.some((m) => m.from !== m.to);
+    return { grid: out, moves, moved, merges };
+  }
 
   function enemyArmy(L) {
     const r = rng(L * 4099 + 11);
-    let budget = 3 + 2.4 * (L - 1) + 0.04 * Math.pow(L - 1, 2);
-    const units = [];
-    let maxL = clamp(1 + Math.floor(Math.log2(Math.max(1, budget / 3))), 1, MAX_LVL);
-    while (budget >= 1 && units.length < COLS * ROWS) {
-      let lvl = Math.max(1, maxL - (r() < 0.5 ? 1 : 0));
-      while (lvl > 1 && Math.pow(2, lvl - 1) > budget) lvl--;
-      units.push({ type: r() < 0.6 ? 'sword' : 'bow', lvl });
-      budget -= Math.pow(2, lvl - 1);
-      if (units.length === COLS * ROWS - 1 && budget > 1) maxL = Math.min(MAX_LVL, maxL + 1); // grid full: go bigger
+    let target = 50 + 160 * (L - 1) + 14 * Math.pow(L - 1, 2); // total enemy power for this level
+    const cells = N * ENEMY_ROWS;
+    const lvls = [];
+    while (target > 8 && lvls.length < cells) {
+      let lvl = 1;
+      while (lvl < MAX_LVL && unitPower(lvl + 1) <= target * 0.45) lvl++;
+      if (lvl > 1 && r() < 0.4) lvl--;
+      lvls.push(lvl);
+      target -= unitPower(lvl);
     }
-    // swords in front, archers behind
-    const grid = new Array(COLS * ROWS).fill(null);
-    const swords = units.filter((u) => u.type === 'sword'), bows = units.filter((u) => u.type === 'bow');
-    let i = 0;
-    for (const u of swords) grid[i++] = u;
-    i = Math.max(i, COLS);
-    for (const u of bows) { while (grid[i] && i < grid.length - 1) i++; if (!grid[i]) grid[i] = u; }
+    // melee in front, archers behind
+    lvls.sort((a, b) => (roleOf(a) === roleOf(b) ? b - a : roleOf(a) === 'sword' ? -1 : 1));
+    const grid = new Array(cells).fill(null);
+    lvls.forEach((lvl, i) => { grid[i] = { lvl }; });
     return grid;
   }
 
@@ -51,20 +93,42 @@
       const lv = GH.Town.lv;
       this.hpMult = 1 + 0.15 * lv('barracks');
       this.dmgMult = GH.Town.bonus.frostDmg();
-      const st = (Save.data.merge = Save.data.merge || { grid: new Array(COLS * ROWS).fill(null), coins: 0, buys: { sword: 0, bow: 0 }, paidLevel: 0 });
-      this.st = st;
+      this.st = this.loadState(level);
+      this.enemyGrid = enemyArmy(level);
+      this.state = 'plan';
+      this.time = 0;
+      this.meshes = new Map();   // tile id -> mesh
+      this.badgeTex = {};
+      this.buildScene();
+      this.buildEnemies();
+      this.syncMeshes();
+      api.setHudButtons([]);
+    }
+
+    loadState(level) {
+      let st = Save.data.merge2;
+      if (!st) {
+        st = { grid: new Array(N * N).fill(null), nextId: 1, swipes: 0, paidLevel: 0 };
+        // carry over the army from the coin-based version, strongest first
+        const old = Save.data.merge && Save.data.merge.grid ? Save.data.merge.grid.filter(Boolean).map((u) => u.lvl).sort((a, b) => b - a) : [];
+        old.slice(0, N * N).forEach((lvl, i) => { st.grid[i] = { id: st.nextId++, lvl }; });
+        Save.data.merge2 = st;
+      }
       if (st.paidLevel < level) {
-        st.coins += 60 + 20 * level + 15 * lv('vault');
+        st.swipes += 8 + Math.floor(level / 2) + GH.Town.lv('vault');
         st.paidLevel = level;
-        if (level === 1 && st.grid.every((c) => !c)) { st.grid[1] = { type: 'sword', lvl: 1 }; st.grid[3] = { type: 'sword', lvl: 1 }; }
+        if (!st.grid.some(Boolean)) { this.spawnTile(st); this.spawnTile(st); }
         Save.save();
       }
-      this.enemyGrid = enemyArmy(level);
-      this.state = 'plan'; // before rebuildUnits(): it refreshes the buy/fight buttons
-      this.buildScene();
-      this.rebuildUnits();
-      this.time = 0;
-      api.setHudButtons([]);
+      return st;
+    }
+
+    spawnTile(st = this.st) {
+      const empty = st.grid.map((t, i) => (t ? -1 : i)).filter((i) => i >= 0);
+      if (!empty.length) return null;
+      const i = empty[Math.floor(Math.random() * empty.length)];
+      st.grid[i] = { id: st.nextId++, lvl: Math.random() < 0.1 ? 2 : 1 };
+      return st.grid[i].id;
     }
 
     // ---------------------------------------------------------------- scene
@@ -72,17 +136,21 @@
       const T = THREE, K = this.K;
       this.ly = K.layer(`
         <div class="ma-top"><div class="ma-power"><span class="you">💪 0</span><small>vs</small><span class="foe">0</span></div>
-          <div class="fs-cash"><span>🪙</span><b>0</b></div></div>
-        <div class="ma-tip">Drag two identical units together to merge them</div>
+          <div class="ma-swipes"><span>👆</span><b>0</b><small>swipes</small></div></div>
+        <div class="ma-tip">Swipe to move your army. Equal soldiers merge!</div>
         <div class="ma-bar">
-          <button class="ma-buy" data-type="sword"><span>⚔️</span><b>Swordsman</b><i></i></button>
-          <button class="ma-buy" data-type="bow"><span>🏹</span><b>Archer</b><i></i></button>
+          <button class="ma-more"><span>📺</span><b>+5 swipes</b></button>
+          <button class="ma-regroup"><span>🔀</span><b>Regroup</b><i>3 swipes</i></button>
           <button class="ma-fight">FIGHT!</button>
         </div>`);
       const el = this.ly.el;
-      this.ui = { you: el.querySelector('.you'), foe: el.querySelector('.foe'), coins: el.querySelector('.fs-cash b'), tip: el.querySelector('.ma-tip'),
-        bar: el.querySelector('.ma-bar'), buys: [...el.querySelectorAll('.ma-buy')], fight: el.querySelector('.ma-fight') };
-      this.ui.buys.forEach((b) => b.addEventListener('click', () => this.buy(b.dataset.type)));
+      this.ui = {
+        you: el.querySelector('.you'), foe: el.querySelector('.foe'), swipes: el.querySelector('.ma-swipes b'), tip: el.querySelector('.ma-tip'),
+        bar: el.querySelector('.ma-bar'), more: el.querySelector('.ma-more'), fight: el.querySelector('.ma-fight'),
+        regroup: el.querySelector('.ma-regroup'), regroupCost: el.querySelector('.ma-regroup i'),
+      };
+      this.ui.more.addEventListener('click', () => this.moreSwipes());
+      this.ui.regroup.addEventListener('click', () => this.regroup());
       this.ui.fight.addEventListener('click', () => this.startBattle());
       this.renderer = K.renderer(el);
       const scene = (this.scene = new T.Scene());
@@ -101,16 +169,25 @@
       const river = new T.Mesh(new T.PlaneGeometry(60, 1.4), K.lam('#4aa3d8'));
       river.rotation.x = -Math.PI / 2; river.position.y = 0.01;
       scene.add(river);
-      // grid tiles
+      // the 2048 board under your army
+      const board = new T.Mesh(new T.BoxGeometry(N * CELL + 0.3, 0.2, N * CELL + 0.3), K.lam('#bbada0'));
+      board.position.set(0, 0.05, 2.2 + ((N - 1) * CELL) / 2);
+      board.receiveShadow = true;
+      scene.add(board);
       this.tiles = [];
-      for (const enemy of [false, true]) {
-        for (let i = 0; i < COLS * ROWS; i++) {
-          const p = cellPos(i, enemy);
-          const t = new T.Mesh(new T.PlaneGeometry(CELL - 0.15, CELL - 0.15), new T.MeshBasicMaterial({ color: enemy ? '#c96b5a' : '#5a8fc9', transparent: true, opacity: 0.35 }));
-          t.rotation.x = -Math.PI / 2; t.position.set(p.x, 0.02, p.z);
-          scene.add(t);
-          if (!enemy) this.tiles.push(t);
-        }
+      for (let i = 0; i < N * N; i++) {
+        const p = cellPos(i, false);
+        const t = new T.Mesh(new T.BoxGeometry(CELL - 0.18, 0.12, CELL - 0.18), new T.MeshLambertMaterial({ color: TILE[0] }));
+        t.position.set(p.x, 0.17, p.z);
+        t.receiveShadow = true;
+        scene.add(t);
+        this.tiles.push(t);
+      }
+      for (let i = 0; i < N * ENEMY_ROWS; i++) {
+        const p = cellPos(i, true);
+        const t = new T.Mesh(new T.PlaneGeometry(CELL - 0.15, CELL - 0.15), new T.MeshBasicMaterial({ color: '#c96b5a', transparent: true, opacity: 0.35 }));
+        t.rotation.x = -Math.PI / 2; t.position.set(p.x, 0.02, p.z);
+        scene.add(t);
       }
       this.unitGroup = new T.Group();
       scene.add(this.unitGroup);
@@ -120,172 +197,197 @@
       scene.add(this.arrowMesh);
       this.dummy = new T.Object3D();
 
-      // drag & drop on the ground plane
-      const ray = new T.Raycaster(), plane = new T.Plane(new T.Vector3(0, 1, 0), 0), hit = new T.Vector3();
-      const toGround = (e) => {
-        const r = el.getBoundingClientRect();
-        ray.setFromCamera(new T.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
-        return ray.ray.intersectPlane(plane, hit) ? { x: hit.x, z: hit.z } : null;
-      };
-      const cellAt = (p) => {
-        if (!p) return -1;
-        const c = Math.round(p.x / CELL + 2), r = Math.round((p.z - 2.2) / CELL);
-        return c >= 0 && c < COLS && r >= 0 && r < ROWS ? r * COLS + c : -1;
-      };
+      // swipe input (plus arrow keys / WASD on desktop)
+      let start = null;
       this.h = {
         down: (e) => {
-          if (this.state !== 'plan' || this.blocked() || e.target.closest('button')) return;
-          const i = cellAt(toGround(e));
-          if (i < 0 || !this.st.grid[i]) return;
-          e.preventDefault();
-          this.drag = { i, mesh: this.meshes[i] };
+          if (e.target.closest('button')) return;
+          start = { x: e.clientX, y: e.clientY };
           try { el.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
         },
-        move: (e) => {
-          if (!this.drag) return;
-          const p = toGround(e);
-          if (p) { this.drag.mesh.position.set(p.x, 0.6, p.z); this.dragOver = cellAt(p); }
-        },
         up: (e) => {
-          if (!this.drag) return;
-          const from = this.drag.i, to = cellAt(toGround(e));
-          this.drag = null; this.dragOver = -1;
-          this.drop(from, to);
+          if (!start) return;
+          const dx = e.clientX - start.x, dy = e.clientY - start.y;
+          start = null;
+          if (Math.max(Math.abs(dx), Math.abs(dy)) < 28) return;
+          this.swipe(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+        },
+        key: (e) => {
+          const k = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down' }[e.key.toLowerCase()];
+          if (k) { e.preventDefault(); this.swipe(k); }
         },
       };
       el.addEventListener('pointerdown', this.h.down);
-      el.addEventListener('pointermove', this.h.move);
       el.addEventListener('pointerup', this.h.up);
-      el.addEventListener('pointercancel', this.h.up);
-      this.onResize = () => { K.fit(this.renderer, this.camera, el, 6.6, 19, 40, 80); };
+      el.addEventListener('pointercancel', () => { start = null; });
+      window.addEventListener('keydown', this.h.key);
+      this.onResize = () => K.fit(this.renderer, this.camera, el, 5.4, 19, 40, 80);
       window.addEventListener('resize', this.onResize);
       this.onResize();
     }
 
     blocked() { return this.paused || UI.modalCount > 0 || !!document.querySelector('.ad-player'); }
 
-    unitMesh(u, enemy) {
-      const K = this.K, T = THREE;
-      const body = enemy ? (u.type === 'sword' ? '#c0392b' : '#d35400') : (u.type === 'sword' ? '#3a7bd5' : '#2f9e5a');
+    badge(lvl, enemy) {
+      const key = lvl + (enemy ? 'e' : 'p');
+      if (this.badgeTex[key]) return this.badgeTex[key];
+      const tx = this.K.canvasTex(160, 96);
+      const c = tx.ctx;
+      c.fillStyle = enemy ? '#c0392b' : TILE[Math.min(lvl, TILE.length - 1)];
+      GH.roundRect(c, 6, 6, 148, 84, 22); c.fill();
+      c.lineWidth = 6; c.strokeStyle = enemy ? '#fff' : '#776e65'; c.stroke();
+      const v = String(valueOf(lvl));
+      c.font = `900 ${v.length > 3 ? 44 : 56}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = enemy || lvl >= 3 ? '#fff' : '#776e65';
+      c.fillText(v, 80, 52);
+      return (this.badgeTex[key] = tx.tex);
+    }
+
+    unitMesh(lvl, enemy) {
+      const K = this.K, T = THREE, role = roleOf(lvl);
+      const body = enemy ? (role === 'sword' ? '#c0392b' : '#d35400') : (role === 'sword' ? '#3a7bd5' : '#2f9e5a');
       const g = K.person(body, enemy ? '#5b1a14' : null);
-      if (!enemy) g.add(K.mesh(K.geo.sphere, K.std(u.lvl >= 5 ? '#ffd84a' : '#c9ced8', { metalness: 0.7, roughness: 0.3 }), 0, 1.45, 0, 0.62, 0.5, 0.62));
-      if (u.type === 'sword') g.add(K.box(0.1, 1, 0.05, K.std('#e8eef8', { metalness: 0.8, roughness: 0.2 }), 0.42, 0.9, 0.12));
+      if (!enemy) g.add(K.mesh(K.geo.sphere, K.std(lvl >= 7 ? '#ffd84a' : lvl >= 4 ? '#c9ced8' : '#8d6e4f', { metalness: lvl >= 4 ? 0.7 : 0.1, roughness: 0.35 }), 0, 1.45, 0, 0.62, 0.5, 0.62));
+      if (role === 'sword') g.add(K.box(0.1, 1, 0.05, K.std('#e8eef8', { metalness: 0.8, roughness: 0.2 }), 0.42, 0.9, 0.12));
       else { const bow = K.mesh(new T.TorusGeometry(0.4, 0.04, 6, 12, Math.PI), K.lam('#8a5a32'), 0.4, 0.95, 0.1); bow.rotation.z = -Math.PI / 2; g.add(bow); }
-      g.scale.setScalar(0.75 + u.lvl * 0.12);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.badge(lvl, enemy), depthTest: false }));
+      sp.scale.set(0.8, 0.48, 1); sp.position.y = 2.15; sp.renderOrder = 9;
+      g.add(sp);
+      g.userData.base = 0.7 + lvl * 0.08;
+      g.scale.setScalar(g.userData.base);
       g.rotation.y = enemy ? 0 : Math.PI;
-      // level badge
-      const tx = K.canvasTex(128, 128);
-      tx.ctx.fillStyle = enemy ? '#c0392b' : '#1c4fa0';
-      tx.ctx.beginPath(); tx.ctx.arc(64, 64, 54, 0, Math.PI * 2); tx.ctx.fill();
-      tx.ctx.lineWidth = 8; tx.ctx.strokeStyle = '#fff'; tx.ctx.stroke();
-      tx.ctx.font = '900 64px system-ui, sans-serif'; tx.ctx.textAlign = 'center'; tx.ctx.textBaseline = 'middle';
-      tx.ctx.fillStyle = '#fff'; tx.ctx.fillText(String(u.lvl), 64, 68);
-      const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx.tex, depthTest: false }));
-      badge.scale.set(0.55, 0.55, 1); badge.position.y = 2.1; badge.renderOrder = 9;
-      g.add(badge);
-      g.userData.badge = badge;
       return g;
     }
 
-    rebuildUnits() {
-      this.unitGroup.traverse((o) => { if (o.material && o.material.map) o.material.map.dispose(); });
-      this.unitGroup.clear();
-      this.meshes = [];
+    buildEnemies() {
       this.enemyMeshes = [];
-      this.st.grid.forEach((u, i) => {
-        if (!u) { this.meshes[i] = null; return; }
-        const m = this.unitMesh(u, false);
-        const p = cellPos(i, false);
-        m.position.set(p.x, 0, p.z);
-        this.unitGroup.add(m);
-        this.meshes[i] = m;
-      });
       this.enemyGrid.forEach((u, i) => {
         if (!u) return;
-        const m = this.unitMesh(u, true);
+        const m = this.unitMesh(u.lvl, true);
         const p = cellPos(i, true);
         m.position.set(p.x, 0, p.z);
         this.unitGroup.add(m);
         this.enemyMeshes.push(m);
       });
+    }
+
+    /** Make the meshes match the grid: add new tiles, drop merged-away ones, rebuild upgraded ones. */
+    syncMeshes(popIds = []) {
+      const alive = new Set();
+      this.st.grid.forEach((t, i) => {
+        if (!t) return;
+        alive.add(t.id);
+        let m = this.meshes.get(t.id);
+        if (m && m.userData.lvl !== t.lvl) { this.unitGroup.remove(m); m = null; }
+        if (!m) {
+          m = this.unitMesh(t.lvl, false);
+          m.userData.lvl = t.lvl;
+          this.unitGroup.add(m);
+          this.meshes.set(t.id, m);
+        }
+        const p = cellPos(i, false);
+        m.position.set(p.x, 0.23, p.z);
+        m.userData.cell = i;
+        if (popIds.includes(t.id)) m.userData.pop = 0.001;
+      });
+      for (const [id, m] of this.meshes) if (!alive.has(id)) { this.unitGroup.remove(m); this.meshes.delete(id); }
+      this.tiles.forEach((tile, i) => tile.material.color.set(this.st.grid[i] ? TILE[Math.min(this.st.grid[i].lvl, TILE.length - 1)] : TILE[0]));
       this.refreshUi();
     }
 
-    power(grid, bonus) {
+    power(lvls, bonus) {
       let p = 0;
-      for (const u of grid) if (u) { const s = STATS[u.type]; p += Math.sqrt(s.hp * s.dmg) * unitValue(u) * (bonus ? Math.sqrt(this.hpMult * this.dmgMult) : 1); }
+      for (const lvl of lvls) p += unitPower(lvl) * (bonus ? Math.sqrt(this.hpMult * this.dmgMult) : 1);
       return Math.round(p);
     }
 
-    cost(type) { return 10 + 6 * this.st.buys[type]; }
-
     refreshUi() {
-      this.ui.coins.textContent = fmt(this.st.coins);
-      this.ui.you.textContent = `💪 ${fmt(this.power(this.st.grid, true))}`;
-      this.ui.foe.textContent = `👹 ${fmt(this.power(this.enemyGrid, false))}`;
-      this.ui.buys.forEach((b) => {
-        const c = this.cost(b.dataset.type);
-        b.querySelector('i').textContent = `🪙 ${c}`;
-        b.disabled = this.st.coins < c || this.state !== 'plan';
-      });
-      this.ui.fight.disabled = this.state !== 'plan' || !this.st.grid.some(Boolean);
+      const mine = this.st.grid.filter(Boolean).map((t) => t.lvl);
+      this.ui.you.textContent = `💪 ${fmt(this.power(mine, true))}`;
+      this.ui.foe.textContent = `👹 ${fmt(this.power(this.enemyGrid.filter(Boolean).map((u) => u.lvl), false))}`;
+      this.ui.swipes.textContent = this.st.swipes;
+      this.ui.swipes.parentElement.classList.toggle('out', this.st.swipes <= 0);
+      this.ui.fight.disabled = this.state !== 'plan' || !mine.length;
+      this.ui.more.disabled = this.state !== 'plan';
+      const stuck = this.boardStuck();
+      this.ui.regroup.disabled = this.state !== 'plan' || this.st.grid.filter(Boolean).length < 2 || this.st.swipes < REGROUP_COST;
+      this.ui.regroup.classList.toggle('ready', stuck && this.st.grid.some(Boolean));
+      this.ui.fight.classList.toggle('ready', this.st.swipes <= 0 || this.boardStuck());
     }
 
-    buy(type) {
+    boardStuck() { return ['up', 'down', 'left', 'right'].every((d) => !slide(this.st.grid, d).moved); }
+
+    swipe(dir) {
+      if (this.state !== 'plan' || this.anim || this.blocked()) return;
+      if (this.st.swipes <= 0) { UI.toast('Out of swipes: FIGHT or watch an ad for more'); return; }
+      const res = slide(this.st.grid, dir);
+      if (!res.moved) { this.nudge = { dir, t: 0 }; return; }
+      this.st.swipes--;
+      this.anim = { t: 0, moves: res.moves, next: res.grid };
+      sfx(res.merges ? 'level' : 'tap');
+      if (res.merges) vibrate(15);
+      this.ui.tip.hidden = true;
+    }
+
+    /** Line the army up biggest-to-smallest in a snake, so equal soldiers end up side by side. */
+    regroup() {
+      if (this.state !== 'plan' || this.anim || this.blocked()) return;
+      if (this.st.swipes < REGROUP_COST) { UI.toast(`Regroup needs ${REGROUP_COST} swipes`); return; }
+      const tiles = this.st.grid.map((t, i) => t && { ...t, from: i }).filter(Boolean).sort((a, b) => b.lvl - a.lvl);
+      const snake = [];
+      for (let r = N - 1; r >= 0; r--) for (let c = 0; c < N; c++) snake.push(r * N + ((N - 1 - r) % 2 ? N - 1 - c : c));
+      const next = new Array(N * N).fill(null);
+      const moves = tiles.map((t, k) => { next[snake[k]] = { id: t.id, lvl: t.lvl }; return { id: t.id, from: t.from, to: snake[k] }; });
+      this.st.swipes -= REGROUP_COST;
+      this.anim = { t: 0, moves, next, noSpawn: true, slow: true };
+      sfx('tap');
+    }
+
+    finishSwipe() {
+      const { next, noSpawn } = this.anim;
+      this.anim = null;
+      const merged = next.filter((t) => t && t.merged).map((t) => t.id);
+      next.forEach((t) => { if (t) delete t.merged; });
+      this.st.grid = next;
+      const born = noSpawn ? null : this.spawnTile();
+      Save.save();
+      this.syncMeshes([...merged, born].filter(Boolean));
+      if (this.st.swipes <= 0) { this.ui.tip.textContent = 'Out of swipes: time to FIGHT!'; this.ui.tip.hidden = false; }
+      else if (this.boardStuck()) { this.ui.tip.textContent = 'Board jammed: 🔀 Regroup, or FIGHT!'; this.ui.tip.hidden = false; }
+    }
+
+    async moreSwipes() {
       if (this.state !== 'plan' || this.blocked()) return;
-      const c = this.cost(type);
-      if (this.st.coins < c) return;
-      // swordsmen go to the front rows first, archers to the back
-      const order = [...Array(COLS * ROWS).keys()];
-      if (type === 'bow') order.reverse();
-      const i = order.find((k) => !this.st.grid[k]);
-      if (i === undefined) { UI.toast('Army full: merge units to make room'); return; }
-      this.st.coins -= c;
-      this.st.buys[type]++;
-      this.st.grid[i] = { type, lvl: 1 };
+      this.paused = true;
+      const ok = await Monetization.showRewarded('merge_swipes');
+      this.paused = false;
+      if (!ok) return;
+      Monetization.resetInterstitialCounter();
+      this.st.swipes += 5;
       Save.save();
-      sfx('coin');
-      this.rebuildUnits();
-      this.spawnPop = { i, t: 0 };
-    }
-
-    drop(from, to) {
-      const g = this.st.grid;
-      if (to < 0 || to === from) { this.rebuildUnits(); return; }
-      const a = g[from], b = g[to];
-      if (b && a.type === b.type && a.lvl === b.lvl && a.lvl < MAX_LVL) {
-        g[to] = { type: a.type, lvl: a.lvl + 1 };
-        g[from] = null;
-        sfx('level'); vibrate(20);
-        this.spawnPop = { i: to, t: 0 };
-        this.ui.tip.hidden = true;
-      } else {
-        g[to] = a; g[from] = b;
-        sfx('tap');
-      }
-      Save.save();
-      this.rebuildUnits();
+      this.refreshUi();
+      UI.toast('+5 swipes');
     }
 
     // ---------------------------------------------------------------- battle
     startBattle() {
-      if (this.state !== 'plan' || this.blocked() || !this.st.grid.some(Boolean)) return;
+      if (this.state !== 'plan' || this.anim || this.blocked() || !this.st.grid.some(Boolean)) return;
       this.state = 'battle';
       this.ui.bar.classList.add('fighting');
       this.ui.tip.hidden = true;
       this.fighters = [];
-      const add = (u, i, enemy, mesh) => {
-        const s = STATS[u.type], v = unitValue(u);
+      const add = (lvl, i, enemy, mesh) => {
+        const s = STATS[roleOf(lvl)], v = mult(lvl);
         const hp = s.hp * v * (enemy ? 1 : this.hpMult);
         const p = cellPos(i, enemy);
         const bar = new THREE.Sprite(new THREE.SpriteMaterial({ color: enemy ? '#ff4d5e' : '#4ade80', depthTest: false }));
         bar.center.set(0, 0.5); bar.renderOrder = 8;
         this.scene.add(bar);
-        this.fighters.push({ u, enemy, mesh, x: p.x, z: p.z, hp, max: hp, dmg: s.dmg * v * (enemy ? 1 : this.dmgMult), range: s.range, rate: s.rate, speed: s.speed, cd: Math.random() * 0.5, bar, phase: 0 });
+        this.fighters.push({ lvl, role: roleOf(lvl), enemy, mesh, x: p.x, z: p.z, hp, max: hp, dmg: s.dmg * v * (enemy ? 1 : this.dmgMult), range: s.range, rate: s.rate, speed: s.speed, cd: Math.random() * 0.5, bar, phase: 0 });
       };
-      this.st.grid.forEach((u, i) => { if (u) add(u, i, false, this.meshes[i]); });
+      this.st.grid.forEach((t, i) => { if (t) add(t.lvl, i, false, this.meshes.get(t.id)); });
       let k = 0;
-      this.enemyGrid.forEach((u, i) => { if (u) add(u, i, true, this.enemyMeshes[k++]); });
+      this.enemyGrid.forEach((u, i) => { if (u) add(u.lvl, i, true, this.enemyMeshes[k++]); });
       this.battleT = 0;
       this.refreshUi();
       sfx('bad');
@@ -293,7 +395,6 @@
 
     updateBattle(dt) {
       this.battleT += dt;
-      const alive = (e) => this.fighters.filter((f) => f.hp > 0 && f.enemy === e);
       for (const f of this.fighters) {
         if (f.hp <= 0) continue;
         let target = null, bd = Infinity;
@@ -314,13 +415,11 @@
         if (!f.moving && f.cd <= 0) {
           f.cd = 1 / f.rate;
           f.swing = 0.2;
-          if (f.u.type === 'bow') this.arrows.push({ x: f.x, z: f.z, y: 1, target, dmg: f.dmg });
-          else { target.hp -= f.dmg; target.hitT = 0.1; if (Math.random() < 0.3) sfx('hit'); }
+          if (f.role === 'bow') this.arrows.push({ x: f.x, z: f.z, target, dmg: f.dmg });
+          else { target.hp -= f.dmg; if (Math.random() < 0.3) sfx('hit'); }
         }
         if (f.swing > 0) f.swing -= dt;
-        if (f.hitT > 0) f.hitT -= dt;
       }
-      // gentle separation so crowds don't stack on one spot
       for (let i = 0; i < this.fighters.length; i++) for (let j = i + 1; j < this.fighters.length; j++) {
         const a = this.fighters[i], b = this.fighters[j];
         if (a.hp <= 0 || b.hp <= 0) continue;
@@ -329,13 +428,13 @@
       }
       for (const a of this.arrows) {
         const t = a.target, dx = t.x - a.x, dz = t.z - a.z, d = Math.hypot(dx, dz);
-        if (d < 0.4 || t.hp <= 0) { a.done = true; if (t.hp > 0) { t.hp -= a.dmg; t.hitT = 0.1; } continue; }
+        if (d < 0.4 || t.hp <= 0) { a.done = true; if (t.hp > 0) t.hp -= a.dmg; continue; }
         const st = Math.min(d, 14 * dt);
         a.x += (dx / d) * st; a.z += (dz / d) * st; a.ry = Math.atan2(dx, dz);
       }
       this.arrows = this.arrows.filter((a) => !a.done);
-      const mine = alive(false).length, theirs = alive(true).length;
-      if (!mine || !theirs || this.battleT > 60) this.endBattle(theirs === 0 && mine > 0);
+      const mine = this.fighters.some((f) => f.hp > 0 && !f.enemy), theirs = this.fighters.some((f) => f.hp > 0 && f.enemy);
+      if (!mine || !theirs || this.battleT > 60) this.endBattle(!theirs && mine);
     }
 
     endBattle(won) {
@@ -344,38 +443,42 @@
       this.arrows = [];
       if (won) {
         sfx('win');
-        setTimeout(() => this.api.win({ coins: 25 + this.levelNum * 6, troops: this.levelNum * 2, text: `⚔️ Enemy army ${fmt(this.power(this.enemyGrid, false))} defeated` }), 800);
+        const best = Math.max(...this.st.grid.filter(Boolean).map((t) => valueOf(t.lvl)));
+        setTimeout(() => this.api.win({ coins: 25 + this.levelNum * 6, troops: this.levelNum * 2, text: `⚔️ Biggest unit: ${fmt(best)} (${NAMES[Math.log2(best)]})` }), 800);
       } else {
-        // consolation coins so a player can never get stuck on a level
-        const bonus = 15 + this.levelNum * 5;
-        this.st.coins += bonus;
+        // a few bonus swipes so you can never get stuck on a level
+        const bonus = 4 + Math.floor(this.levelNum / 4);
+        this.st.swipes += bonus;
         Save.save();
-        setTimeout(() => this.api.lose({ reason: `Your army was defeated. +${bonus} 🪙 to reinforce: merge stronger units and try again!`, canRevive: false }), 800);
+        setTimeout(() => this.api.lose({ reason: `Your army was defeated. +${bonus} swipes: merge bigger soldiers and try again!`, canRevive: false }), 800);
       }
     }
 
     // ---------------------------------------------------------------- loop
     update(dt) {
       this.time += dt;
+      if (this.anim) { this.anim.t += dt; if (this.anim.t >= (this.anim.slow ? ANIM * 3 : ANIM)) this.finishSwipe(); }
+      if (this.nudge) { this.nudge.t += dt; if (this.nudge.t > 0.15) this.nudge = null; }
+      for (const m of this.meshes.values()) if (m.userData.pop) { m.userData.pop += dt; if (m.userData.pop > 0.3) m.userData.pop = 0; }
       if (this.state === 'battle') this.updateBattle(dt);
-      if (this.spawnPop) { this.spawnPop.t += dt; if (this.spawnPop.t > 0.35) this.spawnPop = null; }
     }
 
     draw() {
-      if (this.state === 'plan' || this.state === 'done' && !this.fighters) {
-        this.meshes.forEach((m, i) => {
-          if (!m || (this.drag && this.drag.i === i)) return;
-          const p = cellPos(i, false);
-          const pop = this.spawnPop && this.spawnPop.i === i ? 1 + Math.sin((this.spawnPop.t / 0.35) * Math.PI) * 0.4 : 1;
-          m.position.set(p.x, Math.abs(Math.sin(this.time * 2 + i)) * 0.05, p.z);
-          m.scale.setScalar((0.75 + this.st.grid[i].lvl * 0.12) * pop);
-        });
-        this.tiles.forEach((t, i) => {
-          const a = this.drag && this.dragOver === i;
-          const merge = a && this.st.grid[i] && this.st.grid[this.drag.i] && this.st.grid[i].type === this.st.grid[this.drag.i].type && this.st.grid[i].lvl === this.st.grid[this.drag.i].lvl;
-          t.material.color.set(merge ? '#ffd23a' : a ? '#8fd0ff' : '#5a8fc9');
-          t.material.opacity = a ? 0.7 : 0.35;
-        });
+      if (this.state === 'plan') {
+        const k = this.anim ? Math.min(1, this.anim.t / (this.anim.slow ? ANIM * 3 : ANIM)) : 1;
+        const moving = new Map();
+        if (this.anim) for (const mv of this.anim.moves) moving.set(mv.id, mv);
+        const nd = this.nudge ? Math.sin((this.nudge.t / 0.15) * Math.PI) * 0.15 : 0;
+        const ndx = this.nudge ? { left: -nd, right: nd, up: 0, down: 0 }[this.nudge.dir] : 0;
+        const ndz = this.nudge ? { up: -nd, down: nd, left: 0, right: 0 }[this.nudge.dir] : 0;
+        for (const [id, m] of this.meshes) {
+          const mv = moving.get(id);
+          let p = cellPos(m.userData.cell, false);
+          if (mv) { const a = cellPos(mv.from, false), b = cellPos(mv.to, false); p = { x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k }; }
+          m.position.set(p.x + ndx, 0.23 + Math.abs(Math.sin(this.time * 2 + id)) * 0.04, p.z + ndz);
+          const pop = m.userData.pop ? 1 + Math.sin((m.userData.pop / 0.3) * Math.PI) * 0.45 : 1;
+          m.scale.setScalar(m.userData.base * pop);
+        }
       }
       if (this.fighters) {
         for (const f of this.fighters) {
@@ -390,10 +493,9 @@
           m.position.set(f.x, 0, f.z);
           if (f.face !== undefined) m.rotation.y = f.face;
           this.K.animLegs(m, f.phase, f.moving);
-          const lean = f.swing > 0 ? 0.5 : 0;
-          m.rotation.x = lean * (f.u.type === 'sword' ? 1 : 0.3);
+          m.rotation.x = f.swing > 0 ? (f.role === 'sword' ? 0.5 : 0.15) : 0;
           const w = 1.1;
-          f.bar.position.set(f.x - w / 2, 2.6 + f.u.lvl * 0.12, f.z);
+          f.bar.position.set(f.x - w / 2, 2.6 + f.lvl * 0.1, f.z);
           f.bar.scale.set(Math.max(0.01, (w * f.hp) / f.max), 0.12, 1);
         }
         this.arrows.forEach((a, i) => {
@@ -403,14 +505,15 @@
         this.arrowMesh.count = Math.min(120, this.arrows.length);
         this.arrowMesh.instanceMatrix.needsUpdate = true;
       }
-      this.camera.position.set(0, 13, 14);
-      this.camera.lookAt(0, 0, 1.2);
+      this.camera.position.set(0, 13.5, 15);
+      this.camera.lookAt(0, 0, 1.8);
       this.renderer.render(this.scene, this.camera);
     }
 
     destroy() {
       window.removeEventListener('resize', this.onResize);
-      this.scene.traverse((o) => { if (o.material && o.material.map) o.material.map.dispose(); });
+      window.removeEventListener('keydown', this.h.key);
+      for (const t of Object.values(this.badgeTex)) t.dispose();
       this.renderer.dispose();
       this.renderer.forceContextLoss();
       this.ly.destroy();
@@ -420,10 +523,12 @@
   GH.Games.merge = {
     id: 'merge',
     name: 'Merge Army',
-    tagline: 'Merge troops. Crush the enemy army.',
+    tagline: '2048 with soldiers. Swipe, merge, battle.',
     icon: '⚔️',
     colors: ['#7a1f16', '#e0772b'],
     create: (opts) => new MergeArmy(opts),
   };
-  GH.Games.merge.enemyArmy = enemyArmy; // exposed for tests
+  // exposed for tests
+  GH.Games.merge.enemyArmy = enemyArmy;
+  GH.Games.merge.slide = slide;
 })();

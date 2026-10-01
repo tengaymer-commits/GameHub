@@ -399,12 +399,18 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .ma-power .foe { color: #ff8a8a; }
 .ma-tip { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); text-align: center; padding: 5px 12px; border-radius: 10px; background: rgba(255, 201, 60, .92); color: #3a2400; font-weight: 800; font-size: 13px; pointer-events: none; }
 .ma-tip[hidden] { display: none; }
-.ma-bar { position: absolute; left: 10px; right: 10px; bottom: 12px; display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 8px; transition: opacity .2s; }
+.ma-bar { position: absolute; left: 10px; right: 10px; bottom: 12px; display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 8px; transition: opacity .2s; }
 .ma-bar.fighting { opacity: 0; pointer-events: none; }
-.ma-buy { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; border-radius: 14px; background: #f4f1ea; color: #2a2a2a; box-shadow: inset 0 -4px 0 rgba(0,0,0,.15); }
-.ma-buy span { font-size: 24px; line-height: 1; }
-.ma-buy b { font-size: 12px; }
-.ma-buy i { font-style: normal; font-weight: 900; font-size: 14px; color: #8a5a00; }
-.ma-buy[disabled] { opacity: .5; }
+.ma-more, .ma-regroup { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 8px 4px; border-radius: 14px; background: #f4f1ea; color: #2a2a2a; box-shadow: inset 0 -4px 0 rgba(0,0,0,.15); }
+.ma-more span, .ma-regroup span { font-size: 22px; line-height: 1; }
+.ma-more b, .ma-regroup b { font-size: 13px; }
+.ma-regroup i { font-style: normal; font-size: 11px; font-weight: 800; color: #8a5a00; }
+.ma-more[disabled], .ma-regroup[disabled] { opacity: .5; }
+.ma-regroup.ready { animation: pulse-glow 0.8s infinite alternate; }
+.ma-swipes { display: flex; align-items: baseline; gap: 5px; padding: 4px 12px; border-radius: 12px; background: #8f7a66; color: #fff; font-weight: 900; border: 2px solid #f9f6f2; font-variant-numeric: tabular-nums; }
+.ma-swipes b { font-size: 22px; }
+.ma-swipes small { font-size: 11px; opacity: .85; }
+.ma-swipes.out { background: #c0392b; }
 .ma-fight { border-radius: 14px; background: linear-gradient(180deg, #ff6b5a, #d9443a); color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.25); }
+.ma-fight.ready { animation: pulse-glow 0.8s infinite alternate; }
 .ma-fight[disabled] { filter: grayscale(1); opacity: .6; }
