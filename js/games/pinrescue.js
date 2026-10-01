@@ -126,6 +126,43 @@
       zone: [184, 440, 148, 162],
       solution: [0, 2],
     }),
+    () => ({
+      name: 'Double trouble',
+      tip: 'Two orcs, one pool of lava',
+      walls: [...FRAME, [176, 70, 8, 200], [176, 278, 8, 152]],
+      pins: [
+        { x: 6, y: 270, w: 170, h: 8, dir: 'left' },    // 0 lava -> orcs
+        { x: 184, y: 270, w: 170, h: 8, dir: 'right' }, // 1 gold -> hero
+        { x: 176, y: 430, w: 8, h: 194, dir: 'down' },  // 2 wall between orcs and hero (trap)
+      ],
+      fills: [
+        { type: 'lava', x: 36, y: 170, w: 136, h: 94 },
+        { type: 'gold', x: 192, y: 180, w: 136, h: 84 },
+      ],
+      hero: { x: 262, y: 602 },
+      enemies: [{ x: 66, y: 602 }, { x: 128, y: 602 }],
+      zone: [184, 430, 148, 172],
+      solution: [0, 1],
+    }),
+    () => ({
+      name: "Don't cool it",
+      tip: 'Sometimes lava is your friend',
+      walls: [...FRAME, [176, 70, 8, 532]],
+      pins: [
+        { x: 6, y: 250, w: 170, h: 8, dir: 'left' },    // 0 gold -> hero
+        { x: 184, y: 230, w: 170, h: 8, dir: 'right' }, // 1 water -> lava (trap: makes stone)
+        { x: 184, y: 420, w: 170, h: 8, dir: 'right' }, // 2 lava -> orc
+      ],
+      fills: [
+        { type: 'gold', x: 36, y: 150, w: 136, h: 96 },
+        { type: 'water', x: 192, y: 140, w: 136, h: 86 },
+        { type: 'lava', x: 192, y: 350, w: 136, h: 66 },
+      ],
+      hero: { x: 100, y: 602 },
+      enemies: [{ x: 262, y: 602 }],
+      zone: [28, 258, 148, 344],
+      solution: [2, 0],
+    }),
   ];
 
   function mirror(L) {
@@ -506,8 +543,12 @@
       const win = this.state === 'pendingWin';
       this.state = 'done';
       if (win) {
-        const bonus = Math.round((this.collected / Math.max(1, this.goldTotal)) * 20);
-        this.api.win({ coins: 30 + this.levelNum * 4 + bonus, text: `💰 ${this.collected} gold collected` });
+        // ⭐ rating by how much of the gold reached the knight
+        const share = this.collected / Math.max(1, this.goldTotal);
+        const stars = share >= 0.95 ? 3 : share >= 0.75 ? 2 : 1;
+        const best = (GH.Save.data.pinStars = GH.Save.data.pinStars || {});
+        best[this.levelNum] = Math.max(best[this.levelNum] || 0, stars);
+        this.api.win({ coins: 30 + this.levelNum * 4 + stars * 10, text: `${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}  💰 ${Math.round(share * 100)}% of the gold` });
       } else {
         this.api.lose({ reason: this.reason, canRevive: false });
       }

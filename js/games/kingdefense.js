@@ -111,15 +111,18 @@
         <button class="btn gold small kd-call" hidden>⚔️ Call wave now</button>
         <div class="kd-boss" hidden>👹 WARLORD INCOMING</div>
         <div class="kd-edge" hidden><i></i><b></b></div>
+        <button class="skill-btn kd-skill" aria-label="Meteor"><span>☄️</span><i></i></button>
         <div class="fs-joy idle"><i></i></div>`);
       const el = this.ly.el;
       this.ui = {
         wave: el.querySelector('.kd-wave b'), sub: el.querySelector('.kd-wave small'), coins: el.querySelector('.kd-coins b'),
         hallBar: el.querySelector('.kd-hall i'), call: el.querySelector('.kd-call'), boss: el.querySelector('.kd-boss'),
         joy: el.querySelector('.fs-joy'), knob: el.querySelector('.fs-joy i'),
+        skill: el.querySelector('.kd-skill'), skillTxt: el.querySelector('.kd-skill i'),
         edge: el.querySelector('.kd-edge'), edgeArrow: el.querySelector('.kd-edge i'), edgeText: el.querySelector('.kd-edge b'),
       };
       this.ui.call.addEventListener('click', () => this.callEarly());
+      this.ui.skill.addEventListener('click', () => this.meteor());
       this.renderer = K.renderer(el);
       const scene = (this.scene = new T.Scene());
       scene.background = new T.Color('#9fd3f0');
@@ -283,6 +286,7 @@
       this.time = 0;
       this.revived = false;
       this.padT = 0;
+      this.skillCd = 6; // ☄️ meteor cooldown
     }
 
     showBonuses() {
@@ -469,6 +473,8 @@
       this.updateTowers(dt);
       this.updateProjectiles(dt);
       this.updateCoins(dt);
+      this.skillCd = Math.max(0, this.skillCd - dt);
+      if (this.meteorT > 0) this.meteorT -= dt;
       this.updatePads(dt);
       for (const f of this.fx) { f.t += dt; f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt; f.vy -= 16 * dt; }
       this.fx = this.fx.filter((f) => f.t < 0.6);
@@ -507,6 +513,26 @@
         }
       }
       this.enemies = this.enemies.filter((e) => { if (e.dead && e.bar) e.bar.remove(); return !e.dead; });
+    }
+
+    get skillMax() { return 18; }
+
+    /** ☄️ Meteor: blasts every enemy around the hero. Scales with the wave so it stays useful. */
+    meteor() {
+      const H = this.hero;
+      if (this.skillCd > 0 || H.deadT > 0 || this.blocked() || this.state === 'over') return false;
+      this.skillCd = this.skillMax;
+      const dmg = 12 * this.hpScale * (1 + 0.25 * H.lvl) / this.bonus.dmg; // damage() re-applies the Forge bonus
+      let hit = 0;
+      for (const e of this.enemies) if (!e.dead && Math.hypot(e.x - H.x, e.z - H.z) < 6) { this.damage(e, dmg); hit++; }
+      for (let i = 0; i < 40; i++) {
+        const a = Math.random() * 6.28, r = Math.random() * 6;
+        this.fx.push({ x: H.x + Math.cos(a) * r, y: 0.4, z: H.z + Math.sin(a) * r, vx: Math.cos(a) * 4, vy: 4 + Math.random() * 5, vz: Math.sin(a) * 4, t: 0, c: i % 2 ? '#ff7a1a' : '#ffd23a' });
+      }
+      this.meteorT = 0.5;
+      sfx('bad'); vibrate([30, 30, 80]);
+      if (!hit) UI.toast('No enemies in range: get closer to the horde');
+      return true;
     }
 
     heroDown() {
@@ -888,6 +914,12 @@
       if (sub !== this.uiS) { this.uiS = sub; this.ui.sub.textContent = sub; }
       this.ui.hallBar.style.width = Math.max(0, (this.hall.hp / this.hall.max) * 100) + '%';
       this.updateEdgeMarker();
+      const k = 1 - this.skillCd / this.skillMax;
+      this.ui.skill.style.setProperty('--k', k);
+      this.ui.skill.classList.toggle('ready', this.skillCd <= 0 && this.hero.deadT <= 0);
+      const t = this.skillCd > 0 ? `${Math.ceil(this.skillCd)}s` : 'Meteor';
+      if (this.ui.skillTxt.textContent !== t) this.ui.skillTxt.textContent = t;
+      this.ly.el.style.setProperty('--flash', Math.max(0, (this.meteorT || 0) * 0.6));
     }
 
     /** Arrow on the screen edge pointing at the enemy closest to the Town Hall when it is off-screen. */

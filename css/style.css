@@ -414,3 +414,17 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .ma-fight { border-radius: 14px; background: linear-gradient(180deg, #ff6b5a, #d9443a); color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.25); }
 .ma-fight.ready { animation: pulse-glow 0.8s infinite alternate; }
 .ma-fight[disabled] { filter: grayscale(1); opacity: .6; }
+
+/* ---------- Skill buttons (Gate Rush airstrike, Kingdom meteor) ---------- */
+.skill-btn {
+  --k: 0;
+  position: absolute; right: 14px; bottom: 120px; width: 70px; height: 70px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: conic-gradient(#ffc93c calc(var(--k) * 360deg), rgba(20, 26, 46, .6) 0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
+}
+.skill-btn span { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; background: #232d4d; filter: grayscale(.7) brightness(.8); }
+.skill-btn i { position: absolute; bottom: -18px; font-style: normal; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+.skill-btn.ready span { filter: none; background: #3a2400; }
+.skill-btn.ready { animation: pulse-glow .7s infinite alternate; }
+.fs-layer::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: calc(var(--flash, 0) * 1.8); pointer-events: none; }

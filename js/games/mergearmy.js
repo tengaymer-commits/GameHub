@@ -5,6 +5,7 @@
  * recruit appears after every swipe. Each level gives a number of swipes. When you are
  * ready (or out of swipes) press FIGHT for an automatic 3D battle. The army carries over.
  * Classes alternate with level: odd levels fight in melee, even levels shoot arrows.
+ * Making a new biggest soldier ever gives +2 swipes.
  * When the board jams, Regroup lines the army up biggest-to-smallest so merges open up again.
  * Town bonuses: Barracks (+HP), Forge (+damage), Vault (+swipes per level).
  */
@@ -15,6 +16,7 @@
   const N = 4, CELL = 1.8, MAX_LVL = 11, ENEMY_ROWS = 3;
   const ANIM = 0.12;
   const REGROUP_COST = 3;
+  const RECORD_BONUS = 2;
   const NAMES = ['', 'Recruit', 'Archer', 'Knight', 'Ranger', 'Champion', 'Sniper', 'Warlord', 'Marksman', 'Hero', 'Legend', 'King'];
   const TILE = ['#cdc1b4', '#eee4da', '#ede0c8', '#f2b179', '#f59563', '#f67c5f', '#f65e3b', '#edcf72', '#edcc61', '#edc850', '#edc53f', '#edc22e'];
   const roleOf = (lvl) => (lvl % 2 === 1 ? 'sword' : 'bow');
@@ -114,6 +116,8 @@
         old.slice(0, N * N).forEach((lvl, i) => { st.grid[i] = { id: st.nextId++, lvl }; });
         Save.data.merge2 = st;
       }
+      // highest tile ever made: beating it pays bonus swipes
+      if (!st.best) st.best = Math.max(1, ...st.grid.filter(Boolean).map((t) => t.lvl));
       if (st.paidLevel < level) {
         st.swipes += 8 + Math.floor(level / 2) + GH.Town.lv('vault');
         st.paidLevel = level;
@@ -349,6 +353,14 @@
       const merged = next.filter((t) => t && t.merged).map((t) => t.id);
       next.forEach((t) => { if (t) delete t.merged; });
       this.st.grid = next;
+      // a brand-new biggest soldier earns bonus swipes: good 2048 play pays for itself
+      const top = Math.max(0, ...next.filter(Boolean).map((t) => t.lvl));
+      if (top > this.st.best) {
+        this.st.best = top;
+        this.st.swipes += RECORD_BONUS;
+        UI.toast(`🏆 New record ${valueOf(top)}! +${RECORD_BONUS} swipes`);
+        sfx('win');
+      }
       const born = noSpawn ? null : this.spawnTile();
       Save.save();
       this.syncMeshes([...merged, born].filter(Boolean));

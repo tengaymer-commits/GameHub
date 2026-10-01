@@ -70,6 +70,8 @@
   const BEASTS = {
     wolf: { hp: 4, spd: 2.4, chase: 4.4, dps: 7, r: 0.55, reach: 1.3, meat: 2, scale: 0.85, color: '#b9c4d2' },
     bear: { hp: 14, spd: 1.6, chase: 3.3, dps: 14, r: 0.95, reach: 1.9, meat: 5, scale: 1.35, color: '#f3f6fa' },
+    // boss that roams in every few minutes: big meat haul plus gems
+    yeti: { hp: 50, spd: 1.3, chase: 2.8, dps: 8, r: 1.7, reach: 2.8, meat: 24, scale: 2.5, color: '#e3f4ff', gems: 3 },
   };
 
   // ------------------------------------------------------------------ shared assets
@@ -403,6 +405,7 @@
       this.bolts = [];
       this.customers = [];
       this.spawnT = 0.5;
+      this.yetiT = 120; // first Frost Yeti after 2 min, then every 150s
       this.custT = 1;
       this.cookT = 0;
       this.dropT = this.sellT = this.cashT = this.padT = 0;
@@ -721,7 +724,7 @@
 
     backTop(i) { return this.player.localToWorld(new THREE.Vector3(0, 0.75 + i * STACK_H, -0.5)); }
 
-    spawnBeast(anywhere) {
+    spawnBeast(anywhere, forceKind) {
       const p = this.player.position;
       let x, z, tries = 0;
       do {
@@ -729,7 +732,7 @@
         z = -7 - Math.random() * 22;
         tries++;
       } while (!anywhere && tries < 20 && (x - p.x) ** 2 + (z - p.z) ** 2 < 14 * 14);
-      const kind = Math.random() < Math.min(0.6, 0.25 + this.tier * 0.05) ? 'bear' : 'wolf';
+      const kind = forceKind || (Math.random() < Math.min(0.6, 0.25 + this.tier * 0.05) ? 'bear' : 'wolf');
       const def = BEASTS[kind];
       const grp = beastMesh(kind);
       grp.position.set(x, 0, z);
@@ -745,6 +748,7 @@
       b.hitT = 0.12;
       if (b.hp <= 0) {
         b.dead = 0.001;
+        if (b.def.gems) { Save.data.gems += b.def.gems; UI.toast(`Yeti down! +${b.def.gems} 💎`); sfx('win'); }
         sfx('pop');
         vibrate(10);
         const { g, m } = assets();
@@ -968,6 +972,13 @@
       const alive = this.beasts.filter((b) => !b.dead).length;
       this.spawnT -= dt;
       if (alive < this.maxBeasts && this.spawnT <= 0) { this.spawnBeast(false); this.spawnT = 2.5; }
+      this.yetiT -= dt;
+      if (this.yetiT <= 0 && !this.beasts.some((b) => b.kind === 'yeti' && !b.dead)) {
+        this.yetiT = 150;
+        this.spawnBeast(false, 'yeti');
+        UI.toast('❄️ A Frost Yeti appeared! Big loot + 💎');
+        sfx('bad'); vibrate(80);
+      }
       for (const b of this.beasts) {
         const bp = b.grp.position;
         const ud = b.grp.userData;

@@ -2,7 +2,8 @@
  * HERO TOWER – the "power number" tower ad (Hero Wars / Evony / Tower War).
  * Your hero has a power number. Tap a room in the enemy towers to fight what is inside:
  * a weaker monster is absorbed (its power is added to yours), a stronger one kills you.
- * Potions add power; a ×2 potion doubles it, so save it for the right moment. The boss
+ * Potions add power; a ×2 potion doubles it, so save it for the right moment. Spike
+ * traps (from level 5) drain power and must be cleared too: take them after the ×2. The boss
  * on the top floor only falls once you have absorbed everything else in a good order. Every level is generated from a solution.
  */
 (function () {
@@ -24,14 +25,18 @@
     const others = rooms.filter((x) => x !== boss);
     for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
     // from level 3 the solution saves a ×2 potion for last: grabbing it early leaves you too weak for the boss
-    const mult = L >= 3 ? others[others.length - 1] : null;
+    // from level 5 a spike trap drains power. The solution takes it after the ×2 (it costs half as much there)
+    const trap = L >= 5 ? others[others.length - 1] : null;
+    const mult = L >= 3 ? others[others.length - (trap ? 2 : 1)] : null;
+    const reserved = (mult ? 1 : 0) + (trap ? 1 : 0);
     const potions = L >= 2 ? Math.max(1, Math.floor(others.length / 5)) : 0;
     const potionIdx = new Set();
-    while (potionIdx.size < Math.min(potions, others.length - (mult ? 2 : 1))) potionIdx.add(ri(0, others.length - (mult ? 2 : 1)));
+    while (potionIdx.size < Math.min(potions, others.length - reserved)) potionIdx.add(ri(0, others.length - 1 - reserved));
     // walk the solution order: each enemy is beatable exactly when it is reached
     let P = start;
     others.forEach((room, i) => {
       if (room === mult) { room.kind = 'mult'; room.val = 2; P *= 2; return; }
+      if (room === trap) { room.kind = 'trap'; room.val = Math.max(2, Math.round(P * 0.3)); P -= room.val; return; }
       if (potionIdx.has(i)) { room.kind = 'potion'; room.val = ri(Math.ceil(P * 0.2), Math.ceil(P * 0.45)); }
       else room.val = ri(Math.max(1, Math.ceil(P * 0.25)), Math.max(1, Math.min(P - 1, Math.ceil(P * 0.7))));
       P += room.val;
@@ -135,7 +140,9 @@
         room.grp = this.roomContent(room);
         room.grp.position.set(x, y + 0.15, 0);
         W.add(room.grp);
-        room.label = this.label(room.kind === 'potion' ? `+${room.val}` : room.kind === 'mult' ? '×2' : fmt(room.val), room.kind === 'potion' ? '#35d07f' : room.kind === 'mult' ? '#d4a017' : '#ff4d5e');
+        const txt = { potion: `+${room.val}`, mult: '×2', trap: `−${fmt(room.val)}` }[room.kind] || fmt(room.val);
+        const col = { potion: '#35d07f', mult: '#d4a017', trap: '#8e44ad' }[room.kind] || '#ff4d5e';
+        room.label = this.label(txt, col);
         room.label.position.set(x, y + RH - 0.35, 0.6);
         W.add(room.label);
       }
@@ -175,6 +182,11 @@
 
     roomContent(room) {
       const K = this.K, T = THREE, g = new T.Group();
+      if (room.kind === 'trap') {
+        g.add(K.box(2.4, 0.15, 1.4, K.lam('#5a4a5e'), 0, 0.08, 0));
+        for (let i = -2; i <= 2; i++) for (let j = -1; j <= 1; j++) g.add(K.mesh(new T.ConeGeometry(0.16, 0.7, 6), K.std('#c9ced8', { metalness: 0.8, roughness: 0.3 }), i * 0.45, 0.45, j * 0.4));
+        return g;
+      }
       if (room.kind === 'potion' || room.kind === 'mult') {
         const c = room.kind === 'mult' ? '#ffc93c' : '#35d07f';
         g.add(K.mesh(K.geo.sphere, K.std(c, { emissive: room.kind === 'mult' ? '#7a5a00' : '#0f7a3a', emissiveIntensity: 0.8, transparent: true, opacity: 0.9 }), 0, 0.45, 0, room.kind === 'mult' ? 1 : 0.8, room.kind === 'mult' ? 1 : 0.8, room.kind === 'mult' ? 1 : 0.8));
@@ -214,7 +226,7 @@
     }
 
     // ---------------------------------------------------------------- play
-    beatable(room) { return room.kind === 'potion' || room.kind === 'mult' || this.power > room.val; }
+    beatable(room) { return room.kind === 'potion' || room.kind === 'mult' || this.power > room.val; } // traps also need power > their drain
 
     enter(room) {
       if (room.cleared) return;
@@ -230,7 +242,7 @@
       const m = room.grp;
       if (room.kind === 'potion' || room.kind === 'mult' || this.power > room.val) {
         room.cleared = true;
-        this.power = room.kind === 'mult' ? this.power * 2 : this.power + room.val;
+        this.power = room.kind === 'mult' ? this.power * 2 : room.kind === 'trap' ? this.power - room.val : this.power + room.val;
         this.pop = { grp: m, t: 0 };
         room.label.visible = false;
         this.setLabel(this.heroLabel, fmt(this.power));
@@ -244,7 +256,7 @@
         this.state = 'done';
         this.heroDead = 0.001;
         sfx('bad'); vibrate([60, 40, 60]);
-        setTimeout(() => this.api.lose({ reason: `Power ${fmt(this.power)} vs ${fmt(room.val)}: too strong!`, canRevive: false }), 900);
+        setTimeout(() => this.api.lose({ reason: room.kind === 'trap' ? `The spikes drained all ${fmt(this.power)} power!` : `Power ${fmt(this.power)} vs ${fmt(room.val)}: too strong!`, canRevive: false }), 900);
       }
       this.busy = false;
     }

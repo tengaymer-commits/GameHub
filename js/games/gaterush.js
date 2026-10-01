@@ -58,11 +58,13 @@
         <div class="gr-top"><span class="gr-dist">0 m</span><span class="gr-buffs"></span></div>
         <div class="gr-boss" hidden><b>❄️ ICE GIANT</b><div class="bar"><i></i></div></div>
         <div class="gr-count">5</div>
+        <button class="skill-btn gr-skill" aria-label="Airstrike"><span>💥</span><i></i></button>
         <div class="gr-ready"><b>Drag to steer</b><span>Shoot the enemies. Shoot red gates to turn them blue!</span><i>👆</i></div>`);
       const el = this.ly.el;
       this.ui = {
         dist: el.querySelector('.gr-dist'), buffs: el.querySelector('.gr-buffs'), boss: el.querySelector('.gr-boss'),
         bossBar: el.querySelector('.gr-boss i'), count: el.querySelector('.gr-count'), ready: el.querySelector('.gr-ready'),
+        skill: el.querySelector('.gr-skill'),
       };
       this.renderer = K.renderer(el);
       const scene = (this.scene = new T.Scene());
@@ -228,6 +230,7 @@
       this.fireT = 0;
       this.fireMult = 1; this.dmgMult = 1;
       this.kills = 0; this.bosses = 0;
+      this.charge = 0; // airstrike meter, filled by kills
       this.enemies = []; this.gates = []; this.barrels = []; this.bullets = []; this.pops = [];
       this.nextRow = 20;
       this.nextBoss = FIRST_BOSS;
@@ -358,6 +361,7 @@
           if (this.keyDir && this.state === 'ready') { this.state = 'run'; this.ui.ready.hidden = true; }
         },
       };
+      this.ui.skill.addEventListener('click', () => this.airstrike());
       el.addEventListener('pointerdown', this.h.down);
       el.addEventListener('pointermove', this.h.move);
       el.addEventListener('pointerup', this.h.up);
@@ -460,7 +464,7 @@
           const r = e.k.r;
           if (e.dead || Math.abs(b.x - e.x) > r + 0.1 || Math.abs(b.z - e.z) > r + 0.4) continue;
           e.hp -= b.dmg; e.hitT = 0.06; b.dead = true;
-          if (e.hp <= 0) { e.dead = true; this.kills++; this.pop(e.x, 0.8, e.z, e.k.color, e.kind === 'brute' ? 10 : 3); if (Math.random() < 0.3) sfx('pop'); }
+          if (e.hp <= 0) { e.dead = true; this.kills++; this.charge++; this.pop(e.x, 0.8, e.z, e.k.color, e.kind === 'brute' ? 10 : 3); if (Math.random() < 0.3) sfx('pop'); }
           break;
         }
       }
@@ -559,6 +563,26 @@
         this.bullets.push({ x: this.sx + f[0] + 0.12, z: f[1] - 0.6, dmg });
       }
       if (Math.random() < 0.25) sfx('tap');
+    }
+
+    get chargeNeed() { return 30 + this.bosses * 5; }
+
+    /** 💥 Airstrike: wipes the road ahead and hits the boss. Charged by kills. */
+    airstrike() {
+      if (this.state !== 'run' || this.charge < this.chargeNeed || this.blocked()) return;
+      this.charge = 0;
+      for (const e of this.enemies) {
+        if (e.z < -60) continue;
+        const dmg = e.kind === 'brute' ? e.max * 0.6 : e.max + 1;
+        e.hp -= dmg;
+        this.pop(e.x, 1, e.z, '#ffb03a', 3);
+        if (e.hp <= 0 && !e.dead) { e.dead = true; this.kills++; }
+      }
+      if (this.boss) { this.boss.hp -= this.boss.max * 0.2; this.boss.hitT = 0.3; if (this.boss.hp <= 0) this.killBoss(); }
+      for (let i = 0; i < 14; i++) this.pop((Math.random() - 0.5) * 9, 1.5, -10 - Math.random() * 40, '#ffd23a', 2);
+      this.flash = 0.35;
+      this.float('💥 AIRSTRIKE!', '#ffd23a');
+      sfx('bad'); vibrate([30, 30, 80]);
     }
 
     killBoss() {
@@ -693,6 +717,10 @@
       if (dist !== this.uiDist) { this.uiDist = dist; this.ui.dist.textContent = dist; }
       const buffs = `${this.fireMult > 1.01 ? `🔥×${this.fireMult.toFixed(1)} ` : ''}${this.dmgMult > 1.01 ? `💥×${this.dmgMult.toFixed(1)}` : ''}`;
       if (buffs !== this.uiBuffs) { this.uiBuffs = buffs; this.ui.buffs.textContent = buffs; }
+      const k = Math.min(1, this.charge / this.chargeNeed);
+      this.ui.skill.style.setProperty('--k', k);
+      this.ui.skill.classList.toggle('ready', k >= 1 && this.state === 'run');
+      if (this.flash > 0) { this.flash -= 1 / 60; this.ly.el.style.setProperty('--flash', Math.max(0, this.flash)); } else this.ly.el.style.setProperty('--flash', 0);
       const cnt = fmt(Math.max(0, Math.round(this.shownN)));
       if (cnt !== this.uiCnt) { this.uiCnt = cnt; this.ui.count.textContent = cnt; }
       const p = K.toScreen(new THREE.Vector3(this.x, 3.7, lz), this.camera, this.ly.el); // count rides above the leader
