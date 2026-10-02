@@ -1,0 +1,10 @@
+{
+  "name": "Meander – gentle planner",
+  "short_name": "Meander",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4EEFA",
+  "theme_color": "#5B2E91",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
