@@ -1,5 +1,7 @@
 # Meander roadmap: from prototype to a paid app
 
+The engineering plan (architecture, data model, sprints) is in [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Where Meander is today
 
 What works now:
