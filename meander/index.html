@@ -18,26 +18,35 @@
 <style>
 /* Layout: one phone-width column; ambient lilac blobs drift behind; fixed tab bar at the bottom. */
 :root{
-  --bg:#F4EEFA; --surface:#FFFCFF; --surface-2:#ECE2F8; --ink:#24152F; --muted:#6C5A80; --line:#DACBEB;
-  --plum:#5B2E91; --plum-ink:#FFFFFF; --lilac:#B58BE8; --orchid:#B83F86;
-  --glow1:#CDAAF5; --glow2:#F3BCDB; --glow3:#B3C0F7;
+  /* Colour comes from two hues the person picks in settings: --h1 (main) and --h2 (second).
+     --k is the colour mood: calm 0.6, balanced 1, wild 1.45. Weather colours stay fixed so history reads the same. */
+  --h1:303; --h2:350; --k:1;
+  --bg:oklch(96.5% calc(.022 * var(--k)) var(--h1)); --surface:oklch(99.3% .006 var(--h1)); --surface-2:oklch(92.5% calc(.04 * var(--k)) var(--h1));
+  --ink:oklch(22% .06 var(--h1)); --muted:oklch(49% .07 var(--h1)); --line:oklch(86% calc(.045 * var(--k)) var(--h1));
+  --plum:oklch(42% .16 var(--h1)); --plum-ink:#FFFFFF; --lilac:oklch(72% .13 var(--h1));
+  --accent:oklch(57% .17 var(--h2)); --accent-soft:oklch(80% .11 var(--h2)); --accent-ink:#FFFFFF;
+  --glow1:oklch(84% calc(.1 * var(--k)) var(--h1)); --glow2:oklch(85% calc(.1 * var(--k)) var(--h2)); --glow3:oklch(84% calc(.08 * var(--k)) calc(var(--h1) - 40));
   --w-storm:#555A92; --w-fog:#A99CBB; --w-mild:#9B7BD3; --w-bright:#E386BE; --w-radiant:#EFAE45;
-  --shadow:0 14px 34px -22px rgba(64,22,110,.55);
+  --shadow:0 14px 34px -22px oklch(30% .12 var(--h1) / .55);
   --display:"Gloock", "Iowan Old Style", Georgia, serif;
   --body:"Onest", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --r:20px;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#140C1D; --surface:#1E1430; --surface-2:#2A1D40; --ink:#F1E9FA; --muted:#AE9DC6; --line:#3A2B54;
-  --plum:#BC97F4; --plum-ink:#1A0F28; --lilac:#8B63C9; --orchid:#F07FBE;
-  --glow1:#4A2779; --glow2:#5E2650; --glow3:#283672;
+  --bg:oklch(16% calc(.03 * var(--k)) var(--h1)); --surface:oklch(21% calc(.04 * var(--k)) var(--h1)); --surface-2:oklch(27% calc(.05 * var(--k)) var(--h1));
+  --ink:oklch(94% .02 var(--h1)); --muted:oklch(74% .05 var(--h1)); --line:oklch(34% .05 var(--h1));
+  --plum:oklch(77% .13 var(--h1)); --plum-ink:oklch(18% .05 var(--h1)); --lilac:oklch(56% .13 var(--h1));
+  --accent:oklch(77% .14 var(--h2)); --accent-soft:oklch(45% .1 var(--h2)); --accent-ink:oklch(18% .05 var(--h2));
+  --glow1:oklch(38% calc(.12 * var(--k)) var(--h1)); --glow2:oklch(36% calc(.11 * var(--k)) var(--h2)); --glow3:oklch(33% calc(.1 * var(--k)) calc(var(--h1) - 40));
   --w-storm:#7C82C4; --w-fog:#8E82A2; --w-mild:#A586E0; --w-bright:#EC8FC6; --w-radiant:#F2B65A;
   --shadow:0 14px 34px -20px rgba(0,0,0,.8); color-scheme:dark;
 }}
 :root[data-theme="dark"]{
-  --bg:#140C1D; --surface:#1E1430; --surface-2:#2A1D40; --ink:#F1E9FA; --muted:#AE9DC6; --line:#3A2B54;
-  --plum:#BC97F4; --plum-ink:#1A0F28; --lilac:#8B63C9; --orchid:#F07FBE;
-  --glow1:#4A2779; --glow2:#5E2650; --glow3:#283672;
+  --bg:oklch(16% calc(.03 * var(--k)) var(--h1)); --surface:oklch(21% calc(.04 * var(--k)) var(--h1)); --surface-2:oklch(27% calc(.05 * var(--k)) var(--h1));
+  --ink:oklch(94% .02 var(--h1)); --muted:oklch(74% .05 var(--h1)); --line:oklch(34% .05 var(--h1));
+  --plum:oklch(77% .13 var(--h1)); --plum-ink:oklch(18% .05 var(--h1)); --lilac:oklch(56% .13 var(--h1));
+  --accent:oklch(77% .14 var(--h2)); --accent-soft:oklch(45% .1 var(--h2)); --accent-ink:oklch(18% .05 var(--h2));
+  --glow1:oklch(38% calc(.12 * var(--k)) var(--h1)); --glow2:oklch(36% calc(.11 * var(--k)) var(--h2)); --glow3:oklch(33% calc(.1 * var(--k)) calc(var(--h1) - 40));
   --w-storm:#7C82C4; --w-fog:#8E82A2; --w-mild:#A586E0; --w-bright:#EC8FC6; --w-radiant:#F2B65A;
   --shadow:0 14px 34px -20px rgba(0,0,0,.8); color-scheme:dark;
 }
@@ -50,7 +59,7 @@ button{cursor:pointer; background:none; border:0; padding:0}
 
 /* ambient sky */
 .sky{position:fixed; inset:0 0 auto 0; height:420px; z-index:0; pointer-events:none; overflow:hidden}
-.blob{position:absolute; border-radius:50%; filter:blur(48px); opacity:.75}
+.blob{position:absolute; border-radius:50%; filter:blur(48px); opacity:calc(.45 + .25 * var(--k))}
 .blob.a{width:280px;height:240px;background:var(--glow1);left:-60px;top:-70px;animation:drift 22s ease-in-out infinite alternate}
 .blob.b{width:220px;height:200px;background:var(--glow2);right:-50px;top:10px;animation:drift 26s ease-in-out infinite alternate-reverse}
 .blob.c{width:240px;height:180px;background:var(--glow3);left:35%;top:140px;opacity:.5;animation:drift 30s ease-in-out infinite alternate}
@@ -92,7 +101,7 @@ p{margin:0}
 .count{font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums; font-weight:600}
 
 /* tide divider */
-.tideline{display:block; width:100%; height:12px; color:var(--lilac); opacity:.7}
+.tideline{display:block; width:100%; height:12px; color:var(--accent); opacity:.6}
 
 /* intention */
 .intent{width:100%; border:0; background:transparent; font-family:var(--display); font-size:1.3rem; line-height:1.3; resize:none; padding:0; color:var(--ink); min-height:1.6em}
@@ -124,23 +133,22 @@ p{margin:0}
 /* tides */
 .tide{display:flex; flex-direction:column; gap:4px}
 .tide-name{display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding-block:6px}
-.tide-name svg{width:16px;height:16px;color:var(--lilac)}
+.tide-name svg{width:16px;height:16px;color:var(--accent)}
 .empty{font-size:.88rem; color:var(--muted); font-style:italic; padding:4px 0 6px 30px}
 .task{display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px dashed var(--line)}
 .tide-name + .task{border-top:0}
-.check{width:24px;height:24px;border-radius:9px 12px 10px 13px;border:2px solid var(--lilac);flex:none;display:grid;place-items:center}
+.check{width:24px;height:24px;border-radius:9px 12px 10px 13px;border:2px solid var(--accent-soft);flex:none;display:grid;place-items:center}
 .check svg{width:14px;height:14px;opacity:0}
-.task.done .check{background:var(--lilac); border-color:var(--lilac); color:var(--plum-ink)}
-:root .task.done .check{color:var(--surface)}
+.task.done .check{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .task.done .check svg{opacity:1}
 .task .txt{flex:1; min-width:0; overflow-wrap:anywhere}
-.task.done .txt{color:var(--muted); text-decoration:line-through; text-decoration-color:var(--lilac)}
+.task.done .txt{color:var(--muted); text-decoration:line-through; text-decoration-color:var(--accent)}
 .task .mini{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:var(--muted);flex:none}
 .task .mini svg{width:17px;height:17px}
 .task .mini:hover{background:var(--surface-2); color:var(--ink)}
 
 /* banners */
-.note{display:flex; flex-direction:column; gap:10px; padding:14px 16px; border-radius:var(--r); background:var(--surface-2); border:1px dashed var(--lilac)}
+.note{display:flex; flex-direction:column; gap:10px; padding:14px 16px; border-radius:var(--r); background:var(--surface-2); border:1px dashed var(--accent-soft)}
 .note .row{display:flex; gap:8px; flex-wrap:wrap}
 .note .btn.ghost{background:var(--surface)}
 
@@ -149,11 +157,11 @@ p{margin:0}
 .weekhead .grow{flex:1; min-width:0}
 .days{display:flex; flex-direction:column; gap:8px}
 .daycard{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; padding:12px 14px; border-radius:18px; background:var(--surface); border:1px solid var(--line); text-align:left; width:100%}
-.daycard.today{border-color:var(--plum); box-shadow:var(--shadow)}
+.daycard.today{border-color:var(--accent); box-shadow:var(--shadow)}
 .daycard .dname{font-weight:600}
 .daycard .dsub{font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums}
 .bar{height:6px; border-radius:6px; background:var(--surface-2); overflow:hidden; margin-top:6px}
-.bar i{display:block; height:100%; background:var(--lilac); border-radius:6px}
+.bar i{display:block; height:100%; background:linear-gradient(90deg, var(--lilac), var(--accent)); border-radius:6px}
 .wblob{width:34px;height:34px;border-radius:58% 42% 55% 45% / 48% 60% 40% 52%; background:var(--wc, var(--surface-2)); flex:none}
 .wblob.none{background:transparent; border:2px dashed var(--line)}
 
@@ -173,7 +181,7 @@ textarea.journal{width:100%; min-height:120px; border-radius:14px; border:1px so
 textarea.journal:focus,.good input:focus{outline:2px solid var(--lilac); outline-offset:0}
 .good{display:flex; flex-direction:column; gap:8px}
 .good label{display:flex; align-items:center; gap:10px}
-.good span{font-family:var(--display); color:var(--lilac); width:16px; text-align:center}
+.good span{font-family:var(--display); color:var(--accent); width:16px; text-align:center}
 .good input{flex:1; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--bg)}
 .history{display:grid; grid-template-columns:repeat(14,1fr); gap:4px; align-items:end}
 .history div{display:flex; flex-direction:column; align-items:center; gap:4px; font-size:.65rem; color:var(--muted); font-variant-numeric:tabular-nums}
@@ -206,7 +214,7 @@ textarea.journal:focus,.good input:focus{outline:2px solid var(--lilac); outline
 .alist{display:flex; flex-direction:column; gap:6px}
 .alist div{display:flex; align-items:center; gap:8px; padding:8px 8px 8px 14px; border-radius:14px; background:var(--surface-2)}
 .alist div span{flex:1; min-width:0}
-.plus-card{padding:18px; border-radius:22px; background:linear-gradient(140deg, var(--plum), var(--orchid)); color:var(--plum-ink); display:flex; flex-direction:column; gap:10px}
+.plus-card{padding:18px; border-radius:22px; background:linear-gradient(140deg, var(--plum), var(--accent)); color:var(--plum-ink); display:flex; flex-direction:column; gap:10px}
 .plus-card h3{font-size:1.5rem}
 .plus-card .btn{background:var(--plum-ink); color:var(--plum); align-self:flex-start}
 .feat{display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none}
@@ -218,8 +226,15 @@ textarea.journal:focus,.good input:focus{outline:2px solid var(--lilac); outline
 .plan .pn{font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
 .plan .pp{font-family:var(--display); font-size:1.35rem; font-variant-numeric:tabular-nums}
 .plan .ps{font-size:.72rem; color:var(--muted)}
-.tag{align-self:flex-start; font-size:.65rem; font-weight:700; padding:2px 7px; border-radius:99px; background:var(--orchid); color:var(--plum-ink); margin-bottom:4px}
-.danger{color:var(--orchid); font-weight:600; font-size:.9rem; align-self:flex-start}
+.tag{align-self:flex-start; font-size:.65rem; font-weight:700; padding:2px 7px; border-radius:99px; background:var(--accent); color:var(--accent-ink); margin-bottom:4px}
+.swatches{display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:6px}
+.sw{display:flex; flex-direction:column; align-items:center; gap:4px; font-size:.66rem; font-weight:600; color:var(--muted); min-width:0}
+.sw i{width:100%; max-width:40px; aspect-ratio:1; height:auto; border-radius:58% 42% 55% 45% / 48% 60% 40% 52%; background:var(--swc); border:3px solid transparent; box-shadow:0 0 0 1px var(--line)}
+.sw[aria-pressed="true"]{color:var(--ink)}
+.sw[aria-pressed="true"] i{border-color:var(--surface); box-shadow:0 0 0 2px var(--ink)}
+.duo{display:flex; gap:12px; align-items:center; padding:12px 14px; border-radius:16px; background:var(--surface-2)}
+.duo span{width:28px; height:28px; border-radius:50%}
+.danger{color:var(--accent); font-weight:600; font-size:.9rem; align-self:flex-start}
 
 /* breathe */
 .breathe{position:fixed; inset:0; z-index:30; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:36px; padding:24px}
@@ -277,6 +292,17 @@ const PROMPTS = [
   'What surprised you today?',
   'Which moment would you like to keep?'
 ];
+const MAINS = [
+  ['amethyst','Amethyst',303],['heather','Heather',330],['indigo','Indigo',272],
+  ['lagoon','Lagoon',205],['moss','Moss',148],['ember','Ember',40]
+];
+const SECONDS = [
+  ['orchid','Orchid',350],['marigold','Marigold',78],['coral','Coral',28],
+  ['mint','Mint',165],['sky','Sky',235],['lilac','Lilac',305]
+];
+const MOODS = [['calm','Calm',.6],['balanced','Balanced',1],['wild','Wild',1.45]];
+const hueOf = (list, id) => (list.find(x => x[0] === id) || list[0])[2];
+const swatch = h => `oklch(62% .15 ${h})`;
 const promptFor = k => PROMPTS[Math.floor(parse(k).getTime()/864e5) % PROMPTS.length];
 
 /* ---------- icons ---------- */
@@ -325,7 +351,7 @@ function seed(){
       {id:uid(), text:'Walk to the park, no phone', tide:'afternoon', done:false},
       {id:uid(), text:'Cook the lentil soup', tide:'evening', done:false}
     ]};
-  return { v:1, name:'', example:true, theme:'system', anchors, days,
+  return { v:1, name:'', example:true, theme:'system', colors:{main:'amethyst', second:'orchid', mood:'balanced'}, anchors, days,
     drift:[
       {id:uid(), text:'Try the pottery class on Thursdays', added:addDays(TODAY,-9)},
       {id:uid(), text:'Reorganise the bookshelf by colour', added:addDays(TODAY,-6)},
@@ -335,7 +361,8 @@ function seed(){
 }
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)) } catch(e) {}
-if (!S || S.v !== 1) S = seed();
+if (!S || S.v !== 1) { S = seed(); try { localStorage.setItem(KEY, JSON.stringify(S)) } catch(e) {} }
+S.colors = Object.assign({main:'amethyst', second:'orchid', mood:'balanced'}, S.colors);
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)) } catch(e) {} };
 const blank = () => ({ weather:null, intention:'', anchorsDone:[], tasks:[], journal:'', good:['','',''] });
 const day = k => S.days[k] || blank();
@@ -347,6 +374,11 @@ try { const h = location.hash.slice(1); if (['today','week','jar','reflect'].inc
 function applyTheme(){
   const r = document.documentElement;
   if (S.theme === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', S.theme);
+  r.style.setProperty('--h1', hueOf(MAINS, S.colors.main));
+  r.style.setProperty('--h2', hueOf(SECONDS, S.colors.second));
+  r.style.setProperty('--k', (MOODS.find(m => m[0] === S.colors.mood) || MOODS[1])[2]);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = getComputedStyle(r).getPropertyValue('--plum').trim() || '#5B2E91';
 }
 
 /* ---------- views ---------- */
@@ -534,7 +566,9 @@ function autosize(el){ el.style.height = 'auto'; el.style.height = el.scrollHeig
 
 /* ---------- sheets ---------- */
 function openSheet(html){
+  const prev = $('#layer .sheet'), top = prev ? prev.scrollTop : 0;
   $('#layer').innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div></div>`;
+  if (prev) { $('#layer .sheet').scrollTop = top; $('#layer .sheet').style.animation = 'none'; return; }
   const f = $('#layer .sheet button, #layer .sheet input'); if (f) f.focus({preventScroll:true});
 }
 const closeSheet = () => { $('#layer').innerHTML = ''; };
@@ -548,7 +582,15 @@ function settingsSheet(confirmErase){
       <div class="alist">${S.anchors.map(a => `<div><span>${esc(a.label)}</span><button class="iconbtn" style="width:32px;height:32px" data-act="delanchor" data-id="${a.id}" aria-label="Remove ${esc(a.label)}">${I.x}</button></div>`).join('')}</div>
       <form class="field" data-form="anchor" autocomplete="off"><input id="newanchor" name="t" placeholder="e.g. Ten pages of a book" aria-label="New anchor"><button class="btn" type="submit">Add</button></form>
       <p class="muted small">Three to five works best. Keep them small enough for a stormy day.</p></div>
-    <div class="stack"><span class="lbl">Appearance</span>
+    <div class="stack"><span class="lbl">Main colour</span>
+      <div class="swatches" role="group" aria-label="Main colour">${MAINS.map(([id,n,h]) => `<button class="sw" style="--swc:${swatch(h)}" data-act="color" data-k="main" data-v="${id}" aria-pressed="${S.colors.main===id}"><i></i>${n}</button>`).join('')}</div></div>
+    <div class="stack"><span class="lbl">Second colour</span>
+      <div class="swatches" role="group" aria-label="Second colour">${SECONDS.map(([id,n,h]) => `<button class="sw" style="--swc:${swatch(h)}" data-act="color" data-k="second" data-v="${id}" aria-pressed="${S.colors.second===id}"><i></i>${n}</button>`).join('')}</div>
+      <p class="muted small">Shows up in ticks, tide lines, progress and the glow behind each page.</p></div>
+    <div class="stack"><span class="lbl">Colour mood</span>
+      <div class="seg" role="group" aria-label="Colour mood">${MOODS.map(([id,n]) => `<button data-act="color" data-k="mood" data-v="${id}" aria-pressed="${S.colors.mood===id}">${n}</button>`).join('')}</div>
+      <div class="duo"><span style="background:var(--plum)"></span><span style="background:var(--accent)"></span><p class="small" style="flex:1;min-width:0">${MAINS.find(m=>m[0]===S.colors.main)?.[1] || 'Amethyst'} with ${(SECONDS.find(m=>m[0]===S.colors.second)?.[1] || 'Orchid').toLowerCase()}</p><button class="btn ghost" style="background:var(--surface)" data-act="surprise">Surprise me</button></div></div>
+    <div class="stack"><span class="lbl">Light or dark</span>
       <div class="seg">${[['system','Auto'],['light','Light'],['dark','Dark']].map(([v,n]) => `<button data-act="theme" data-v="${v}" aria-pressed="${S.theme===v}">${n}</button>`).join('')}</div></div>
     <div class="plus-card"><p class="eyebrow" style="color:inherit;opacity:.8">Meander Plus</p><h3>Gentle insights, sync and palettes</h3>
       <button class="btn" data-act="plus">See Plus</button></div>
@@ -567,7 +609,7 @@ function plusSheet(){
     <ul class="feat">
       <li>${I.spark}<span><strong>Monthly letter.</strong> Patterns between your weather, anchors and tides, written kindly.</span></li>
       <li>${I.spark}<span><strong>Sync and backup</strong> across your phone, tablet and laptop.</span></li>
-      <li>${I.spark}<span><strong>Palettes</strong> like Heather, Dusk and Amethyst Night.</span></li>
+      <li>${I.spark}<span><strong>Seasonal palettes and app icons</strong> that change gently through the year.</span></li>
       <li>${I.spark}<span><strong>Full history and export</strong> of your journal as a PDF or text file.</span></li>
     </ul>
     <div class="plans">${plans.map(([v,n,p,s,tag]) => `<button class="plan" data-act="plan" data-v="${v}" aria-pressed="${ui.plan===v}">${tag?`<span class="tag">${tag}</span>`:''}<span class="pn">${n}</span><span class="pp">${p}</span><span class="ps">${s}</span></button>`).join('')}</div>
@@ -629,6 +671,10 @@ const ACT = {
   plus(){ plusSheet(); return 'norender'; },
   plan(el){ ui.plan = el.dataset.v; plusSheet(); return 'norender'; },
   buy(){ toast('Checkout is not connected in this preview yet.'); return 'norender'; },
+  color(el){ S.colors[el.dataset.k] = el.dataset.v; applyTheme(); settingsSheet(false); return 'keep'; },
+  surprise(){ const pick = a => a[Math.floor(Math.random()*a.length)][0];
+    let m, c; do { m = pick(MAINS); c = pick(SECONDS); } while (m === S.colors.main && c === S.colors.second);
+    S.colors.main = m; S.colors.second = c; applyTheme(); settingsSheet(false); return 'keep'; },
   theme(el){ S.theme = el.dataset.v; applyTheme(); settingsSheet(false); return 'keep'; },
   delanchor(el){ S.anchors = S.anchors.filter(a => a.id !== el.dataset.id); settingsSheet(false); return 'keep'; },
   erase(){ settingsSheet(true); return 'norender'; },
