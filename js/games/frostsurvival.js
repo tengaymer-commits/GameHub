@@ -364,7 +364,7 @@
       // player
       this.player = person(m.blue, m.cream);
       this.player.position.set(0, 0, 10);
-      if (this.st.pos) this.player.position.set(clamp(this.st.pos[0], -24, 24), 0, clamp(this.st.pos[1], -34, 14)); // pick up where you left off
+      if (this.st.pos) this.player.position.set(clamp(this.st.pos[0], -30, CAMP.x1 + 8), 0, clamp(this.st.pos[1], -40, CAMP.z1 + 2)); // pick up where you left off
       this.backStack = new T.Group();
       this.player.add(this.backStack);
       this.backMeshes = [];
@@ -926,7 +926,7 @@
         // round obstacles push you out sideways so you slide around them
         const gx = P.x - GRILL.x, gz = P.z - GRILL.z, gd = Math.hypot(gx, gz), GR = 1.5;
         if (gd < GR) { const k = gd > 0.001 ? GR / gd : 0; P.x = GRILL.x + (k ? gx * k : GR); P.z = GRILL.z + gz * k; }
-        P.x = clamp(P.x, -34, 34); P.z = clamp(P.z, -46, 22);
+        P.x = clamp(P.x, -34, Math.max(34, CAMP.x1 + 10)); P.z = clamp(P.z, -46, CAMP.z1 + 4); // bounds grow with the camp
         const target = Math.atan2(v.x, v.z);
         let dAng = target - this.player.rotation.y;
         dAng = Math.atan2(Math.sin(dAng), Math.cos(dAng));
