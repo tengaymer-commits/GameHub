@@ -6,10 +6,11 @@
 
   Save.load();
 
-  const ORDER = ['kingdom', 'frost', 'merge', 'gate', 'tower', 'pin'];
+  const ORDER = ['kingdom', 'frost', 'merge', 'gate', 'tower', 'pin', 'doge'];
   const REWARDS = {
     kingdom: ['🪙 Gold', '🪖 Troops', '🥩 Loot', '📦 Chests'],
     pin: ['🪙 Gold', '📦 Chests'],
+    doge: ['🪙 Gold', '📦 Chests'],
     tower: ['🪙 Gold', '📦 Chests'],
     merge: ['🪙 Gold', '🪖 Troops', '📦 Chests'],
     gate: ['🪖 Troops', '🪙 Gold', '📦 Boss chests'],

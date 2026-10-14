@@ -10,6 +10,7 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
  Merge Army ──► 🪙, 🪖 + 📦 chests ───┤
  Hero Tower ──► 🪙 Gold + 📦 chests ─┤
  Pin Rescue ──► 🪙 Gold + 📦 chests ─┤
+ Doge Rescue ─► 🪙 Gold + 📦 chests ─┤
  Gate Rush ───► 🪖 Troops, 🪙, 📦 boss chests ┼──► TOWN: upgrade buildings ──► bonuses in the mini-games
  Frost Survival ► 🥩 Food, 📦 on expand ┘       Kitchen/Vault produce 🥩/🪙 over time
                                              chests drop power-up cards: 💡 🛡️ 🔥
@@ -23,6 +24,7 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 | 🗼 **Hero Tower** (3D) | Hero Wars / Evony "power number" tower ads | Your hero has a power number. Tap a room to fight what's inside: weaker monsters are absorbed, stronger ones kill you. Potions add power, and from level 3 a **×2 potion** has to be saved for the right moment, because the boss on top only falls to a well-ordered climb. Levels are generated from a solution, so every level is solvable; "always take the smallest" fails from level 3. Town: each Town Hall level adds starting power. Hints and level skips via cards or ads. From level 5, **spike traps** drain power and must be cleared too: take them after the ×2. |
 | 🪖 **Gate Rush** (3D, endless) | Last War / Kingshot "math gate" ads | Drag to steer your commander at the front of the army; the soldiers follow him and **his lane alone decides the gate** (the chosen gate lights up, the count rides above his head). The army fires automatically. Enemy waves charge down the road: grunts, fast runners, armored elites and brutes, plus an **Ice Giant boss every ~600 m** (the first at 450 m) that crushes your squad until you kill it. Pick the right gates, or **shoot red gates to turn them blue**. Shoot barrels open for soldiers, fire rate or damage. There are no levels: enemy toughness, wave size and speed rise the further you run. Rewards scale with distance, kills and bosses (a boss run earns a chest), and your best distance is saved. Kills charge a **💥 Airstrike** button that wipes the road ahead and hits the boss for 20%. |
 | 📌 **Pin Rescue** (3D) | Hero Wars / Evony "pull the pin" ads | Tap the pins in the right order: lava kills, water turns lava to stone, orcs must die, and the gold must reach the knight. It's rendered in 3D on top of the same 2D particle physics, so every level stays verified solvable. 8 hand-made puzzles (plus mirrored versions), each rated 1–3 ⭐ by how much gold reaches the knight. |
+| 🐶 **Doge Rescue** (2D physics) | "Help the doge to safety" draw-a-line ads | Draw **one** line with limited ink. When you lift your finger it becomes a real physics object (Planck.js / Box2D): it falls, tips and wedges. Then the hive wakes up and the bees swarm the dog. Keep every bee off the dog for 10 seconds. Bees fly around rock to reach the dog, but your line blocks them. 5 hand-made levels (open field, the ad's cliff hole, pillar, two hives, a ledge with bees below), then mirrored loops with more bees. 1–3 ⭐ by how little ink you used. A 💡 Hint shows the solution line. |
 
 ### Town buildings
 | Building | Effect |
@@ -37,8 +39,8 @@ The hub is a **3D town** you build up. Every mini-game feeds it with resources, 
 | 🧱 Walls | Frost Survival: +25 max health · Kingdom Defense: +40 Town Hall HP per level |
 
 ### Chests and power-ups
-Winning a Pin Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
-💡 **Hint** (Pin Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
+Winning a Pin Rescue, Doge Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
+💡 **Hint** (Pin Rescue, Doge Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
 ## Test it
 
@@ -67,6 +69,7 @@ js/town.js              town buildings, bonuses, production, chests, 3D town vie
 js/kit3d.js             shared Three.js helpers (layer, renderer, fit, primitives)
 js/main.js              hub (town, chests, modes, shop), game launcher/loop, win/lose flows, daily reward
 js/games/pinrescue.js   particle-physics pin puzzle, 3D view
+js/games/dogerescue.js  draw-one-line puzzle on Planck.js physics (js/vendor/planck.min.js, MIT)
 js/games/gaterush.js    endless 3D runner: shooting squad, gates, waves, bosses
 js/games/kingdefense.js Kingshot-style hero defense on your own town
 js/games/mergearmy.js   2048 board (DOM) driving a real-time 3D lane battle
@@ -93,7 +96,7 @@ Every game only calls `Monetization.*`, never an ad SDK directly. Swapping the m
 | Open chest now / halve timer | Rewarded or gems | Chest slots |
 | Offline earnings ×2 | Rewarded | Frost Survival welcome-back screen |
 | Revive / Rewards ×2 | Rewarded, or 10 💎 | Gate Rush run-over screen |
-| Hint / Skip level | Rewarded (or a Hint card) | Pin Rescue |
+| Hint / Skip level | Rewarded (or a Hint card) | Pin Rescue, Doge Rescue |
 | 2× cash for 90s | Rewarded (or a Hot Grill card) | Frost Survival HUD button |
 | Daily ×2, Free supplies | Rewarded | Hub / Shop |
 | Remove Ads, Starter Pack, gem packs | IAP | Shop |
