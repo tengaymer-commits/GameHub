@@ -818,6 +818,35 @@
       sfx('level');
     }
 
+    // ---------------------------------------------------------------- save state
+    snapshot() {
+      if (this.state !== 'prep' && this.state !== 'wave') return null;
+      const wave = this.state === 'wave' ? this.wave - 1 : this.wave; // an unfinished wave is replayed
+      if (wave <= 0 && !this.pads.some((p) => p.lvl)) return null;
+      return {
+        wave, coins: this.coinsHave, kills: this.kills, time: this.time, revived: this.revived,
+        hall: Math.round(this.hall.hp), heroHp: Math.round(this.hero.hp),
+        pads: this.pads.map((p) => [p.lvl, p.paid]),
+        label: `Wave ${wave + 1} · 🪙 ${fmt(this.coinsHave)} · Hall ${Math.round((this.hall.hp / this.hall.max) * 100)}%`,
+      };
+    }
+
+    restore(s) {
+      this.wave = s.wave; this.coinsHave = this.coinsShown = s.coins; this.kills = s.kills; this.time = s.time; this.revived = s.revived;
+      this.hall.hp = Math.max(1, Math.min(this.hall.max, s.hall));
+      s.pads.forEach(([lvl, paid], i) => {
+        const pad = this.pads[i];
+        if (!pad) return;
+        pad.lvl = lvl; pad.paid = paid || 0;
+        if (!lvl) return;
+        if (pad.def.type === 'hero') { this.hero.lvl = lvl; this.hero.max = 120 + lvl * 25; }
+        else if (pad.def.type !== 'repair') { this.buildTower(pad); pad.tower.grow = 1; pad.tower.grp.scale.setScalar(1); }
+      });
+      this.hero.hp = Math.max(1, Math.min(this.hero.max, s.heroHp || this.hero.max));
+      this.state = 'prep';
+      this.prepT = 10;
+    }
+
     // ---------------------------------------------------------------- render
     render3D(dt) {
       const d = this.dummy, H = this.hero;

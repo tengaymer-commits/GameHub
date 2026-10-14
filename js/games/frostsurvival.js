@@ -279,6 +279,8 @@
 
     persist() {
       this.st.lastSeen = Date.now();
+      this.st.carry = this.carry || 0;
+      if (this.player) this.st.pos = [Math.round(this.player.position.x * 10) / 10, Math.round(this.player.position.z * 10) / 10];
       Save.data.frostCamp = this.st;
       Save.data.levels.frost = this.tier;
       try { localStorage.setItem('gamehub_save_v1', JSON.stringify(Save.data)); } catch (e) { /* ignore */ }
@@ -362,12 +364,14 @@
       // player
       this.player = person(m.blue, m.cream);
       this.player.position.set(0, 0, 10);
+      if (this.st.pos) this.player.position.set(clamp(this.st.pos[0], -24, 24), 0, clamp(this.st.pos[1], -34, 14)); // pick up where you left off
       this.backStack = new T.Group();
       this.player.add(this.backStack);
       this.backMeshes = [];
       scene.add(this.player);
       this.hp = this.maxHp;
       this.hurtT = 0;
+      this.shieldT = 0;
       this.axeRing = new T.Group();
       this.axeMeshes = [];
       scene.add(this.axeRing);
@@ -409,7 +413,7 @@
       this.custT = 1;
       this.cookT = 0;
       this.dropT = this.sellT = this.cashT = this.padT = 0;
-      this.carry = 0;
+      this.carry = Math.max(0, Math.min(this.cap, this.st.carry || 0));
       this.cashShown = this.st.cash;
       this.boostT = 0;
       for (let i = 0; i < this.maxBeasts - 1; i++) this.spawnBeast(true);
@@ -953,6 +957,7 @@
 
       // --- player health
       this.hurtT = Math.max(0, this.hurtT - dt);
+      this.shieldT = Math.max(0, this.shieldT - dt);
       if (safe) this.hp = Math.min(this.maxHp, this.hp + 30 * dt);
       else if (this.hurtT <= 0) this.hp = Math.min(this.maxHp, this.hp + 3 * dt);
       this.hpBar.visible = this.hp < this.maxHp - 0.5;
@@ -995,7 +1000,7 @@
         const chasing = !safe && d < 8.5 && P.z < CAMP.z0 + 1;
         if (chasing) {
           if (d > b.def.reach * 0.9) { mx = dx / d; mz = dz / d; speed = b.def.chase; }
-          else if (this.hp > 0) { this.hp -= b.def.dps * dt; this.hurtT = 2.5; if (Math.random() < dt * 3) { sfx('hit'); vibrate(15); } }
+          else if (this.hp > 0 && this.shieldT <= 0) { this.hp -= b.def.dps * dt; this.hurtT = 2.5; if (Math.random() < dt * 3) { sfx('hit'); vibrate(15); } }
         } else {
           b.wanderT -= dt;
           if (b.wanderT <= 0) { b.tx = clamp(bp.x + (Math.random() - 0.5) * 12, -22, CAMP.x1 + 12); b.tz = clamp(bp.z + (Math.random() - 0.5) * 12, -32, -6); b.wanderT = 2 + Math.random() * 3; }
@@ -1028,16 +1033,23 @@
       });
 
       // --- death
+      // knocked down: you stay where you are (no trip back to camp), drop half your meat,
+      // get back up at 60% health and the beasts are thrown back while you recover
       if (this.hp <= 0) {
-        this.hp = this.maxHp;
-        P.set(0, 0, 11);
-        this.camera.position.copy(P).add(this.camOffset);
-        const lost = this.carry;
-        this.carry = 0;
+        this.hp = this.maxHp * 0.6;
+        this.shieldT = 3;
+        const lost = Math.ceil(this.carry / 2);
+        this.carry -= lost;
         this.syncStacks();
+        for (const b of this.beasts) {
+          if (b.dead) continue;
+          const bp = b.grp.position, dx = bp.x - P.x, dz = bp.z - P.z, d = Math.hypot(dx, dz) || 1;
+          if (d < 6) { bp.x += (dx / d) * (6 - d); bp.z += (dz / d) * (6 - d); }
+        }
         sfx('lose'); vibrate([60, 40, 60]);
-        UI.toast(lost ? `You fainted and dropped ${lost} meat!` : 'You fainted! Watch your health.');
-      }
+        UI.toast(lost ? `Knocked down! You dropped ${lost} meat. Back on your feet!` : 'Knocked down! Back on your feet, watch your health.');
+      } else if (this.hp < this.maxHp * 0.3 && !this.lowWarned) { this.lowWarned = true; UI.toast('❤️ Low health! Step inside the fence to heal.'); }
+      if (this.hp > this.maxHp * 0.6) this.lowWarned = false;
 
       // --- towers
       for (const t of this.towers) {

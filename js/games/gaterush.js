@@ -625,6 +625,26 @@
       sfx('level');
     }
 
+    // ---------------------------------------------------------------- save state
+    snapshot() {
+      if ((this.state !== 'run' && this.state !== 'ready') || this.dist < 20) return null;
+      const keys = ['n', 'peak', 'dist', 'time', 'fireMult', 'dmgMult', 'kills', 'bosses', 'charge', 'nextBoss', 'revived', 'rowIndex'];
+      const o = {};
+      for (const k of keys) o[k] = this[k];
+      if (this.boss) o.nextBoss -= BOSS_EVERY; // an unbeaten boss is still owed
+      o.label = `${fmt(Math.floor(this.dist))} m · army ${fmt(this.n)}`;
+      return o;
+    }
+
+    restore(s) {
+      for (const [k, v] of Object.entries(s)) if (k !== 'label') this[k] = v;
+      if (this.nextBoss <= this.dist) this.nextBoss = this.dist + 60; // a boss that was mid-fight comes back a bit later
+      this.shownN = this.n;
+      this.nextRow = 20;
+      this.state = 'ready';
+      this.ui.ready.hidden = false;
+    }
+
     // ---------------------------------------------------------------- render
     draw3D() {
       const K = this.K, d = this.dummy;

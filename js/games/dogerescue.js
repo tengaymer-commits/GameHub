@@ -31,7 +31,7 @@
     },
     {
       name: 'Plug the hole',
-      tip: 'Plug the hole – lean the line inward!',
+      tip: 'Plug the hole – brace it against the rock!',
       terrain: [
         [[0, 21.4], [6.2, 21.4], [6.2, 14.6], [4.6, 14.6], [2.6, 12.4], [0, 12.4]],
         [[0, 0], [6.2, 0], [6.2, 7.6], [4.6, 7.6], [2.6, 9.8], [0, 9.8]],
@@ -39,7 +39,7 @@
       dog: { x: 1.2, y: 10.66 },
       hives: [{ x: 10.4, y: 17.5 }],
       bees: 8, ink: 9,
-      solution: [[2.55, 9.95], [2.4, 10.6], [2.35, 11.2], [2.45, 11.9], [2.75, 12.5]],
+      solution: [[3.6, 8.85], [2.75, 9.75], [2.45, 10.5], [2.35, 11.2], [2.45, 11.9], [2.95, 12.68], [3.65, 13.43], [4.35, 14.18]],
     },
     {
       name: 'On the pillar',
@@ -70,7 +70,7 @@
       dog: { x: 7.4, y: 9.86 },
       hives: [{ x: 2.2, y: 3.4 }],
       bees: 10, ink: 9,
-      solution: [[5.55, 9.05], [5.6, 10.0], [5.95, 10.8], [6.6, 11.3], [7.4, 11.5], [8.2, 11.3], [8.9, 10.9]],
+      solution: [[5.55, 9.05], [5.6, 10.0], [5.95, 10.8], [6.6, 11.3], [7.4, 11.5], [8.2, 11.3], [8.8, 10.6], [8.9, 9.15]],
     },
   ];
 
@@ -100,7 +100,16 @@
     let L = { ...LEVELS[idx] };
     if (!L.solution) L.solution = domeAround(L.dog, L.dog.y - DOG_R - 0.01);
     if (loop % 2 === 1) L = mirrorLevel(L);
-    L.bees = Math.min(26, L.bees + loop * 4); // later loops: more bees
+    // difficulty ramps up from level 3: more, faster and heavier bees (they shove your line),
+    // red killer bees from level 5, and you have to hold out longer
+    const d = Math.max(0, n - 2);
+    L.bees = Math.min(32, L.bees + loop * 4 + Math.floor(d / 2));
+    L.beeSpeed = 5.5 * (1 + Math.min(0.6, d * 0.045));
+    L.beeMass = 1 + Math.min(2.5, d * 0.15);
+    L.ink = Math.round(L.ink * (1 - Math.min(0.25, d * 0.02)) * 10) / 10; // less ink: tighter lines
+    L.killer = Math.min(0.45, Math.max(0, n - 4) * 0.06);
+    L.smart = Math.min(0.9, 0.15 + d * 0.08); // how readily bees search for gaps in your line
+    L.survive = SURVIVE + Math.min(5, Math.floor((n - 1) / 4));
     return L;
   }
 
@@ -137,7 +146,7 @@
       this.def = levelDef(this.levelNum);
       const world = (this.world = new pl.World({ gravity: { x: 0, y: -10 } }));
       const ground = world.createBody();
-      for (const poly of this.def.terrain) ground.createFixture(new pl.Chain(poly.map(([x, y]) => ({ x, y })), true), { friction: 0.8, userData: 'ground' });
+      for (const poly of this.def.terrain) ground.createFixture(new pl.Chain(poly.map(([x, y]) => ({ x, y })), true), { friction: 1.3, userData: 'ground' });
       this.dog = world.createBody({ type: 'dynamic', position: { x: this.def.dog.x, y: this.def.dog.y } });
       this.dog.createFixture(new pl.Circle(DOG_R), { density: 2, friction: 0.6, restitution: 0.05, userData: 'dog' });
       this.bees = [];
@@ -145,7 +154,7 @@
       this.stroke = [];
       this.inkLeft = this.def.ink;
       this.state = 'draw';
-      this.timer = SURVIVE;
+      this.timer = this.def.survive;
       this.spawned = 0;
       this.spawnT = 0;
       this.stung = false;
@@ -256,9 +265,12 @@
         this.spawnT = 0.12;
         const hive = this.def.hives[this.spawned % this.def.hives.length];
         const b = this.world.createBody({ type: 'dynamic', position: { x: hive.x + (Math.random() - 0.5) * 0.6, y: hive.y - 0.6 }, gravityScale: 0, fixedRotation: true, linearDamping: 0.5 });
-        b.createFixture(new pl.Circle(BEE_R), { density: 0.4, friction: 0.1, restitution: 0.3, userData: 'bee' });
+        const killer = Math.random() < this.def.killer;
+        b.createFixture(new pl.Circle(killer ? BEE_R * 1.35 : BEE_R), { density: 0.4 * this.def.beeMass * (killer ? 3 : 1), friction: 0.1, restitution: 0.3, userData: 'bee' });
+        b.killer = killer;
         b.wig = Math.random() * 6.28;
         b.think = 0;
+        b.checkT = 0.8; b.lastD = Infinity; b.orbit = 0; b.orbitT = 0;
         this.bees.push(b);
         this.spawned++;
         if (this.spawned === 1) sfx('bad');
@@ -275,9 +287,24 @@
         let dx = goal.x - p.x, dy = goal.y - p.y;
         const dist = Math.hypot(dx, dy) || 1;
         dx /= dist; dy /= dist;
-        const sp = 5.5, wob = 0.6;
+        // a bee that stops getting closer (pressed against your line) starts crawling
+        // along it, looking for a gap. Smarter bees on later levels do this more.
+        b.checkT -= h;
+        if (b.checkT <= 0) {
+          const dd = Math.hypot(d.x - p.x, d.y - p.y);
+          if (!b.orbitT && dd > b.lastD - 0.25 && Math.random() < this.def.smart) { b.orbit = b.orbit || (Math.random() < 0.5 ? -1 : 1); b.orbitT = 1.2 + Math.random(); }
+          b.lastD = dd; b.checkT = 0.6;
+        }
+        if (b.orbitT > 0) {
+          b.orbitT = Math.max(0, b.orbitT - h);
+          if (!b.orbitT && Math.random() < 0.3) b.orbit = -b.orbit;
+          const ox = -dy * b.orbit, oy = dx * b.orbit;
+          dx = ox * 0.9 + dx * 0.35; dy = oy * 0.9 + dy * 0.35;
+          const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+        }
+        const sp = this.def.beeSpeed * (b.killer ? 1.3 : 1), wob = b.killer ? 0.35 : 0.6, k = b.killer ? 0.12 : 0.08;
         const tx = dx * sp - dy * Math.sin(b.wig) * sp * wob, ty = dy * sp + dx * Math.sin(b.wig) * sp * wob;
-        b.setLinearVelocity({ x: v.x + (tx - v.x) * 0.08, y: v.y + (ty - v.y) * 0.08 });
+        b.setLinearVelocity({ x: v.x + (tx - v.x) * k, y: v.y + (ty - v.y) * k });
       }
       this.world.step(h, 8, 3);
       this.timer -= h;
@@ -374,6 +401,7 @@
       ctx.fillText('✏️ ink', 170, 23);
       if (this.state === 'draw') {
         GH.outlinedText(ctx, this.levelNum <= LEVELS.length ? this.def.tip : 'Draw one line to protect the doge', 180, 64, 17, '#fff', '#1b1b1b');
+        if (this.levelNum > 2) GH.outlinedText(ctx, `🐝 ×${this.def.bees}${this.def.killer ? ' · 🔴 killer bees' : ''} · hold ${this.def.survive}s`, 180, 88, 14, '#ffe08a', '#1b1b1b');
       } else if (this.state === 'play' || (this.state === 'done' && this.won)) {
         const t = Math.max(0, Math.ceil(this.timer));
         const pulse = 1 + (this.timer % 1) * 0.15;
@@ -443,11 +471,12 @@
       const p = b.getPosition(), v = b.getLinearVelocity();
       const [x, y] = toPx(p.x, p.y);
       ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.atan2(v.y, v.x));
+      if (b.killer) ctx.scale(1.35, 1.35);
       const flap = Math.sin(this.time * 60 + b.wig) * 3;
       ctx.fillStyle = 'rgba(255,255,255,.85)';
       ctx.beginPath(); ctx.ellipse(-1, -6 - flap * 0.3, 4, 6 + flap * 0.3, -0.4, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(-1, -6 + flap * 0.3, 4, 5, 0.4, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(0, 0, 8, 5.5, 0, 0, Math.PI * 2); ctx.fillStyle = '#ffd23a'; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 0, 8, 5.5, 0, 0, Math.PI * 2); ctx.fillStyle = b.killer ? '#ff4d3a' : '#ffd23a'; ctx.fill();
       ctx.lineWidth = 1.5; ctx.strokeStyle = '#1b1b1b'; ctx.stroke();
       ctx.fillStyle = '#1b1b1b'; ctx.fillRect(-3, -5, 2.5, 10); ctx.fillRect(1.5, -5, 2.5, 10);
       ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-11, 0); ctx.stroke();

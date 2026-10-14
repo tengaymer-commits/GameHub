@@ -14,7 +14,10 @@
       noAds: false,
       lastDaily: 0,
       levels: { pin: 1, gate: 1, frost: 1, tower: 1, merge: 1, doge: 1 },
-      best: { gate: 0, kingdom: 0 }, // endless-run records
+      best: { gate: 0, kingdom: 0, merge: 0 }, // endless-run records
+      runs: {},            // mode id -> snapshot of an unfinished run (Continue / New game)
+      lastMode: null,      // the mode that was open when the app was closed
+      played: false,
       town: { hall: 1, barracks: 0, forge: 0, lodge: 0, kitchen: 0, vault: 0, tower: 0, walls: 0 },
       prod: {},            // building id -> timestamp production was last collected
       chests: [null, null, null, null],
@@ -50,6 +53,8 @@
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); } catch (e) { /* private mode */ }
       document.dispatchEvent(new CustomEvent('save-changed'));
     },
+    /** Write to storage without re-rendering the hub (used for frequent run autosaves). */
+    flush() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); } catch (e) { /* private mode */ } },
     reset() { this.data = defaults(); this.save(); },
     addCoins(n) { this.data.coins = Math.max(0, this.data.coins + Math.round(n)); this.save(); },
     addGems(n) { this.data.gems = Math.max(0, this.data.gems + Math.round(n)); this.save(); },

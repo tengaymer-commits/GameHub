@@ -34,14 +34,14 @@
         <div class="info"><h3>${g.name}</h3>
           <div class="chips">${REWARDS[id].map((r) => `<span class="chip">${r}</span>`).join('')}</div>
           <span class="tag">${g.levelLabel ? g.levelLabel() : 'Level ' + Save.data.levels[id]}</span>
-          ${off ? `<span class="tag off">💤 +${fmt(off.meat)} 🥩 waiting</span>` : ''}</div>
+          ${off ? `<span class="tag off">💤 +${fmt(off.meat)} 🥩 waiting</span>` : ''}${Save.data.runs[id] ? '<span class="tag off">▶ Run saved</span>' : ''}</div>
         <span class="btn small green play">PLAY</span></button>`;
     }).join('');
     if (html !== gamesHtml) { gamesHtml = html; $('#game-list').innerHTML = html; }
   }
   $('#game-list').addEventListener('click', (e) => {
     const card = e.target.closest('[data-game]');
-    if (card) { sfx('tap'); launch(card.dataset.game); }
+    if (card) { sfx('tap'); openMode(card.dataset.game); }
   });
 
   function fmtTime(s) {
@@ -237,6 +237,7 @@
   let current = null; // { id, game, level }
   let raf = 0;
   let last = 0;
+  let saveT = 0;
 
   const api = {
     setHudButtons(btns) {
@@ -253,12 +254,42 @@
     },
     setTitle(t) { $('#hud-title').textContent = t; },
     setLevelLabel(t) { $('#hud-level').textContent = t; },
-    win(res) { setTimeout(() => showWin(res), 250); },
-    lose(res) { setTimeout(() => showLose(res), 250); },
-    runOver(res) { setTimeout(() => showRunOver(res), 350); },
+    win(res) { endRun(); setTimeout(() => showWin(res), 250); },
+    lose(res) { endRun(); setTimeout(() => showLose(res), 250); },
+    runOver(res) { endRun(); setTimeout(() => showRunOver(res), 350); },
   };
 
-  function launch(id, level) {
+  /** Open a mode from the hub: an unfinished run asks Continue or New game. */
+  function openMode(id) {
+    const run = Save.data.runs[id];
+    if (!run) return launch(id);
+    const g = Games[id];
+    UI.modal({
+      icon: g.icon, title: `Continue ${g.name}?`, sub: run.label || 'You have an unfinished run.',
+      buttons: [
+        { label: '▶ Continue', cls: 'green', onClick: () => launch(id, undefined, run) },
+        { label: 'New game', cls: 'ghost', onClick: () => { delete Save.data.runs[id]; Save.flush(); launch(id); } },
+      ],
+    });
+  }
+
+  function endRun() { if (current) { delete Save.data.runs[current.id]; Save.flush(); } }
+
+  /** Remember the running mode's state so it can be continued later (or after a reload). */
+  function saveRun() {
+    if (!current) return;
+    const g = current.game;
+    if (g.snapshot) {
+      let snap = null;
+      try { snap = g.snapshot(); } catch (e) { console.warn('snapshot failed', e); }
+      if (snap) Save.data.runs[current.id] = snap;
+      else delete Save.data.runs[current.id];
+    }
+    if (g.persist && !g.done) g.persist();
+    Save.flush();
+  }
+
+  function launch(id, level, resume) {
     stop();
     const def = Games[id];
     level = level || Save.data.levels[id];
@@ -268,6 +299,14 @@
     $('#hud-level').textContent = def.levelLabel ? def.levelLabel() : `Level ${level}`;
     stage.resize();
     const game = def.create({ stage, api, level, save: Save.data });
+    if (resume && game.restore) {
+      try { game.restore(resume); } catch (e) { console.warn('Could not restore the saved run', e); }
+    }
+    delete Save.data.runs[id]; // re-saved while playing; gone for good once the run ends
+    Save.data.lastMode = id;
+    Save.data.played = true;
+    Save.flush();
+    saveT = 0;
     $('#hud-title').textContent = game.title || def.name;
     current = { id, game, level };
     window.__game = game; // handy for debugging in devtools
@@ -284,6 +323,8 @@
     last = Math.max(last, now);
     const g = current.game;
     if (!g.paused && UI.modalCount === 0 && !document.querySelector('.ad-player')) g.update(dt);
+    saveT += dt;
+    if (saveT > 4) { saveT = 0; saveRun(); }
     stage.begin();
     g.draw(stage.ctx);
   }
@@ -296,6 +337,9 @@
   }
 
   function goHome() {
+    saveRun();
+    Save.data.lastMode = null;
+    Save.flush();
     stop();
     $('#game-screen').classList.remove('active');
     $('#hub').classList.add('active');
@@ -329,8 +373,10 @@
   canvas.addEventListener('pointercancel', ptr('onUp'));
   window.addEventListener('resize', () => { if (current) stage.resize(); });
   document.addEventListener('visibilitychange', () => {
+    if (document.hidden) saveRun();
     if (document.hidden && current && !UI.modalCount && current.game.state !== 'done') $('#game-back').click();
   });
+  window.addEventListener('pagehide', saveRun);
 
   // ================================================================= RESULTS
   function showWin({ coins, troops, text }) {
@@ -440,6 +486,41 @@
   setInterval(() => { if (!current && tab === 'home') { renderChests(); renderGames(); } }, 1000);
   // unlock audio on first touch (mobile browsers require a gesture)
   window.addEventListener('pointerdown', () => { if (Save.data.settings.sound) sfx('pop'); }, { once: true });
+  // ---- welcome back: continue where you left off, or start a new game
+  function hasProgress() {
+    const d = Save.data;
+    return d.played || d.frostCamp || Object.keys(d.runs).length || Object.values(d.levels).some((v) => v > 1);
+  }
+  function welcomeBack() {
+    const id = Save.data.lastMode && Games[Save.data.lastMode] ? Save.data.lastMode : null;
+    const run = id && Save.data.runs[id];
+    const where = id ? `You were playing <b>${Games[id].icon} ${Games[id].name}</b>${run && run.label ? ` · ${run.label}` : ''}.` : 'Your town is waiting for you.';
+    UI.modal({
+      icon: '👋', title: 'Welcome back!', sub: where,
+      buttons: [
+        { label: '▶ Continue', cls: 'green', onClick: () => { if (id) launch(id, undefined, run); } },
+        { label: 'New game', cls: 'ghost', onClick: confirmNewGame },
+      ],
+    });
+  }
+  function confirmNewGame() {
+    UI.modal({
+      icon: '⚠️', title: 'Start a new game?', sub: 'Your town, camp, levels, records, chests and saved runs are wiped. No Ads and settings are kept.',
+      buttons: [
+        { label: 'Start over', cls: 'danger', onClick: () => {
+          const keep = { noAds: Save.data.noAds, settings: Save.data.settings };
+          Save.reset();
+          Object.assign(Save.data, keep, { played: true });
+          Save.save();
+          UI.toast('New game started. Good luck!');
+        } },
+        { label: 'Back', cls: 'ghost', onClick: welcomeBack },
+      ],
+    });
+  }
+  if (hasProgress()) welcomeBack();
+
   GH.launch = launch;
   GH.goHome = goHome;
+  GH.openMode = openMode;
 })();
