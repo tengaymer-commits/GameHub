@@ -388,6 +388,7 @@ body.theme-classic .ex-side, body.theme-terminal .ex-side, body.theme-midnight .
 .kx { color: #fff; background: #e0251b; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
 #gameArea { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #fff; touch-action: none; cursor: crosshair; }
 #cv { position: absolute; left: 0; top: 0; display: block; }
+.optsform select { flex: 1; font: inherit; }
 #overlay { position: absolute; inset: 0; pointer-events: none; }
 #overlay > * { pointer-events: auto; }
 #overlay > .banners, #overlay > .boss-warn { pointer-events: none; }

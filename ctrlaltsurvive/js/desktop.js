@@ -19,6 +19,7 @@
     document.body.className = document.body.className.replace(/\btheme-\S+/g, '').trim() + ' theme-' + th.id;
     $('wall').className = 'wall-' + (s.wall || th.wall);
     $('crt').style.display = s.crt ? '' : 'none';
+    document.body.classList.toggle('mouse-move', s.moveMode === 'mouse');
     updateTray();
   };
 
@@ -445,6 +446,7 @@
           '<label class="fl">Theme:</label><div class="theme-list">' + C.THEMES.map(t => { const ok = C.Save.has('theme', t.id) || !t.unlock; return '<div class="th' + (pick === t.id ? ' sel' : '') + (ok ? '' : ' locked') + '" data-th="' + t.id + '">' + (ok ? '' : '🔒 ') + esc(t.name) + (ok ? '' : ' <small>' + esc(C.Save.unlockText(t)) + '</small>') + '</div>'; }).join('') + '</div>';
       } else {
         html += '<div class="optsform"><fieldset><legend>Sound</legend><label>Sound effects <input type="range" min="0" max="1" step="0.05" value="' + s.vol + '" data-set="vol"></label><label>Music <input type="range" min="0" max="1" step="0.05" value="' + s.music + '" data-set="music"></label></fieldset>' +
+          '<fieldset><legend>Controls</legend>' + '<label>Movement <select data-set="moveMode"><option value="keys"' + (s.moveMode !== 'mouse' ? ' selected' : '') + '>Keyboard / drag</option><option value="mouse"' + (s.moveMode === 'mouse' ? ' selected' : '') + '>Mouse (direct control)</option></select></label><label>Mouse speed <input type="range" min="0.3" max="2.5" step="0.1" value="' + (s.mouseSens || 1) + '" data-set="mouseSens"></label>' + '<p class="tip">Mouse: your real mouse moves the in-game cursor directly, like on the desktop. Click the game to capture the mouse, Esc to release it. WASD still works.</p></fieldset>' +
           '<fieldset><legend>Screen</legend><label><input type="checkbox" data-set="crt"' + (s.crt ? ' checked' : '') + '> CRT monitor effect (scanlines)</label><label><input type="checkbox" data-set="dmgNums"' + (s.dmgNums ? ' checked' : '') + '> Show damage numbers</label><label><input type="checkbox" data-set="shake"' + (s.shake ? ' checked' : '') + '> Screen shake</label></fieldset>' +
           '<fieldset><legend>User</legend><label>Log-on name <input type="text" maxlength="16" value="' + esc(s.userName || 'Player') + '" data-set="userName"></label></fieldset></div>';
       }
@@ -460,7 +462,7 @@
       };
       w.body.oninput = e => {
         const k = e.target.dataset.set; if (!k) return;
-        s[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.type === 'text' ? e.target.value.trim() || 'Player' : +e.target.value;
+        s[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.tagName === 'SELECT' ? e.target.value : e.target.type === 'text' ? e.target.value.trim() || 'Player' : +e.target.value;
         C.Audio.setVolumes(); D.applySettings(); C.Save.save();
       };
     });
@@ -507,6 +509,9 @@
         '',
         'CONTROLS',
         '  Move ............ WASD / arrow keys, or drag anywhere (touch)',
+        '  Mouse only ...... Display > Settings > Movement: Mouse.',
+        '                    Your mouse moves the cursor directly. Click the',
+        '                    game to capture the mouse, Esc releases it.',
         '  Pause ........... Esc or P (opens the Task Manager)',
         '  Level-up ........ click an option, or keys 1-4 then Enter',
         '  Your programs fire on their own. Just move!',
