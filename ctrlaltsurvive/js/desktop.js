@@ -80,6 +80,11 @@
     const b = $('boot'); b.classList.remove('hidden');
     b.innerHTML = '<div class="safe">It is now safe to turn off<br>your computer.<small>(click to turn it back on)</small></div>';
     b.onpointerdown = () => { b.onpointerdown = null; D.boot(); };
+    // the .exe launcher serves the game locally: turning off the computer quits the app
+    if (window.CAS_STANDALONE) {
+      b.querySelector('small').textContent = '(closing...)';
+      setTimeout(() => { fetch('/__quit').catch(() => { }); window.close(); }, 1800);
+    }
   };
 
   /* ================= desktop ================= */
@@ -94,7 +99,7 @@
     ['readme', 'ReadMe.txt', 'i_readme'],
     ['recycle', 'Recycle Bin', 'i_bin'],
     ['hub', 'GameHub.url', 'i_globe']
-  ];
+  ].filter(i => !(window.CAS_STANDALONE && i[0] === 'hub'));
   let built = false;
   function buildDesktop() {
     if (built) return; built = true;
@@ -128,7 +133,7 @@
     const m = $('startMenu');
     const name = SV().settings.userName || 'Player';
     const L = [['scan', 'Start Scan', 'i_scan', 'Clean a drive'], ['control', 'Control Panel', 'i_control', 'Permanent upgrades'], ['users', 'User Accounts', 'i_users', 'Choose who you play'], ['tasks', 'Tasks.xls', 'i_tasks', 'Unlock new stuff']];
-    const Rr = [['mycomputer', 'My Computer', 'i_computer'], ['display', 'Display Properties', 'i_display'], ['events', 'Event Viewer', 'i_events'], ['readme', 'Help and Support', 'i_readme'], ['hub', 'Back to GameHub', 'i_globe']];
+    const Rr = [['mycomputer', 'My Computer', 'i_computer'], ['display', 'Display Properties', 'i_display'], ['events', 'Event Viewer', 'i_events'], ['readme', 'Help and Support', 'i_readme']].concat(window.CAS_STANDALONE ? [] : [['hub', 'Back to GameHub', 'i_globe']]);
     m.innerHTML = '<div class="sm-head"><img src="' + ico('c_guest') + '" alt=""><b>' + esc(name) + '</b></div><div class="sm-cols"><div class="sm-left">' +
       L.map(i => '<div class="sm-item" data-app="' + i[0] + '"><img src="' + ico(i[2]) + '" alt=""><span><b>' + i[1] + '</b><small>' + i[3] + '</small></span></div>').join('') +
       '</div><div class="sm-right">' + Rr.map(i => '<div class="sm-item" data-app="' + i[0] + '"><img src="' + ico(i[2]) + '" alt=""><span>' + i[1] + '</span></div>').join('') + '</div></div>' +
