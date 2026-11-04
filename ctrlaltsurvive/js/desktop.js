@@ -97,6 +97,7 @@
     ['tasks', 'Tasks.xls', 'i_tasks'],
     ['display', 'Display', 'i_display'],
     ['events', 'Event Viewer', 'i_events'],
+    ['controls', 'Mouse & Keyboard', 'p_mousepad'],
     ['readme', 'ReadMe.txt', 'i_readme'],
     ['recycle', 'Recycle Bin', 'i_bin'],
     ['hub', 'GameHub.url', 'i_globe']
@@ -134,7 +135,7 @@
     const m = $('startMenu');
     const name = SV().settings.userName || 'Player';
     const L = [['scan', 'Start Scan', 'i_scan', 'Clean a drive'], ['control', 'Control Panel', 'i_control', 'Permanent upgrades'], ['users', 'User Accounts', 'i_users', 'Choose who you play'], ['tasks', 'Tasks.xls', 'i_tasks', 'Unlock new stuff']];
-    const Rr = [['mycomputer', 'My Computer', 'i_computer'], ['display', 'Display Properties', 'i_display'], ['events', 'Event Viewer', 'i_events'], ['readme', 'Help and Support', 'i_readme']].concat(window.CAS_STANDALONE ? [] : [['hub', 'Back to GameHub', 'i_globe']]);
+    const Rr = [['mycomputer', 'My Computer', 'i_computer'], ['display', 'Display Properties', 'i_display'], ['controls', 'Mouse & Keyboard', 'p_mousepad'], ['events', 'Event Viewer', 'i_events'], ['readme', 'Help and Support', 'i_readme']].concat(window.CAS_STANDALONE ? [] : [['hub', 'Back to GameHub', 'i_globe']]);
     m.innerHTML = '<div class="sm-head"><img src="' + ico('c_guest') + '" alt=""><b>' + esc(name) + '</b></div><div class="sm-cols"><div class="sm-left">' +
       L.map(i => '<div class="sm-item" data-app="' + i[0] + '"><img src="' + ico(i[2]) + '" alt=""><span><b>' + i[1] + '</b><small>' + i[3] + '</small></span></div>').join('') +
       '</div><div class="sm-right">' + Rr.map(i => '<div class="sm-item" data-app="' + i[0] + '"><img src="' + ico(i[2]) + '" alt=""><span>' + i[1] + '</span></div>').join('') + '</div></div>' +
@@ -303,6 +304,7 @@
         }).join('') + '</div>';
         const cleared = (sv.stats.clears[st.drive] || 0) > 0;
         if (!cleared) st.hyper = false;
+        html += '<div class="ctl-line"><img src="' + ico('p_mousepad') + '" alt=""> Controls: <b>' + (sv.settings.moveMode === 'mouse' ? 'Mouse (your pointer is the cursor)' : 'Keyboard (WASD / arrows)') + '</b> <a data-a="controls">Change...</a></div>';
         html += '<label class="hyper' + (cleared ? '' : ' dis') + '"><input type="checkbox" id="hyperCk"' + (st.hyper ? ' checked' : '') + (cleared ? '' : ' disabled') + '> <b>Hyper mode</b> (faster threats, +50% credits)' + (cleared ? '' : ' - clean this drive first') + '</label>';
       }
       html += '</div><div class="dlg-foot">' + (st.step === 2 ? '<button class="btn" data-a="back">&lt; Back</button>' : '<span class="credits-note">' + fmt(sv.credits) + ' credits</span>') + '<span class="sp"></span>' +
@@ -320,11 +322,12 @@
         }
         const dv = e.target.closest('[data-drive]');
         if (dv) { const d = C.drive(dv.dataset.drive); if (!(C.Save.has('drive', d.id) || !d.unlock)) { C.Audio.sfx('error'); return; } st.drive = d.id; C.Audio.sfx('click'); if (e.detail > 1) go(); else w.refresh(); return; }
-        const b = e.target.closest('button[data-a]'); if (!b) return;
+        const b = e.target.closest('[data-a]'); if (!b) return;
         const a = b.dataset.a;
         if (a === 'next') { st.step = 2; C.Audio.sfx('click'); w.refresh(); }
         else if (a === 'back') { st.step = 1; C.Audio.sfx('click'); w.refresh(); }
         else if (a === 'cancel') closeWin('scan');
+        else if (a === 'controls') D.open('controls');
         else if (a === 'go') go();
       };
       const hk = w.body.querySelector('#hyperCk'); if (hk) hk.onchange = () => { st.hyper = hk.checked; };
@@ -434,6 +437,51 @@
     });
   };
 
+  /* ---------- Mouse & Keyboard (controls) ---------- */
+  APPS.controls = function () {
+    let tab = 'move';
+    openWin('controls', 'Mouse & Keyboard Properties', 'p_mousepad', { w: 470, h: 520, noMax: true }, w => {
+      const s = SV().settings, mm = s.moveMode === 'mouse';
+      let html = '<div class="tabs"><button class="tab' + (tab === 'move' ? ' on' : '') + '" data-tab="move">Movement</button><button class="tab' + (tab === 'keys' ? ' on' : '') + '" data-tab="keys">Keys</button></div><div class="tabbody">';
+      if (tab === 'move') {
+        html += '<div class="optsform"><fieldset><legend>How do you move?</legend>' +
+          '<label class="mode' + (!mm ? ' on' : '') + '"><input type="radio" name="mv" value="keys"' + (!mm ? ' checked' : '') + '><img src="' + ico('w_keyboard') + '" alt=""><span><b>Keyboard</b><small>Move with WASD or the arrow keys. Your weapons aim and fire on their own. On a touch screen, drag anywhere.</small></span></label>' +
+          '<label class="mode' + (mm ? ' on' : '') + '"><input type="radio" name="mv" value="mouse"' + (mm ? ' checked' : '') + '><img src="' + ico('p_mousepad') + '" alt=""><span><b>Mouse</b><small>Your mouse pointer <u>is</u> the game cursor. Move it exactly like on the desktop and click menus with it. Push it against the edge of the game window to scroll. WASD scrolls too.</small></span></label>' +
+          '</fieldset>' +
+          '<fieldset' + (mm ? '' : ' disabled') + '><legend>Mouse options</legend>' +
+          '<label>Edge scrolling speed <input type="range" min="0.4" max="2.5" step="0.1" value="' + (s.edgeSpeed || 1) + '" data-set="edgeSpeed"></label>' +
+          '<label><input type="checkbox" data-set="pauseOnLeave"' + (s.pauseOnLeave !== false ? ' checked' : '') + '> Pause when the pointer leaves the game window</label>' +
+          '<div class="testpad" id="testPad"><span>Test area: move your pointer here</span></div></fieldset></div>';
+      } else {
+        const rows = [['Move', 'W A S D / arrow keys' + (mm ? ' (scrolls the view in Mouse mode)' : '')], ['Move (mouse mode)', 'Just move the mouse'], ['Scroll (mouse mode)', 'Push the pointer against an edge'], ['Pause / Task Manager', 'Esc or P'], ['Pick a level-up option', 'Click it, or 1-4 then Enter'], ['Refresh level-up options', 'F5'], ['Close a .zip window', 'Enter / Space / click OK']];
+        html += '<table class="grid kv"><tr><th>Action</th><th>Input</th></tr>' + rows.map(r => '<tr><td>' + r[0] + '</td><td>' + esc(r[1]) + '</td></tr>').join('') + '</table>';
+      }
+      html += '</div><div class="dlg-foot"><span class="sp"></span><button class="btn primary" data-a="ok">OK</button></div>';
+      w.body.innerHTML = html;
+      const pad = w.body.querySelector('#testPad');
+      if (pad && mm) {
+        const sp = C.SPR.get('cur_' + (s.lastChar && C.Save.has('char', s.lastChar) ? s.lastChar : 'guest'));
+        const c = document.createElement('canvas'); c.width = Math.round(sp.w * 1.3); c.height = Math.round(sp.h * 1.3);
+        c.getContext('2d').drawImage(sp, 0, 0, c.width, c.height);
+        pad.style.cursor = 'url(' + c.toDataURL() + ') 8 4, auto';
+        pad.querySelector('span').textContent = 'Test area: this is how your pointer looks in a scan';
+      }
+      w.body.onclick = e => {
+        const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; C.Audio.sfx('click'); w.refresh(); return; }
+        const b = e.target.closest('button[data-a]'); if (b && b.dataset.a === 'ok') closeWin('controls');
+      };
+      w.body.onchange = e => {
+        if (e.target.name === 'mv') { s.moveMode = e.target.value; C.Save.save(); C.Audio.sfx('click'); D.applySettings(); refreshAll(); }
+      };
+      w.body.oninput = e => {
+        const k = e.target.dataset.set; if (!k) return;
+        s[k] = e.target.type === 'checkbox' ? e.target.checked : +e.target.value; C.Save.save();
+      };
+    });
+  };
+  function refreshAll() { for (const id in wins) if (wins[id].refresh) wins[id].refresh(); }
+  D.refreshAll = refreshAll;
+
   /* ---------- Display properties ---------- */
   APPS.display = function () {
     let tab = 'themes', pick = SV().settings.theme;
@@ -446,7 +494,7 @@
           '<label class="fl">Theme:</label><div class="theme-list">' + C.THEMES.map(t => { const ok = C.Save.has('theme', t.id) || !t.unlock; return '<div class="th' + (pick === t.id ? ' sel' : '') + (ok ? '' : ' locked') + '" data-th="' + t.id + '">' + (ok ? '' : '🔒 ') + esc(t.name) + (ok ? '' : ' <small>' + esc(C.Save.unlockText(t)) + '</small>') + '</div>'; }).join('') + '</div>';
       } else {
         html += '<div class="optsform"><fieldset><legend>Sound</legend><label>Sound effects <input type="range" min="0" max="1" step="0.05" value="' + s.vol + '" data-set="vol"></label><label>Music <input type="range" min="0" max="1" step="0.05" value="' + s.music + '" data-set="music"></label></fieldset>' +
-          '<fieldset><legend>Controls</legend>' + '<label>Movement <select data-set="moveMode"><option value="keys"' + (s.moveMode !== 'mouse' ? ' selected' : '') + '>Keyboard / drag</option><option value="mouse"' + (s.moveMode === 'mouse' ? ' selected' : '') + '>Mouse (direct control)</option></select></label><label>Mouse speed <input type="range" min="0.3" max="2.5" step="0.1" value="' + (s.mouseSens || 1) + '" data-set="mouseSens"></label>' + '<p class="tip">Mouse: your real mouse moves the in-game cursor directly, like on the desktop. Click the game to capture the mouse, Esc to release it. WASD still works.</p></fieldset>' +
+          '<fieldset><legend>Controls</legend><p>Movement: <b>' + (s.moveMode === 'mouse' ? 'Mouse' : 'Keyboard') + '</b></p><button class="btn" data-a="controls">Mouse &amp; Keyboard...</button></fieldset>' +
           '<fieldset><legend>Screen</legend><label><input type="checkbox" data-set="crt"' + (s.crt ? ' checked' : '') + '> CRT monitor effect (scanlines)</label><label><input type="checkbox" data-set="dmgNums"' + (s.dmgNums ? ' checked' : '') + '> Show damage numbers</label><label><input type="checkbox" data-set="shake"' + (s.shake ? ' checked' : '') + '> Screen shake</label></fieldset>' +
           '<fieldset><legend>User</legend><label>Log-on name <input type="text" maxlength="16" value="' + esc(s.userName || 'Player') + '" data-set="userName"></label></fieldset></div>';
       }
@@ -457,6 +505,7 @@
         const th = e.target.closest('[data-th]');
         if (th) { const def = C.THEMES.find(x => x.id === th.dataset.th); if (!(C.Save.has('theme', def.id) || !def.unlock)) { C.Audio.sfx('error'); return; } pick = def.id; C.Audio.sfx('click'); w.refresh(); return; }
         const b = e.target.closest('button[data-a]'); if (!b) return;
+        if (b.dataset.a === 'controls') { D.open('controls'); return; }
         if (tab === 'themes') { s.theme = pick; s.wall = ''; C.Save.save(); D.applySettings(); }
         if (b.dataset.a === 'ok') closeWin('display');
       };
@@ -509,9 +558,10 @@
         '',
         'CONTROLS',
         '  Move ............ WASD / arrow keys, or drag anywhere (touch)',
-        '  Mouse only ...... Display > Settings > Movement: Mouse.',
-        '                    Your mouse moves the cursor directly. Click the',
-        '                    game to capture the mouse, Esc releases it.',
+        '  Mouse only ...... Mouse & Keyboard > Movement: Mouse. Your mouse',
+        '                    pointer becomes the game cursor: move it like on',
+        '                    the desktop, push it against the window edge to',
+        '                    scroll, click the level-up options with it.',
         '  Pause ........... Esc or P (opens the Task Manager)',
         '  Level-up ........ click an option, or keys 1-4 then Enter',
         '  Your programs fire on their own. Just move!',

@@ -16,7 +16,7 @@
         creditsEarned: 0, bestLevel: 0, bestTime: 0, bestTimes: {}, clears: {}, hyperClears: 0,
         killsBy: {}, evolved: {}, maxedWeapons: 0, charSurv5: {}
       },
-      settings: { theme: 'sky', crt: true, vol: 0.7, music: 0.45, dmgNums: true, shake: true, wall: '', moveMode: 'keys' },
+      settings: { theme: 'sky', crt: true, vol: 0.7, music: 0.45, dmgNums: true, shake: true, wall: '', moveMode: 'keys', edgeSpeed: 1, pauseOnLeave: true },
       booted: false
     };
   }

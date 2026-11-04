@@ -163,7 +163,7 @@
         content = '<div class="perf"><div class="graph"><canvas id="perfCv" width="220" height="80"></canvas><span>CPU Usage</span></div><table class="grid kv">' + rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('') + '</table></div>';
       } else {
         const s = C.Save.data.settings;
-        content = '<div class="optsform">' + '<label>Movement <select data-set="moveMode"><option value="keys"' + (s.moveMode !== 'mouse' ? ' selected' : '') + '>Keyboard / drag</option><option value="mouse"' + (s.moveMode === 'mouse' ? ' selected' : '') + '>Mouse (direct control)</option></select></label><label>Mouse speed <input type="range" min="0.3" max="2.5" step="0.1" value="' + (s.mouseSens || 1) + '" data-set="mouseSens"></label>' + '<label>Sound effects <input type="range" min="0" max="1" step="0.05" value="' + s.vol + '" data-set="vol"></label><label>Music <input type="range" min="0" max="1" step="0.05" value="' + s.music + '" data-set="music"></label><label><input type="checkbox" data-set="dmgNums"' + (s.dmgNums ? ' checked' : '') + '> Show damage numbers</label><label><input type="checkbox" data-set="shake"' + (s.shake ? ' checked' : '') + '> Screen shake</label><label><input type="checkbox" data-set="crt"' + (s.crt ? ' checked' : '') + '> CRT monitor effect</label></div>';
+        content = '<div class="optsform">' + '<label>Movement <select data-set="moveMode"><option value="keys"' + (s.moveMode !== 'mouse' ? ' selected' : '') + '>Keyboard (WASD / arrows)</option><option value="mouse"' + (s.moveMode === 'mouse' ? ' selected' : '') + '>Mouse (your pointer is the cursor)</option></select></label><label>Edge scrolling speed <input type="range" min="0.4" max="2.5" step="0.1" value="' + (s.edgeSpeed || 1) + '" data-set="edgeSpeed"></label>' + '<label>Sound effects <input type="range" min="0" max="1" step="0.05" value="' + s.vol + '" data-set="vol"></label><label>Music <input type="range" min="0" max="1" step="0.05" value="' + s.music + '" data-set="music"></label><label><input type="checkbox" data-set="dmgNums"' + (s.dmgNums ? ' checked' : '') + '> Show damage numbers</label><label><input type="checkbox" data-set="shake"' + (s.shake ? ' checked' : '') + '> Screen shake</label><label><input type="checkbox" data-set="crt"' + (s.crt ? ' checked' : '') + '> CRT monitor effect</label></div>';
       }
       dlg.el.querySelector('.wbody').innerHTML = '<div class="tabs">' + tabs + '</div><div class="tabbody">' + content + '</div>' +
         '<div class="dlg-foot"><span class="status">Processes: ' + (R.enemyCount) + ' &nbsp; Threats deleted: ' + R.kills + ' &nbsp; ' + esc(R.drive.name) + (R.hyper ? ' (Hyper)' : '') + '</span><span class="sp"></span><button class="btn" data-a="quit">End Task</button><button class="btn primary" data-a="resume">Resume</button></div>';
@@ -181,7 +181,7 @@
       const k = e.target.dataset.set; if (!k) return;
       const s = C.Save.data.settings;
       s[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.tagName === 'SELECT' ? e.target.value : +e.target.value;
-      C.Audio.setVolumes(); C.Desktop.applySettings(); C.Save.save();
+      C.Audio.setVolumes(); C.Desktop.applySettings(); C.Save.save(); C.Game.applySkin();
     });
     render();
   };

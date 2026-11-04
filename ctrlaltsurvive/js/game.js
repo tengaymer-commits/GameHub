@@ -12,13 +12,12 @@
   let R = null, raf = 0, lastT = 0, hudT = 0;
   const keys = {};
   const joy = { on: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
-  let unlockT = 0;
-  const mouse = { dx: 0, dy: 0 }; // raw mouse movement while the pointer is locked ('mouse' movement mode)
-  const locked = () => !!cv && document.pointerLockElement === cv;
-  const canLock = () => 'pointerLockElement' in document;
-  // in mouse mode the run waits (paused) until the mouse is captured
-  const needsLock = () => mouseMode() && canLock() && !locked() && R && !R.over;
+  // 'mouse' movement mode: the real OS pointer IS the player. Its screen position maps straight
+  // onto the world; pushing it against the game window's edge scrolls the view.
+  const mouse = { seen: false, x: 0, y: 0, inside: false };
   const mouseMode = () => C.Save.data.settings.moveMode === 'mouse';
+  const desktopMove = () => mouseMode() && mouse.seen && !joy.on;
+  const EDGE = 56; // px from the game window border where edge scrolling starts
   const pauses = new Set();
   let sectorTex = [];
 
@@ -28,7 +27,7 @@
     init,
     start,
     pause(reason) { pauses.add(reason); },
-    resume(reason) { pauses.delete(reason); lastT = performance.now(); relock(); },
+    resume(reason) { pauses.delete(reason); lastT = performance.now(); afterDialog(); },
     isPaused: () => pauses.size > 0,
     end,
     chooseLevel, makeChoices, banish,
@@ -45,7 +44,6 @@
     window.addEventListener('keydown', e => {
       keys[e.code] = true;
       if (!R || R.over) return;
-      if (e.code === 'Escape' && pauses.has('menu') && performance.now() - unlockT < 500) return; // this Esc already released the mouse and paused
       if ((e.code === 'Escape' || e.code === 'KeyP') && !pauses.has('levelup') && !pauses.has('zip')) {
         if (pauses.has('menu')) C.RunUI.closePause(); else C.RunUI.openPause();
       }
@@ -55,7 +53,7 @@
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.on = false; });
     const area = document.getElementById('gameArea');
     area.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'mouse' && mouseMode() && canLock()) { lock(); e.preventDefault(); return; } // mouse mode: capture the mouse
+      if (e.pointerType === 'mouse' && mouseMode()) { e.preventDefault(); return; } // the pointer itself is the player
       if (joy.on) return;
       joy.on = true; joy.id = e.pointerId; const r = cv.getBoundingClientRect();
       joy.ox = joy.x = e.clientX - r.left; joy.oy = joy.y = e.clientY - r.top;
@@ -67,31 +65,46 @@
       const r = cv.getBoundingClientRect(); joy.x = e.clientX - r.left; joy.y = e.clientY - r.top;
     });
     const up = e => { if (e.pointerId === joy.id) { joy.on = false; joy.id = null; } };
-    document.addEventListener('mousemove', e => {
-      if (!locked() || pauses.size) return;
-      mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0;
+    document.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse') return;
+      const r = cv.getBoundingClientRect();
+      mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.seen = true;
+      mouse.inside = mouse.x >= 0 && mouse.y >= 0 && mouse.x <= r.width && mouse.y <= r.height;
     });
-    document.addEventListener('pointerlockchange', () => {
-      mouse.dx = mouse.dy = 0;
-      // the browser releases the mouse on Esc: treat that as "pause"
-      if (!locked() && mouseMode() && R && !R.over && !pauses.size) { unlockT = performance.now(); C.RunUI.openPause(); }
+    // the pointer left the browser window: pause (optional)
+    document.addEventListener('pointerout', e => {
+      if (e.relatedTarget || e.pointerType !== 'mouse') return;
+      mouse.inside = false;
+      if (mouseMode() && C.Save.data.settings.pauseOnLeave !== false && R && !R.over && !pauses.size) C.RunUI.openPause();
     });
     area.addEventListener('pointerup', up); area.addEventListener('pointercancel', up);
     document.addEventListener('visibilitychange', () => { if (document.hidden && R && !R.over && !pauses.size) C.RunUI.openPause(); });
     makeSectorTextures();
   }
 
-  function lock() {
-    // raw (unaccelerated) movement where supported; the browser may refuse right after Esc,
-    // in which case the "click to take control" prompt stays up until the next click
-    const quiet = r => { if (r && r.catch) r.catch(() => { }); };
-    try {
-      const r = cv.requestPointerLock({ unadjustedMovement: true });
-      if (r && r.catch) r.catch(err => { if (err && err.name === 'NotSupportedError') { try { quiet(cv.requestPointerLock()); } catch (e) { } } });
-    } catch (e) { try { quiet(cv.requestPointerLock()); } catch (er) { } }
+  // after a dialog closes the player jumps to wherever the pointer clicked: give a moment of safety
+  function afterDialog() { if (R && mouseMode()) R.p.inv = Math.max(R.p.inv, 0.6); }
+
+  /* the game cursor skin becomes the real OS cursor while a scan runs in mouse mode */
+  const HOT = { arrow: [6, 3], hand: [8.6, 3.2], cross: [12, 13] }; // tip of each cursor in its 24x26 sprite
+  let skinKey = '';
+  function applySkin() {
+    const el = document.getElementById('runScreen');
+    if (!el) return;
+    const on = !!(R && !R.over && mouseMode());
+    el.classList.toggle('skin-cursor', on);
+    if (!on) { skinKey = ''; return; }
+    const k = R.char + ':' + scale.toFixed(2);
+    if (k === skinKey) return;
+    skinKey = k;
+    const sp = SPR.get('cur_' + R.char), cs = Math.min(4.8, scale); // OS cursors are capped at 128 px
+    const w = Math.round(sp.w * cs), h = Math.round(sp.h * cs);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(sp, 0, 0, w, h);
+    const hot = HOT[C.CHARS[R.char].cursor.type] || HOT.arrow;
+    el.style.setProperty('--skin', 'url(' + c.toDataURL() + ') ' + Math.round(hot[0] * cs) + ' ' + Math.round(hot[1] * cs) + ', auto');
   }
-  function relock() { if (!pauses.size && mouseMode() && canLock() && !locked() && R && !R.over) lock(); }
-  G.relock = relock;
+  G.applySkin = applySkin;
 
   function resize() {
     if (!cv) return;
@@ -102,6 +115,7 @@
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     // keep the visible world area roughly constant (about 900 x 520 units)
     scale = clamp(Math.sqrt((W * H) / (900 * 520)), 0.45, 2.2);
+    applySkin();
   }
   G.resize = resize;
 
@@ -166,6 +180,7 @@
     const drive = C.drive(opts.drive);
     R = {
       char: opts.char, drive, hyper: !!opts.hyper, time: 0, level: 1, xp: 0, xpNext: xpFor(1), kills: 0, credits: 0,
+      cam: { x: 0, y: 0 },
       p: { x: 0, y: 0, r: 9, hp: 100, fx: 1, fy: 0, inv: 0, moving: false, hurtT: 0, slowed: false },
       weapons: [], passives: {}, passiveOrder: [], enemies: [], proj: [], ebul: [], gems: [], fx: [], texts: [], parts: [],
       nextId: 1, spawnAcc: 0, pendingLevels: 0, freeze: 0, shake: 0, over: false, won: false,
@@ -192,14 +207,15 @@
     raf = requestAnimationFrame(loop);
     C.Audio.music('game');
     updateHud(true);
+    applySkin();
     window.__run = R;
   }
 
   function end(reason) {
     if (!R || R.over) return;
     R.over = true;
-    if (locked()) document.exitPointerLock();
     cancelAnimationFrame(raf);
+    setTimeout(applySkin, 0);
     C.Audio.music(null);
     const report = buildReport(reason);
     C.RunUI.report(report);
@@ -236,8 +252,7 @@
     let dt = (t - lastT) / 1000; lastT = t;
     if (dt > 0.05) dt = 0.05;
     if (dt < 0) dt = 0;
-    if (pauses.size && locked()) document.exitPointerLock();
-    if (!pauses.size && !R.over && !needsLock()) {
+    if (!pauses.size && !R.over) {
       // two substeps when the frame is long, keeps fast projectiles from tunnelling
       if (dt > 0.025) { update(dt / 2); if (!pauses.size && !R.over) update(dt / 2); } else update(dt);
     }
@@ -367,7 +382,7 @@
     R.pendingLevels = Math.max(0, R.pendingLevels - 1);
     pauses.delete('levelup');
     lastT = performance.now();
-    relock();
+    afterDialog();
   }
   function banish(c) { R.banished.add(c.id); R.banishes--; }
 
@@ -393,7 +408,7 @@
     R.credits += bonus;
     pauses.add('zip');
     C.Audio.sfx('zip');
-    C.RunUI.zip(items, bonus, () => { pauses.delete('zip'); lastT = performance.now(); relock(); });
+    C.RunUI.zip(items, bonus, () => { pauses.delete('zip'); lastT = performance.now(); afterDialog(); });
   }
 
   /* ================= enemies ================= */
@@ -404,7 +419,8 @@
       let a = Math.random() * TAU;
       // bias spawns slightly toward where the player is heading
       if (R.p.moving && Math.random() < 0.35) a = Math.atan2(R.p.fy, R.p.fx) + rnd(-0.9, 0.9);
-      let x = R.p.x + Math.cos(a) * rad, y = R.p.y + Math.sin(a) * rad;
+      // ring around the view centre (in mouse mode the player can sit anywhere on screen)
+      let x = R.cam.x + Math.cos(a) * rad, y = R.cam.y + Math.sin(a) * rad;
       if (R.drive.bounded) {
         const b = R.drive.bounded / 2 - 20;
         x = clamp(x, -b, b); y = clamp(y, -b, b);
@@ -413,7 +429,7 @@
       return { x, y };
     }
     const b = R.drive.bounded ? R.drive.bounded / 2 - 20 : 0;
-    return b ? { x: R.p.x > 0 ? -b : b, y: R.p.y > 0 ? -b : b } : { x: R.p.x + rad, y: R.p.y };
+    return b ? { x: R.p.x > 0 ? -b : b, y: R.p.y > 0 ? -b : b } : { x: R.cam.x + rad, y: R.cam.y };
   }
 
   function makeEnemy(type, x, y, o) {
@@ -604,7 +620,7 @@
         for (const s of e.segs) { const tp = e.trail[Math.min(e.trail.length - 1, (s.seg + 1) * 7)]; if (tp) { s.x = tp[0]; s.y = tp[1]; } }
       }
       // relocate stragglers that fell far behind
-      if (!e.boss && !e.elite && e.ai !== 'straight' && d > farR) {
+      if (!e.boss && !e.elite && e.ai !== 'straight' && Math.hypot(e.x - R.cam.x, e.y - R.cam.y) > farR) {
         const p = spawnPoint(); e.x = p.x; e.y = p.y;
       }
       if (R.drive.bounded) { const b = R.drive.bounded / 2 - e.r; e.x = clamp(e.x, -b, b); e.y = clamp(e.y, -b, b); }
@@ -821,24 +837,43 @@
       const dx = joy.x - joy.ox, dy = joy.y - joy.oy, d = Math.hypot(dx, dy);
       if (d > 6) { const k = Math.min(1, d / 46); mx = dx / d * k; my = dy / d * k; }
     }
-    // direct mouse control: the mouse moves the cursor 1:1, like on a desktop
-    let ddx = 0, ddy = 0;
-    if (locked() && (mouse.dx || mouse.dy)) {
-      const k = (C.Save.data.settings.mouseSens || 1) / scale;
-      ddx = mouse.dx * k; ddy = mouse.dy * k; mouse.dx = mouse.dy = 0;
-    }
     if (G.botMove) { mx = G.botMove.x; my = G.botMove.y; }
     const ml = Math.hypot(mx, my);
     if (ml > 1) { mx /= ml; my /= ml; }
-    const dl = Math.hypot(ddx, ddy);
-    P.moving = ml > 0.05 || dl > 0.3;
-    if (dl > 0.3) { P.fx = ddx / dl; P.fy = ddy / dl; }
-    else if (ml > 0.05) { const l = Math.hypot(mx, my); P.fx = mx / l; P.fy = my / l; }
     P.slowed = inSector(P.x, P.y);
     const sp = 128 * S.move * (P.slowed ? 0.62 : 1);
-    P.x += mx * sp * dt; P.y += my * sp * dt;
-    if (dl) { const k = P.slowed ? 0.62 : 1; P.x += ddx * k; P.y += ddy * k; }
-    if (R.drive.bounded) { const b = R.drive.bounded / 2 - P.r; P.x = clamp(P.x, -b, b); P.y = clamp(P.y, -b, b); }
+    const cam = R.cam, b = R.drive.bounded ? R.drive.bounded / 2 : 0;
+    if (desktopMove()) {
+      // the player sits exactly under the real pointer; edge scrolling (and WASD) pan the view
+      const ox = P.x, oy = P.y;
+      let ex = 0, ey = 0;
+      if (mouse.inside) {
+        const m = Math.min(EDGE, W / 4, H / 4);
+        if (mouse.x < m) ex = -(m - mouse.x) / m; else if (mouse.x > W - m) ex = (mouse.x - (W - m)) / m;
+        if (mouse.y < m) ey = -(m - mouse.y) / m; else if (mouse.y > H - m) ey = (mouse.y - (H - m)) / m;
+      }
+      const es = sp * 1.5 * (C.Save.data.settings.edgeSpeed || 1);
+      cam.x += (ex * es + mx * sp) * dt; cam.y += (ey * es + my * sp) * dt;
+      if (b) {
+        const hw = W / scale / 2, hh = H / scale / 2;
+        cam.x = hw < b ? clamp(cam.x, -b + hw - 60, b - hw + 60) : 0;
+        cam.y = hh < b ? clamp(cam.y, -b + hh - 60, b - hh + 60) : 0;
+      }
+      const hot = HOT[C.CHARS[R.char].cursor.type] || HOT.arrow;
+      const sxp = clamp(mouse.x, 0, W), syp = clamp(mouse.y, 0, H);
+      // the sprite is drawn with its pixel (10,11) on the player position, so offset from the tip
+      P.x = cam.x + (sxp - W / 2) / scale - (hot[0] - 10);
+      P.y = cam.y + (syp - H / 2) / scale - (hot[1] - 11);
+      const dx = P.x - ox, dy = P.y - oy, dl = Math.hypot(dx, dy);
+      P.moving = dl > 0.4;
+      if (P.moving) { P.fx = dx / dl; P.fy = dy / dl; }
+    } else {
+      P.moving = ml > 0.05;
+      if (P.moving) { const l = Math.hypot(mx, my); P.fx = mx / l; P.fy = my / l; }
+      P.x += mx * sp * dt; P.y += my * sp * dt;
+    }
+    if (b) { const bb = b - P.r; P.x = clamp(P.x, -bb, bb); P.y = clamp(P.y, -bb, bb); }
+    if (!desktopMove()) { cam.x = P.x; cam.y = P.y; }
     if (P.inv > 0) P.inv -= dt;
     if (P.hurtT > 0) P.hurtT -= dt;
     if (S.recovery > 0 && P.hp < S.maxHpFinal) heal(S.recovery * dt);
@@ -959,8 +994,8 @@
 
   function computeView() {
     const vw = W / scale, vh = H / scale;
-    R.view.x0 = R.p.x - vw / 2; R.view.x1 = R.p.x + vw / 2;
-    R.view.y0 = R.p.y - vh / 2; R.view.y1 = R.p.y + vh / 2;
+    R.view.x0 = R.cam.x - vw / 2; R.view.x1 = R.cam.x + vw / 2;
+    R.view.y0 = R.cam.y - vh / 2; R.view.y1 = R.cam.y + vh / 2;
   }
 
   /* ================= render ================= */
@@ -972,7 +1007,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = dr.bounded ? '#3b3b44' : dr.bg;
     ctx.fillRect(0, 0, W, H);
-    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (W / 2 - (P.x + sx) * scale), dpr * (H / 2 - (P.y + sy) * scale));
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (W / 2 - (R.cam.x + sx) * scale), dpr * (H / 2 - (R.cam.y + sy) * scale));
 
     if (dr.bounded) {
       const b = dr.bounded / 2;
@@ -1077,15 +1112,12 @@
       g.addColorStop(0, 'rgba(225,29,72,0)'); g.addColorStop(1, 'rgba(225,29,72,' + a + ')');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
-    // mouse mode waiting for the mouse to be captured
-    if (needsLock() && !pauses.size) {
-      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#ffffe1'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
-      const bw = Math.min(W - 20, 330), bx = (W - bw) / 2, by = H / 2 - 28;
-      ctx.fillRect(bx, by, bw, 56); ctx.strokeRect(bx, by, bw, 56);
-      ctx.fillStyle = '#000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = 'bold 14px Tahoma, sans-serif'; ctx.fillText('Click to take control of the cursor', W / 2, by + 20);
-      ctx.font = '11px Tahoma, sans-serif'; ctx.fillText('Your mouse moves it directly. Esc releases the mouse and pauses.', W / 2, by + 40);
+    // edge-scroll hint: glow on the edges the pointer is pushing against
+    if (desktopMove() && mouse.inside && !pauses.size) {
+      const m = Math.min(EDGE, W / 4, H / 4);
+      ctx.fillStyle = 'rgba(59,140,255,.18)';
+      if (mouse.x < m) ctx.fillRect(0, 0, 6, H); if (mouse.x > W - m) ctx.fillRect(W - 6, 0, 6, H);
+      if (mouse.y < m) ctx.fillRect(0, 0, W, 6); if (mouse.y > H - m) ctx.fillRect(0, H - 6, W, 6);
     }
     // joystick
     if (joy.on) {
@@ -1110,10 +1142,16 @@
     const P = R.p;
     // pickup range hint
     ctx.globalAlpha = 0.08; ctx.fillStyle = '#3b8cff'; ctx.beginPath(); ctx.arc(P.x, P.y, 42 * R.S.magnet, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
-    if (P.inv > 0 && Math.floor(R.time * 20) % 2 === 0) ctx.globalAlpha = 0.45;
-    const sp = SPR.get('cur_' + R.char);
-    ctx.drawImage(sp, P.x - sp.w / 2 + 2, P.y - sp.h / 2 + 2, sp.w, sp.h);
-    ctx.globalAlpha = 1;
+    const osCursor = desktopMove() && !pauses.size && mouse.inside && !R.over;
+    if (osCursor) {
+      // the real pointer wears the skin; show hits as a red flash around it instead of blinking
+      if (P.hurtT > 0 || P.inv > 0.2) { ctx.globalAlpha = P.hurtT > 0 ? 0.6 : 0.25; ctx.strokeStyle = '#e11d48'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(P.x, P.y, 16, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; }
+    } else {
+      if (P.inv > 0 && Math.floor(R.time * 20) % 2 === 0) ctx.globalAlpha = 0.45;
+      const sp = SPR.get('cur_' + R.char);
+      ctx.drawImage(sp, P.x - sp.w / 2 + 2, P.y - sp.h / 2 + 2, sp.w, sp.h);
+      ctx.globalAlpha = 1;
+    }
     if (P.slowed) { ctx.font = 'bold 9px Tahoma'; ctx.fillStyle = '#5a2a5a'; ctx.textAlign = 'center'; ctx.fillText('bad sector', P.x, P.y + 22); }
     // facing tick
     ctx.strokeStyle = 'rgba(28,63,148,.5)'; ctx.lineWidth = 2;

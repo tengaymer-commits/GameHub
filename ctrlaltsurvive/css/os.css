@@ -505,3 +505,16 @@ body.theme-classic .ex-side, body.theme-terminal .ex-side, body.theme-midnight .
   .lg-bot span { display: none; }
   #trayCred { display: none; }
 }
+
+/* mouse movement mode: the real pointer wears the game cursor skin */
+#runScreen.skin-cursor, #runScreen.skin-cursor * { cursor: var(--skin) !important; }
+/* Mouse & Keyboard properties */
+.mode { display: flex !important; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; margin: 4px 0 !important; }
+.mode.on { border-color: var(--sel); background: color-mix(in srgb, var(--sel) 12%, var(--panel)); }
+.mode img { width: 32px; height: 32px; flex: none; }
+.mode small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; line-height: 1.3; }
+fieldset[disabled] { opacity: .5; }
+.testpad { height: 70px; border: 1px dashed #7f9db9; background: var(--panel); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; text-align: center; padding: 4px; }
+.ctl-line { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; }
+.ctl-line img { width: 18px; height: 18px; }
+.ctl-line a { color: #215dc6; text-decoration: underline; cursor: pointer; }
