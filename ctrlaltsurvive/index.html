@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a5fe0" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Ctrl+Alt+Survive 2003</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/os.css" />
+</head>
+<body class="theme-sky">
+  <!-- boot / BIOS / splash / shutdown -->
+  <div id="boot" class="hidden"></div>
+  <!-- welcome screen -->
+  <div id="login" class="hidden"></div>
+
+  <!-- desktop -->
+  <div id="desktop" class="hidden">
+    <div id="wall"></div>
+    <div id="dicons"></div>
+    <div id="wins"></div>
+    <div id="balloons"></div>
+    <div id="startMenu" class="hidden"></div>
+    <div id="taskbar">
+      <button id="startBtn"><span class="flag"><i></i><i></i><i></i><i></i></span><span>start</span></button>
+      <div id="tbApps"></div>
+      <div id="tray"><span id="trayCred"></span><button id="traySnd" title="Volume">🔊</button><span id="clock"></span></div>
+    </div>
+  </div>
+
+  <!-- a scan in progress -->
+  <div id="runScreen" class="hidden">
+    <div class="win runwin">
+      <div class="titlebar">
+        <img class="ticon" id="runIcon" alt="" />
+        <span class="ttext" id="runTitle">Scan</span>
+        <div class="tbtns"><button class="tb min" id="rbPause" title="Pause (Esc)">_</button><button class="tb close" id="rbQuit" title="End scan">×</button></div>
+      </div>
+      <div class="menubar run-menu"><span data-m="pause">File</span><span data-m="pause">Edit</span><span data-m="pause">View</span><span data-m="pause">Favorites</span><span data-m="help">Help</span></div>
+      <div class="hudtop">
+        <div id="hWeapons" class="slots"></div>
+        <div class="vsep"></div>
+        <div id="hPassives" class="slots"></div>
+        <div class="hud-right">
+          <div class="lcd" id="hTime">00:00</div>
+          <div class="kills" title="Threats deleted"><span class="kx">✖</span><span id="hKills">0</span></div>
+        </div>
+      </div>
+      <div id="gameArea">
+        <canvas id="cv"></canvas>
+        <div id="bossBar" class="bossbar" style="display:none"><span id="bossName"></span><div class="bb"><div id="bossFill"></div></div></div>
+        <div id="overlay"></div>
+      </div>
+      <div class="statusbar">
+        <div class="sb lv">Level: <b id="hLevel">1</b><div class="bar"><div id="hXp" class="bar-fill blue"></div></div></div>
+        <div class="sb cr"><span class="coin">$</span> Credits: <b id="hCred">0</b></div>
+        <div class="sb hp">HP: <b id="hHp">100/100</b><div class="bar"><div id="hHpBar" class="bar-fill green"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="crt"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/runui.js"></script>
+  <script src="js/desktop.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

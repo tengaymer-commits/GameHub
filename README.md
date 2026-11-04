@@ -48,6 +48,16 @@ Every run is saved as you play (every few seconds, when you leave, and when the 
 Winning a Pin Rescue, Doge Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
 💡 **Hint** (Pin Rescue, Doge Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
+## 🖱️ Ctrl+Alt+Survive 2003 (`ctrlaltsurvive/`)
+
+A standalone survivor-like (auto-firing weapons, swarms, level-up picks) dressed as an early-2000s PC desktop. Open `ctrlaltsurvive/index.html` (or the card in the hub). Add `?quick` to skip the boot screen.
+
+- **You are the mouse cursor.** Move with WASD/arrows, or drag anywhere on touch. Weapons fire on their own. Esc/P opens the Task Manager (pause).
+- **13 programs (weapons)** with 8 levels each: Ping.exe, Floppy Disk, CD-ROM, Desktop Icons, Firewall, Reply All, Power Surge, Laser Mouse, Recycle Bin, Paint Bucket, Full Scan, Dial-Up Tone, Keyboard. **13 hardware parts (passives)**. Each program **evolves** at level 8 with its matching hardware when you extract a `.zip` (dropped by elites and bosses).
+- **Setup Wizard** level-ups with Refresh / Skip / Uninstall charges. **5 drives** (stages), including a walled 1.44 MB floppy arena, each with a halfway boss and a final boss at 8:00, plus Hyper mode. Spam waves, cookie rings, breakable shortcuts (heal, magnet, freeze, screen wipe), and "bad sectors" that slow you down.
+- **Meta:** Control Panel (19 permanent upgrades), User Accounts (9 characters), Tasks.xls (41 tasks that unlock programs, users, drives and themes), Display Properties (7 themes, CRT effect), Event Viewer (stats and a threat/software database), and Recycle Bin (reset the save).
+- All art is drawn procedurally on canvas, and all sound and music is synthesized with WebAudio. No assets, no build step. Code lives in `ctrlaltsurvive/js/`: `data.js` (tuning), `game.js` (engine), `weapons.js`, `desktop.js` (OS shell and apps), `runui.js` (in-run dialogs), `sprites.js`, `audio.js`, `save.js`.
+
 ## Test it
 
 The game is plain HTML/CSS/JS with no build step. Frost Survival uses Three.js (WebGL), which is included in `js/vendor/`.
