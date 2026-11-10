@@ -158,6 +158,9 @@ button { font-family: var(--mono); color: var(--fg); }
 
 .panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); background: rgba(4,5,9,.94); border: 1px solid var(--line); padding: 18px 22px; z-index: 9; display: flex; flex-direction: column; gap: 9px; min-width: min(320px, 92vw); max-height: 92vh; overflow: auto; }
 .panel h2 { margin: 0 0 4px; font-size: 14px; letter-spacing: .4em; color: var(--gold); font-weight: 400; text-align: center; }
+.s-sec { color: var(--gold); font-size: 10px; letter-spacing: .25em; text-transform: uppercase; margin-top: 6px; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+.s-note { color: var(--dim); font-size: 10px; line-height: 1.5; margin-top: -4px; }
+body.aim #gl { cursor: crosshair; }
 .panel label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; }
 .panel select, .panel input[type=range] { accent-color: var(--gold); background: #0b0d12; color: var(--fg); border: 1px solid var(--line); font-family: var(--mono); }
 #char-sheet { font-size: 11px; line-height: 1.6; white-space: pre-line; color: #b8c0d0; border: 1px solid var(--line); padding: 8px 10px; }
@@ -285,17 +288,26 @@ body.touch #hotbar { display: none; }
 
 <div id="settings" class="panel hidden">
   <h2>SETTINGS</h2>
-  <label>Camera follows movement <input type="checkbox" id="o-follow" /></label>
-  <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
+  <div class="s-sec">Controls</div>
+  <label>Control style
+    <select id="o-control"><option value="free">Free aim: camera stays</option><option value="follow">Follow camera</option></select>
+  </label>
+  <div class="s-note" id="o-control-note"></div>
+  <div class="s-sec">Camera</div>
   <label>Camera distance <input type="range" id="o-zoom" min="0.6" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
-  <label>Glyph size <input type="range" id="o-glyph" min="5" max="14" step="1" /><span id="o-glyph-v"></span></label>
+  <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
+  <label>Screen shake <input type="checkbox" id="o-shake" /></label>
+  <div class="s-sec">Glyph density (smaller = denser)</div>
+  <label>Characters <input type="range" id="o-glyphA" min="3" max="14" step="1" /><span id="o-glyphA-v"></span></label>
+  <label>Environment <input type="range" id="o-glyph" min="3" max="14" step="1" /><span id="o-glyph-v"></span></label>
+  <label>Water &amp; sky <input type="range" id="o-glyphS" min="3" max="14" step="1" /><span id="o-glyphS-v"></span></label>
+  <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
+  <div class="s-sec">Graphics &amp; audio</div>
   <label>Quality
     <select id="o-quality"><option value="0">Low</option><option value="1">Medium</option><option value="2">High</option></select>
   </label>
   <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
   <label>Music <input type="range" id="o-mus" min="0" max="1" step="0.05" /></label>
-  <label>Screen shake <input type="checkbox" id="o-shake" /></label>
-  <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
   <button class="btn" id="s-back">Back</button>
 </div>
 
@@ -5780,23 +5792,26 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform float uTime;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime;
+    vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
     float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float lum(vec3 c) { return max(max(c.r, c.g), c.b) * 0.55 + dot(c, vec3(0.299, 0.587, 0.114)) * 0.45; }
-    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 32.0); }
+    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * CS / uRes).a * 32.0); }
     float actorAt(vec2 cell) { return uSet2[idAt(cell)].w; }
     void main() {
       vec2 fc = gl_FragCoord.xy;
-      vec2 cell = floor(fc / uCell);
-      vec2 cuv = fract(fc / uCell);
-      vec2 cc = (cell + 0.5) * uCell / uRes;
+      vec4 px = texture2D(tScene, fc / uRes);
+      int pid = int(px.a * 32.0);
+      // separate glyph densities: characters, water & sky, everything else
+      CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : uCell);
+      vec2 cell = floor(fc / CS);
+      vec2 cuv = fract(fc / CS);
+      vec2 cc = (cell + 0.5) * CS / uRes;
       vec4 cs = texture2D(tScene, cc);
       int id = int(cs.a * 32.0);
       bool actor = uSet2[id].w > 0.5;
-      vec4 px = texture2D(tScene, fc / uRes);
-      int pid = int(px.a * 32.0);
       vec3 raw = px.rgb;
       // raw sets (grass strokes) are decided per pixel so blades stay crisp lines;
       // around characters the grass is darkened into a halo so silhouettes read
@@ -5807,7 +5822,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
       vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
-      vec2 q = uCell / uRes * 0.3;
+      vec2 q = CS / uRes * 0.3;
       vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
               + texture2D(tScene, cc + vec2(q.x, -q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, -q.y)).rgb) / 6.0;
       float v = clamp(lum(c) * S.y, 0.0, 1.0);
@@ -5904,7 +5919,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
@@ -5929,10 +5944,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (this.rts) Object.values(this.rts).forEach(t => t.dispose());
     const bw = Math.max(1, W >> 2), bh = Math.max(1, H >> 2);
     this.rts = { scene: mk(W, H, true), ascii: mk(W, H, false), b1: mk(bw, bh, false), b2: mk(bw, bh, false) };
-    const cw = Math.round(this.glyphPx * dpr * 0.62), ch = Math.round(this.glyphPx * dpr);
-    this.cell = [Math.max(3, cw), Math.max(5, ch)];
+    const cellOf = px => [Math.max(2, Math.round(px * dpr * 0.62)), Math.max(3, Math.round(px * dpr))];
+    this.cell = cellOf(this.glyphPx);
+    const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
     this.asciiMat.uniforms.uRes.value.set(W, H);
     this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
+    this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
+    this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
     this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
     this.compMat.uniforms.uRes.value.set(W, H);
   };
@@ -7437,7 +7455,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const mv = new V3(input.mx, 0, input.mz);
     const ml = Math.min(1, mv.length()); if (ml > 0.01) mv.normalize();
     this._mv = ml > 0.1 && this.state === 'move';
-    this._spd = 6.2 * (this.moveMul || 1) * ml * (W.inWater(this.pos.x, this.pos.z) ? 0.55 : 1);
+    this._spd = this.mvel && this.state === 'move' ? Math.hypot(this.mvel.x, this.mvel.z) : 6.2 * (this.moveMul || 1) * ml;
+    if (this.state !== 'move' && this.mvel && this.state !== 'roll') this.mvel.multiplyScalar(0.5);
     const wading = W.inWater(this.pos.x, this.pos.z);
     let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
@@ -7504,7 +7523,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     let vx = 0, vz = 0;
     switch (this.state) {
       case 'move': {
-        vx = mv.x * speed * ml; vz = mv.z * speed * ml;
+        // responsive but not robotic: ~60 ms to full speed, ~50 ms to stop
+        const mvel = this.mvel || (this.mvel = new V3());
+        const tx = mv.x * speed * ml, tz = mv.z * speed * ml;
+        const k = 1 - Math.exp(-dt * (ml > 0.1 ? 26 : 34));
+        mvel.x += (tx - mvel.x) * k; mvel.z += (tz - mvel.z) * k;
+        vx = mvel.x; vz = mvel.z;
         if (ml > 0.1) {
           if (input.aim && input.aimHeld) this.yaw = Math.atan2(input.aim.x - this.pos.x, input.aim.z - this.pos.z);
           else this.yaw = Math.atan2(mv.x, mv.z);
@@ -7524,7 +7548,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       case 'roll': {
         const k = this.t / this.cur.dur, sp = 13 * (1 - k * 0.75) * (wading ? 0.7 : 1);
         vx = Math.sin(this.rollDir) * sp; vz = Math.cos(this.rollDir) * sp;
-        if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; }
+        if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; if (this.mvel) this.mvel.set(vx * 0.7, 0, vz * 0.7); }
         break;
       }
       case 'skill': {
@@ -7605,7 +7629,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   Player.prototype.animate = function (dt) {
     const m = this.model, b = this.body, R = this.rig;
     m.position.copy(this.pos);
-    this.visYaw += GW.angDiff(this.visYaw, this.yaw) * Math.min(1, dt * (this.state === 'move' ? 14 : 30));
+    this.visYaw += GW.angDiff(this.visYaw, this.yaw) * Math.min(1, dt * (this.state === 'move' ? 20 : 32));
     m.rotation.y = this.visYaw;
     b.rotation.set(0, 0, 0); b.position.set(0, 0, 0);
     // a new action token restarts its clip
@@ -8669,22 +8693,36 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   if (!UI.settings.v2) { UI.settings.v2 = true; UI.settings.glyph = matchMedia('(pointer: coarse)').matches ? 7 : 8; }
   if (!UI.settings.zoom) UI.settings.zoom = 1.3;
   if (UI.settings.follow === undefined) { UI.settings.follow = true; UI.settings.camPitch = 0.74; }
+  // v3: much denser glyphs, separate densities, free-aim controls by default
+  if (!UI.settings.v3) {
+    Object.assign(UI.settings, { v3: true, glyph: 5, glyphA: 6, glyphS: 5, control: 'free', follow: false, camYaw: 0, camPitch: 0.95, zoom: 1.1 });
+  }
+  UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
     UI.settings.zoom = GW.clamp(z, 0.6, 2.2);
     const el = document.getElementById('o-zoom'); if (el) { el.value = UI.settings.zoom; document.getElementById('o-zoom-v').textContent = Math.round(UI.settings.zoom * 100) + '%'; }
     clearTimeout(zoomSaveT); zoomSaveT = setTimeout(UI.saveSettings, 400);
   };
+  UI.applyControl = function () { document.body.classList.toggle('aim', UI.settings.control !== 'follow' && !I.touch); };
   UI.saveSettings = function () { try { localStorage.setItem('glyphwake.settings', JSON.stringify(UI.settings)); } catch (e) { /* ignore */ } };
   UI.initSettings = function (apply) {
     const S = UI.settings;
     const gl = $('o-glyph'), q = $('o-quality'), v = $('o-vol'), m = $('o-mus'), sh = $('o-shake'), pu = $('o-pure');
-    const fo = $('o-follow'), ti = $('o-tilt');
-    fo.checked = !!S.follow; fo.onchange = () => { S.follow = fo.checked; UI.saveSettings(); };
+    const ti = $('o-tilt'), ctl = $('o-control');
+    const ctlNote = () => { $('o-control-note').textContent = S.control === 'follow'
+      ? 'The camera swings behind the knight as he runs. Hold middle mouse to look around.'
+      : 'Move with WASD or the stick: the knight faces where he walks. The camera stays put. Attacks and skills go toward the mouse cursor.'; };
+    ctl.value = S.control || 'free'; ctlNote();
+    ctl.onchange = () => { S.control = ctl.value; S.follow = S.control === 'follow'; if (!S.follow) S.camYaw = 0; ctlNote(); UI.saveSettings(); UI.applyControl(); };
     const tiltTxt = () => { $('o-tilt-v').textContent = Math.round((S.camPitch || 0.98) * 57.3) + '°'; };
     ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
+    const ga = $('o-glyphA'), gs = $('o-glyphS');
+    ga.value = S.glyphA; $('o-glyphA-v').textContent = S.glyphA + 'px'; gs.value = S.glyphS; $('o-glyphS-v').textContent = S.glyphS + 'px';
+    ga.oninput = () => { S.glyphA = +ga.value; $('o-glyphA-v').textContent = S.glyphA + 'px'; apply(); UI.saveSettings(); };
+    gs.oninput = () => { S.glyphS = +gs.value; $('o-glyphS-v').textContent = S.glyphS + 'px'; apply(); UI.saveSettings(); };
     gl.value = S.glyph; $('o-glyph-v').textContent = S.glyph + 'px'; q.value = S.quality; v.value = S.vol; m.value = S.mus; sh.checked = S.shake; pu.checked = S.pure;
     gl.oninput = () => { S.glyph = +gl.value; $('o-glyph-v').textContent = S.glyph + 'px'; apply(); UI.saveSettings(); };
     q.onchange = () => { S.quality = +q.value; apply(); UI.saveSettings(); };
@@ -8847,7 +8885,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
   function applySettings() {
     const S = UI.settings, R = G.R;
-    R.glyphPx = S.glyph; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
+    R.glyphPx = S.glyph; R.glyphA = S.glyphA; R.glyphS = S.glyphS; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
     R.setShadows([0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
     GWAudio.setVolume(S.vol, S.mus);
   }
@@ -8888,7 +8926,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       P.recalc(); P.hp = P.maxHp;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
-      G.state = 'play'; $('hud').classList.remove('hidden'); UI.showTouch(true);
+      G.state = 'play'; $('hud').classList.remove('hidden'); UI.showTouch(true); UI.applyControl();
       refreshQuest();
       if (!cont) {
         UI.dialog([
@@ -9168,11 +9206,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     const pitch = S.camPitch || 0.98, yaw = S.camYaw || 0;
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
-    const fwd = P.fwd();
-    const ahead = P.state === 'move' ? 1.2 : 0.6;
+    const mvv = P.mvel || { x: 0, z: 0 };
     const po = portrait ? 2.6 : 0;
-    camT.set(P.pos.x + fwd.x * ahead + sy * po, P.pos.y, P.pos.z + fwd.z * ahead + cy * po);
-    camLook.lerp(camT, Math.min(1, dt * 6));
+    camT.set(P.pos.x + mvv.x * 0.16 + sy * po, P.pos.y, P.pos.z + mvv.z * 0.16 + cy * po);
+    camLook.lerp(camT, Math.min(1, dt * (S.follow ? 7 : 11)));
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
     C.position.set(camLook.x + sy * Math.cos(pitch) * D, camLook.y + Math.sin(pitch) * D, camLook.z + cy * Math.cos(pitch) * D);
     const s = G.shakeAmt * G.shakeAmt * 0.6;

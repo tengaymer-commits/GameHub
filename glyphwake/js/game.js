@@ -148,7 +148,7 @@
   }
   function applySettings() {
     const S = UI.settings, R = G.R;
-    R.glyphPx = S.glyph; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
+    R.glyphPx = S.glyph; R.glyphA = S.glyphA; R.glyphS = S.glyphS; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
     R.setShadows([0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
     GWAudio.setVolume(S.vol, S.mus);
   }
@@ -189,7 +189,7 @@
       P.recalc(); P.hp = P.maxHp;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
-      G.state = 'play'; $('hud').classList.remove('hidden'); UI.showTouch(true);
+      G.state = 'play'; $('hud').classList.remove('hidden'); UI.showTouch(true); UI.applyControl();
       refreshQuest();
       if (!cont) {
         UI.dialog([
@@ -469,11 +469,10 @@
     }
     const pitch = S.camPitch || 0.98, yaw = S.camYaw || 0;
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
-    const fwd = P.fwd();
-    const ahead = P.state === 'move' ? 1.2 : 0.6;
+    const mvv = P.mvel || { x: 0, z: 0 };
     const po = portrait ? 2.6 : 0;
-    camT.set(P.pos.x + fwd.x * ahead + sy * po, P.pos.y, P.pos.z + fwd.z * ahead + cy * po);
-    camLook.lerp(camT, Math.min(1, dt * 6));
+    camT.set(P.pos.x + mvv.x * 0.16 + sy * po, P.pos.y, P.pos.z + mvv.z * 0.16 + cy * po);
+    camLook.lerp(camT, Math.min(1, dt * (S.follow ? 7 : 11)));
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
     C.position.set(camLook.x + sy * Math.cos(pitch) * D, camLook.y + Math.sin(pitch) * D, camLook.z + cy * Math.cos(pitch) * D);
     const s = G.shakeAmt * G.shakeAmt * 0.6;

@@ -237,23 +237,26 @@
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform float uTime;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime;
+    vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
     float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float lum(vec3 c) { return max(max(c.r, c.g), c.b) * 0.55 + dot(c, vec3(0.299, 0.587, 0.114)) * 0.45; }
-    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 32.0); }
+    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * CS / uRes).a * 32.0); }
     float actorAt(vec2 cell) { return uSet2[idAt(cell)].w; }
     void main() {
       vec2 fc = gl_FragCoord.xy;
-      vec2 cell = floor(fc / uCell);
-      vec2 cuv = fract(fc / uCell);
-      vec2 cc = (cell + 0.5) * uCell / uRes;
+      vec4 px = texture2D(tScene, fc / uRes);
+      int pid = int(px.a * 32.0);
+      // separate glyph densities: characters, water & sky, everything else
+      CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : uCell);
+      vec2 cell = floor(fc / CS);
+      vec2 cuv = fract(fc / CS);
+      vec2 cc = (cell + 0.5) * CS / uRes;
       vec4 cs = texture2D(tScene, cc);
       int id = int(cs.a * 32.0);
       bool actor = uSet2[id].w > 0.5;
-      vec4 px = texture2D(tScene, fc / uRes);
-      int pid = int(px.a * 32.0);
       vec3 raw = px.rgb;
       // raw sets (grass strokes) are decided per pixel so blades stay crisp lines;
       // around characters the grass is darkened into a halo so silhouettes read
@@ -264,7 +267,7 @@
       if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
       vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
-      vec2 q = uCell / uRes * 0.3;
+      vec2 q = CS / uRes * 0.3;
       vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
               + texture2D(tScene, cc + vec2(q.x, -q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, -q.y)).rgb) / 6.0;
       float v = clamp(lum(c) * S.y, 0.0, 1.0);
@@ -361,7 +364,7 @@
     const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
@@ -386,10 +389,13 @@
     if (this.rts) Object.values(this.rts).forEach(t => t.dispose());
     const bw = Math.max(1, W >> 2), bh = Math.max(1, H >> 2);
     this.rts = { scene: mk(W, H, true), ascii: mk(W, H, false), b1: mk(bw, bh, false), b2: mk(bw, bh, false) };
-    const cw = Math.round(this.glyphPx * dpr * 0.62), ch = Math.round(this.glyphPx * dpr);
-    this.cell = [Math.max(3, cw), Math.max(5, ch)];
+    const cellOf = px => [Math.max(2, Math.round(px * dpr * 0.62)), Math.max(3, Math.round(px * dpr))];
+    this.cell = cellOf(this.glyphPx);
+    const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
     this.asciiMat.uniforms.uRes.value.set(W, H);
     this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
+    this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
+    this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
     this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
     this.compMat.uniforms.uRes.value.set(W, H);
   };

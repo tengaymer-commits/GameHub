@@ -107,17 +107,26 @@
 
 <div id="settings" class="panel hidden">
   <h2>SETTINGS</h2>
-  <label>Camera follows movement <input type="checkbox" id="o-follow" /></label>
-  <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
+  <div class="s-sec">Controls</div>
+  <label>Control style
+    <select id="o-control"><option value="free">Free aim: camera stays</option><option value="follow">Follow camera</option></select>
+  </label>
+  <div class="s-note" id="o-control-note"></div>
+  <div class="s-sec">Camera</div>
   <label>Camera distance <input type="range" id="o-zoom" min="0.6" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
-  <label>Glyph size <input type="range" id="o-glyph" min="5" max="14" step="1" /><span id="o-glyph-v"></span></label>
+  <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
+  <label>Screen shake <input type="checkbox" id="o-shake" /></label>
+  <div class="s-sec">Glyph density (smaller = denser)</div>
+  <label>Characters <input type="range" id="o-glyphA" min="3" max="14" step="1" /><span id="o-glyphA-v"></span></label>
+  <label>Environment <input type="range" id="o-glyph" min="3" max="14" step="1" /><span id="o-glyph-v"></span></label>
+  <label>Water &amp; sky <input type="range" id="o-glyphS" min="3" max="14" step="1" /><span id="o-glyphS-v"></span></label>
+  <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
+  <div class="s-sec">Graphics &amp; audio</div>
   <label>Quality
     <select id="o-quality"><option value="0">Low</option><option value="1">Medium</option><option value="2">High</option></select>
   </label>
   <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
   <label>Music <input type="range" id="o-mus" min="0" max="1" step="0.05" /></label>
-  <label>Screen shake <input type="checkbox" id="o-shake" /></label>
-  <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
   <button class="btn" id="s-back">Back</button>
 </div>
 

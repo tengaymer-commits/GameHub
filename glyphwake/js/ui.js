@@ -295,22 +295,36 @@
   if (!UI.settings.v2) { UI.settings.v2 = true; UI.settings.glyph = matchMedia('(pointer: coarse)').matches ? 7 : 8; }
   if (!UI.settings.zoom) UI.settings.zoom = 1.3;
   if (UI.settings.follow === undefined) { UI.settings.follow = true; UI.settings.camPitch = 0.74; }
+  // v3: much denser glyphs, separate densities, free-aim controls by default
+  if (!UI.settings.v3) {
+    Object.assign(UI.settings, { v3: true, glyph: 5, glyphA: 6, glyphS: 5, control: 'free', follow: false, camYaw: 0, camPitch: 0.95, zoom: 1.1 });
+  }
+  UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
     UI.settings.zoom = GW.clamp(z, 0.6, 2.2);
     const el = document.getElementById('o-zoom'); if (el) { el.value = UI.settings.zoom; document.getElementById('o-zoom-v').textContent = Math.round(UI.settings.zoom * 100) + '%'; }
     clearTimeout(zoomSaveT); zoomSaveT = setTimeout(UI.saveSettings, 400);
   };
+  UI.applyControl = function () { document.body.classList.toggle('aim', UI.settings.control !== 'follow' && !I.touch); };
   UI.saveSettings = function () { try { localStorage.setItem('glyphwake.settings', JSON.stringify(UI.settings)); } catch (e) { /* ignore */ } };
   UI.initSettings = function (apply) {
     const S = UI.settings;
     const gl = $('o-glyph'), q = $('o-quality'), v = $('o-vol'), m = $('o-mus'), sh = $('o-shake'), pu = $('o-pure');
-    const fo = $('o-follow'), ti = $('o-tilt');
-    fo.checked = !!S.follow; fo.onchange = () => { S.follow = fo.checked; UI.saveSettings(); };
+    const ti = $('o-tilt'), ctl = $('o-control');
+    const ctlNote = () => { $('o-control-note').textContent = S.control === 'follow'
+      ? 'The camera swings behind the knight as he runs. Hold middle mouse to look around.'
+      : 'Move with WASD or the stick: the knight faces where he walks. The camera stays put. Attacks and skills go toward the mouse cursor.'; };
+    ctl.value = S.control || 'free'; ctlNote();
+    ctl.onchange = () => { S.control = ctl.value; S.follow = S.control === 'follow'; if (!S.follow) S.camYaw = 0; ctlNote(); UI.saveSettings(); UI.applyControl(); };
     const tiltTxt = () => { $('o-tilt-v').textContent = Math.round((S.camPitch || 0.98) * 57.3) + '°'; };
     ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
+    const ga = $('o-glyphA'), gs = $('o-glyphS');
+    ga.value = S.glyphA; $('o-glyphA-v').textContent = S.glyphA + 'px'; gs.value = S.glyphS; $('o-glyphS-v').textContent = S.glyphS + 'px';
+    ga.oninput = () => { S.glyphA = +ga.value; $('o-glyphA-v').textContent = S.glyphA + 'px'; apply(); UI.saveSettings(); };
+    gs.oninput = () => { S.glyphS = +gs.value; $('o-glyphS-v').textContent = S.glyphS + 'px'; apply(); UI.saveSettings(); };
     gl.value = S.glyph; $('o-glyph-v').textContent = S.glyph + 'px'; q.value = S.quality; v.value = S.vol; m.value = S.mus; sh.checked = S.shake; pu.checked = S.pure;
     gl.oninput = () => { S.glyph = +gl.value; $('o-glyph-v').textContent = S.glyph + 'px'; apply(); UI.saveSettings(); };
     q.onchange = () => { S.quality = +q.value; apply(); UI.saveSettings(); };

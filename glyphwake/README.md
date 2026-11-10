@@ -43,7 +43,7 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 | Talk / rest / anvil | E | E |
 | Camera zoom | mouse wheel | ≡ → Settings → Camera distance |
 | Camera angle | hold middle mouse + drag (double-click middle to reset) | ≡ → Settings → Camera tilt |
-| Follow camera | ≡ → Settings → Camera follows movement (on by default) | same |
+| Control style | ≡ → Settings → Control style: **Free aim** (default: WASD/stick moves and the knight faces where he walks, the camera stays put, attacks go toward the crosshair cursor) or **Follow camera** | same |
 | Menu | Esc / Tab | ≡ |
 
 ## How the glyph rendering works (`js/engine.js`)
@@ -54,4 +54,4 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 5. Lighting: a moon shadow map (3×3 PCF, rendered around the player each frame: off on Low quality, 1024² on Medium, 2048² on High), Blinn-Phong highlights on metal, mail, bone and water, softer inverse-square falloff on torches and campfires, and a blue night haze for distance fog.
 6. Grass: low-frequency color fields (lush, dry, blue-green), height variation, and wind gusts that roll across the meadow and catch the light.
 
-Settings: glyph size (5–14 px), quality (resolution and grass density), volume, music, screen shake.
+Settings: separate glyph density for **characters**, **environment** and **water & sky** (3–14 px; the shader keeps three character grids and picks one per pixel), quality (resolution, grass density, shadows, reflections), camera distance and tilt, control style, volume, music, screen shake.

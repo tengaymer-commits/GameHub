@@ -203,7 +203,8 @@
     const mv = new V3(input.mx, 0, input.mz);
     const ml = Math.min(1, mv.length()); if (ml > 0.01) mv.normalize();
     this._mv = ml > 0.1 && this.state === 'move';
-    this._spd = 6.2 * (this.moveMul || 1) * ml * (W.inWater(this.pos.x, this.pos.z) ? 0.55 : 1);
+    this._spd = this.mvel && this.state === 'move' ? Math.hypot(this.mvel.x, this.mvel.z) : 6.2 * (this.moveMul || 1) * ml;
+    if (this.state !== 'move' && this.mvel && this.state !== 'roll') this.mvel.multiplyScalar(0.5);
     const wading = W.inWater(this.pos.x, this.pos.z);
     let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
@@ -270,7 +271,12 @@
     let vx = 0, vz = 0;
     switch (this.state) {
       case 'move': {
-        vx = mv.x * speed * ml; vz = mv.z * speed * ml;
+        // responsive but not robotic: ~60 ms to full speed, ~50 ms to stop
+        const mvel = this.mvel || (this.mvel = new V3());
+        const tx = mv.x * speed * ml, tz = mv.z * speed * ml;
+        const k = 1 - Math.exp(-dt * (ml > 0.1 ? 26 : 34));
+        mvel.x += (tx - mvel.x) * k; mvel.z += (tz - mvel.z) * k;
+        vx = mvel.x; vz = mvel.z;
         if (ml > 0.1) {
           if (input.aim && input.aimHeld) this.yaw = Math.atan2(input.aim.x - this.pos.x, input.aim.z - this.pos.z);
           else this.yaw = Math.atan2(mv.x, mv.z);
@@ -290,7 +296,7 @@
       case 'roll': {
         const k = this.t / this.cur.dur, sp = 13 * (1 - k * 0.75) * (wading ? 0.7 : 1);
         vx = Math.sin(this.rollDir) * sp; vz = Math.cos(this.rollDir) * sp;
-        if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; }
+        if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; if (this.mvel) this.mvel.set(vx * 0.7, 0, vz * 0.7); }
         break;
       }
       case 'skill': {
@@ -371,7 +377,7 @@
   Player.prototype.animate = function (dt) {
     const m = this.model, b = this.body, R = this.rig;
     m.position.copy(this.pos);
-    this.visYaw += GW.angDiff(this.visYaw, this.yaw) * Math.min(1, dt * (this.state === 'move' ? 14 : 30));
+    this.visYaw += GW.angDiff(this.visYaw, this.yaw) * Math.min(1, dt * (this.state === 'move' ? 20 : 32));
     m.rotation.y = this.visYaw;
     b.rotation.set(0, 0, 0); b.position.set(0, 0, 0);
     // a new action token restarts its clip
