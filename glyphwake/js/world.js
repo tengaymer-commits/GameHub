@@ -221,7 +221,7 @@
     tg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     tg.computeVertexNormals();
     const terrain = new THREE.Mesh(tg, GW.mat({ id: ID.GROUND, vertexColors: true, color: 0xffffff }));
-    terrain.frustumCulled = false; scene.add(terrain);
+    terrain.frustumCulled = false; terrain.layers.set(1); scene.add(terrain);
 
     // ---- water ----
     W.waterMat = buildWater(scene);
@@ -526,14 +526,18 @@
           float e = min(vUv.x, 1.0 - vUv.x);
           float foam = smoothstep(0.2, 0.1, e) * (0.6 + 0.4 * n2(vec2(vUv.y * 0.8 - uTime * 1.2, vUv.x * 10.0)));
           float streak = smoothstep(0.62, 0.95, n2(vec2(vUv.y * 0.35 - uTime * 0.9, vUv.x * 7.0)) * n2(vec2(vUv.y * 1.3 - uTime * 1.6, vUv.x * 3.0 + 7.0)) * 1.8);
-          vec3 L = lightAt(vW, vec3(0.0, 1.0, 0.0));
+          vec2 rp = vec2(vUv.y * 1.6 - uTime * 1.3, vUv.x * 9.0);
+          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.9, 1.0, (n2(rp + 13.7) - 0.5) * 0.9));
+          vec3 L = lightAt(vW, wn);
+          vec3 V = normalize(uCam - vW);
           vec3 deep = vec3(0.02, 0.05, 0.11);
           vec3 col = deep + L * vec3(0.12, 0.2, 0.35) + vec3(0.45, 0.62, 0.9) * (foam * 0.8 + streak * 0.55) * (0.5 + L * 1.5);
-          col *= fogAt(vW);
+          col += specAt(vW, wn, V, 90.0) * 1.4;
+          col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
     });
-    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
+    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.layers.set(1); scene.add(mesh);
     return m;
   }
 
@@ -559,6 +563,9 @@
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
         uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime;
         varying vec3 vW; varying vec3 vCol; varying float vT;
+        float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+        float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
         void main(){
           vec2 base = uCenter - uSize * 0.5;
           vec2 wp = base + mod(aOff.xy * (uSize / 50.0) - base, uSize);
@@ -567,13 +574,17 @@
           float ed = max(abs(wp.x - uCenter.x), abs(wp.y - uCenter.y)) / uSize;
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
           float vis = step(fract(sd * 7.31), m.g);
-          float h = (0.55 + 0.9 * fract(sd * 3.7)) * uScale * vis * edgeF;
+          float fA = vn(wp * 0.035), fB = vn(wp * 0.11 + 7.0);
+          float h = (0.55 + 0.9 * fract(sd * 3.7)) * uScale * vis * edgeF * (0.7 + 0.6 * fB);
           float ang = sd * 6.2831 * 13.0;
           vec2 dir = vec2(cos(ang), sin(ang));
           float t = aV.y;
           vec2 bend = vec2(cos(ang * 1.7), sin(ang * 1.7)) * (0.15 + 0.35 * fract(sd * 11.0));
           float wind = sin(uTime * 1.4 + wp.x * 0.25 + wp.y * 0.18) * 0.28 + sin(uTime * 3.3 + wp.x * 1.1 + wp.y) * 0.07;
           bend += vec2(wind, wind * 0.35);
+          // gusts: broad waves rolling across the meadow
+          float gust = smoothstep(0.55, 1.0, sin(dot(wp, vec2(0.8, 0.6)) * 0.085 - uTime * 1.15 + fA * 2.5) * 0.5 + 0.5);
+          bend += vec2(0.8, 0.6) * gust * 0.85;
           for (int i = 0; i < 6; i++) {
             vec2 d = wp - uPush[i].xy; float dd = length(d);
             float f = clamp(1.0 - dd / max(uPush[i].z, 0.001), 0.0, 1.0);
@@ -584,25 +595,29 @@
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.16, 0.29, 0.17), vec3(0.24, 0.33, 0.24), tone), t);
+          vec3 lush = mix(vec3(0.16, 0.29, 0.17), vec3(0.24, 0.33, 0.24), tone);
+          vec3 dry = vec3(0.3, 0.3, 0.17), cool = vec3(0.13, 0.26, 0.24);
+          vec3 tip = mix(mix(lush, dry, smoothstep(0.55, 0.85, fA) * 0.75), cool, smoothstep(0.6, 0.9, fB) * 0.6);
+          tip *= 1.0 + gust * 0.35 * t;
+          vCol = mix(vec3(0.02, 0.045, 0.025), tip, t);
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}
         void main(){
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
-          vec3 col = vCol * (L * 2.8 + 0.22);
-          col *= fogAt(vW);
+          vec3 col = vCol * (L * 2.8 + 0.22 * (0.55 + 0.45 * gShadow));
+          col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
     });
-    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
+    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.layers.set(1); scene.add(mesh);
     return { mesh, mat: m, push };
   }
 
   function buildFireflies(scene) {
     const n = 140;
     const im = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.06, 0), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xd8ff8a, unlit: true }), n);
-    im.frustumCulled = false; scene.add(im);
+    im.frustumCulled = false; im.layers.set(1); scene.add(im);
     const r = GW.rand(5);
     const flies = [];
     const homes = [L.grove, L.meadow, L.village, L.bridge, L.ruins, L.start];

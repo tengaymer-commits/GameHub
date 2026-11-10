@@ -41,6 +41,8 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 1. Every material is a small custom shader. It writes its lit color to RGB and a **glyph-set id** to alpha (stone, water, fire, cloth, ruin letters …).
 2. The ASCII pass splits the screen into character cells. For each cell it reads the id and the cell's average color, then picks a glyph from that set's brightness ramp in a generated font atlas. It draws outline glyphs (`| / - \`) where a set borders another, and tints the glyph with the scene color.
 3. Grass blades are passed through as raw strokes, which gives the hand-drawn meadow look. Settings → *Pure ASCII grass* turns them into glyphs too.
-4. A bright-pass, a blur and a composite add bloom, the vignette, grain and the damage flash.
+4. A bright-pass, a blur and a composite add bloom, the vignette, grain, a filmic tone curve with a cool-shadow/warm-highlight grade, and the damage flash.
+5. Lighting: a moon shadow map (3×3 PCF, rendered around the player each frame: off on Low quality, 1024² on Medium, 2048² on High), Blinn-Phong highlights on metal, mail, bone and water, softer inverse-square falloff on torches and campfires, and a blue night haze for distance fog.
+6. Grass: low-frequency color fields (lush, dry, blue-green), height variation, and wind gusts that roll across the meadow and catch the light.
 
 Settings: glyph size (5–14 px), quality (resolution and grass density), volume, music, screen shake.

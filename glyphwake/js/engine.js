@@ -69,7 +69,7 @@
   // ---------- shared lighting uniforms ----------
   const LU = E.LU = {
     uAmb: { value: new THREE.Color(0.1, 0.12, 0.17) },
-    uMoonDir: { value: new THREE.Vector3(-0.4, 0.8, 0.35).normalize() },
+    uMoonDir: { value: new THREE.Vector3(-0.55, 0.62, 0.5).normalize() },
     uMoonCol: { value: new THREE.Color(0.36, 0.42, 0.58) },
     uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
@@ -78,23 +78,59 @@
     uCam: { value: new THREE.Vector3() },
     uFog: { value: 0.012 },
     uFogStart: { value: 18 },
+    uFogCol: { value: new THREE.Color(0.022, 0.032, 0.058) },
+    uShadowMap: { value: null },
+    uShadowMat: { value: new THREE.Matrix4() },
+    uShadowOn: { value: 0 },
+    uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   };
 
   const LIGHT_GLSL = `
+    #include <packing>
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
-    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol;
+    uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel;
+    float gShadow;
+    // moon shadow map, 3x3 PCF with a normal offset against acne
+    float shadowAt(vec3 W, vec3 n) {
+      if (uShadowOn < 0.5) return 1.0;
+      vec4 sp = uShadowMat * vec4(W + n * 0.08, 1.0);
+      vec3 sc = sp.xyz / sp.w * 0.5 + 0.5;
+      if (sc.x < 0.0 || sc.x > 1.0 || sc.y < 0.0 || sc.y > 1.0 || sc.z > 1.0) return 1.0;
+      float sh = 0.0;
+      for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) {
+        float d = unpackRGBAToDepth(texture2D(uShadowMap, sc.xy + vec2(float(x), float(y)) * uShadowTexel * 1.25));
+        sh += (sc.z - 0.0012 > d) ? 0.0 : 1.0;
+      }
+      float edge = smoothstep(0.0, 0.08, min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y)));
+      return mix(1.0, sh / 9.0, edge);
+    }
     vec3 lightAt(vec3 W, vec3 n) {
-      vec3 L = uAmb * (0.55 + 0.45 * n.y) + uMoonCol * max(dot(n, uMoonDir), 0.0);
+      float sh = shadowAt(W, n); gShadow = sh;
+      vec3 L = uAmb * (0.55 + 0.45 * n.y) * (0.72 + 0.28 * sh) + uMoonCol * max(dot(n, uMoonDir), 0.0) * sh;
       for (int i = 0; i < ${MAXL}; i++) {
         if (i >= uLN) break;
         vec3 d = uLP[i].xyz - W; float dist = length(d);
-        float att = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0); att *= att;
-        L += uLC[i] * att * (max(dot(n, d / max(dist, 0.001)), 0.0) * 0.75 + 0.25);
+        float k = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
+        float att = k * k * (1.0 + 1.5 / (1.0 + dist * dist * 0.35));
+        L += uLC[i] * att * (max(dot(n, d / max(dist, 0.001)), 0.0) * 0.8 + 0.2);
       }
       return L;
     }
+    // Blinn-Phong highlights from the moon (shadowed) and nearby lights
+    vec3 specAt(vec3 W, vec3 n, vec3 V, float shin) {
+      vec3 S = uMoonCol * pow(max(dot(n, normalize(uMoonDir + V)), 0.0), shin) * gShadow * 1.6;
+      for (int i = 0; i < ${MAXL}; i++) {
+        if (i >= uLN) break;
+        vec3 d = uLP[i].xyz - W; float dist = length(d);
+        float k = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
+        S += uLC[i] * k * k * pow(max(dot(n, normalize(d / max(dist, 0.001) + V)), 0.0), shin);
+      }
+      return S;
+    }
     float fogAt(vec3 W) { return exp(-max(length(W - uCam) - uFogStart, 0.0) * uFog); }
+    vec3 applyFog(vec3 col, vec3 W) { return mix(uFogCol, col, fogAt(W)); }
   `;
   E.LIGHT_GLSL = LIGHT_GLSL;
 
@@ -123,7 +159,7 @@
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec;
     ${LIGHT_GLSL}
     void main() {
       vec3 n = normalize(vN);
@@ -132,10 +168,12 @@
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
-      col *= fogAt(vW);
+      if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
+      col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
       gl_FragColor = vec4(col, (uId + 0.5) / 32.0);
     }`;
 
+  const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.12, 13: 0.1, 6: 0.15, 22: 0.06 };
   // material factory
   E.mat = function (o) {
     o = o || {};
@@ -147,6 +185,7 @@
         uFlash: { value: 0 },
         uRim: { value: o.rim !== undefined ? o.rim : 0.0 },
         uUnlit: { value: o.unlit ? 1 : 0 },
+        uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,
       vertexColors: !!o.vertexColors,
@@ -257,7 +296,11 @@
       c = mix(c, c * 0.4 + vec3(0.5, 0.0, 0.0) * edge, uHurt * edge);
       c += (h21(vUv * uRes + uTime) - 0.5) * 0.025;
       c = mix(c, vec3(1.0), uFadeW);
-      c = c / (1.0 + c * 0.15);
+      vec3 x = c * 1.2;
+      vec3 aces = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+      c = mix(c / (1.0 + c * 0.15), aces, 0.65);
+      float lu = dot(c, vec3(0.299, 0.587, 0.114));
+      c += vec3(-0.008, 0.0, 0.02) * (1.0 - lu) + vec3(0.03, 0.014, -0.018) * lu;
       gl_FragColor = vec4(c, 1.0);
     }`;
 
@@ -315,9 +358,35 @@
     this.r.setRenderTarget(target);
     this.r.render(this.quadScene, this.quadCam);
   };
+  E.Renderer.prototype.setShadows = function (size) {
+    if (this.shadowRT) { this.shadowRT.dispose(); this.shadowRT = null; }
+    if (!size) { LU.uShadowOn.value = 0; return; }
+    this.shadowRT = new THREE.WebGLRenderTarget(size, size, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    this.shadowCam = this.shadowCam || new THREE.OrthographicCamera(-30, 30, 30, -30, 1, 220);
+    this.depthMat = this.depthMat || new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
+    LU.uShadowTexel.value.set(1 / size, 1 / size);
+  };
+  // render the moon's depth view around `focus`; objects on layer 1 (ground, grass, effects) don't cast
+  E.Renderer.prototype.renderShadow = function (scene, focus, half) {
+    if (!this.shadowRT) { LU.uShadowOn.value = 0; return; }
+    const C = this.shadowCam, size = this.shadowRT.width, texel = half * 2 / size;
+    const fx = Math.round(focus.x / texel) * texel, fz = Math.round(focus.z / texel) * texel;
+    C.left = -half; C.right = half; C.top = half; C.bottom = -half; C.updateProjectionMatrix();
+    const d = LU.uMoonDir.value;
+    C.position.set(fx + d.x * 100, focus.y + d.y * 100, fz + d.z * 100); C.up.set(0, 1, 0); C.lookAt(fx, focus.y, fz);
+    C.updateMatrixWorld(); C.layers.set(0);
+    scene.overrideMaterial = this.depthMat;
+    this.r.setRenderTarget(this.shadowRT); this.r.setClearColor(0xffffff, 1); this.r.clear();
+    this.r.render(scene, C);
+    scene.overrideMaterial = null;
+    LU.uShadowMat.value.multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
+    LU.uShadowMap.value = this.shadowRT.texture; LU.uShadowOn.value = 1;
+  };
   E.Renderer.prototype.render = function (scene, camera, fx) {
     const r = this.r, T = this.rts;
     LU.uCam.value.copy(camera.position);
+    camera.layers.enable(1);
+    if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;
     r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
     r.render(scene, camera);
     this.asciiMat.uniforms.tScene.value = T.scene.texture;

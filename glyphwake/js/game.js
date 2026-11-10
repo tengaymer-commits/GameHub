@@ -149,6 +149,7 @@
   function applySettings() {
     const S = UI.settings, R = G.R;
     R.glyphPx = S.glyph; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
+    R.setShadows([0, 1024, 2048][S.quality]);
     GWAudio.setVolume(S.vol, S.mus);
   }
   function openSettings(from) { G.settingsFrom = from; $('settings').classList.remove('hidden'); $('pause').classList.add('hidden'); $('title').classList.add('hidden'); }
@@ -389,7 +390,7 @@
   G.telegraph = function (o) { const t = new GW.Telegraph(G.scene, o); G.telegraphs.push(t); return t; };
   G.spawnProjectile = function (o) {
     const m = new THREE.Mesh(new THREE.IcosahedronGeometry(o.r * 0.7, 1), GW.mat({ id: ID.FIRE, color: 0, emissive: o.color, unlit: true }));
-    m.position.set(o.x, o.y, o.z); G.scene.add(m);
+    m.position.set(o.x, o.y, o.z); m.layers.set(1); G.scene.add(m);
     const light = GW.World.lights.add(o.x, o.y, o.z, new THREE.Color(o.color).multiplyScalar(0.9), 6, 0.3);
     G.projectiles.push(Object.assign({ pos: new V3(o.x, o.y, o.z), vel: new V3(o.vx, 0, o.vz), m, light, age: 0 }, o));
   };
@@ -504,7 +505,7 @@
       const fr = U.freeRect(); C.setViewOffset(window.innerWidth, window.innerHeight, window.innerWidth / 2 - fr.cx, window.innerHeight / 2 - fr.cy, window.innerWidth, window.innerHeight);
       for (const u of GW.World.grass.push) u.z = 0; GW.World.grass.push[0].set(p.x, p.z, 3.2);
       GW.World.update(0, G.t, p.x, p.z); GW.World.lights.update(p.x, p.z, G.t);
-      G.R.render(G.scene, C, { hurt: 0, white: 0 });
+      G.R.render(G.scene, C, { hurt: 0, white: 0, shadowFocus: p, shadowHalf: 8 });
       return;
     }
     if (G.state === 'forge') {
@@ -579,7 +580,8 @@
     G.shakeAmt = Math.max(0, G.shakeAmt - dt * 3);
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite });
+    const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70) });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
     if (GWAudio.ctx) {

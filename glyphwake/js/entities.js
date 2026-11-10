@@ -13,13 +13,13 @@
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const shadowGeo = new THREE.CircleGeometry(1, 16).rotateX(-Math.PI / 2);
   const shadowMat = GW.mat({ id: ID.GROUND, color: 0x000000, unlit: true });
-  function shadow(scene, r) { const s = new THREE.Mesh(shadowGeo, shadowMat); s.scale.setScalar(r); scene.add(s); return s; }
+  function shadow(scene, r) { const s = new THREE.Mesh(shadowGeo, shadowMat); s.scale.setScalar(r); s.layers.set(1); scene.add(s); return s; }
 
   // ---------------- particles ----------------
   function Particles(scene, n, id) {
     this.n = n; this.list = []; this.free = [];
     this.im = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.1, 0), GW.mat({ id, color: 0xffffff, unlit: true }), n);
-    this.im.frustumCulled = false;
+    this.im.frustumCulled = false; this.im.layers.set(1);
     this.col = new THREE.Color();
     for (let i = 0; i < n; i++) { this.free.push(i); this.im.setColorAt(i, this.col.setRGB(0, 0, 0)); }
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new V3(); this.s = new V3();
@@ -66,7 +66,7 @@
     const idx = []; for (let i = 0; i < n - 1; i++) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
     g.setIndex(idx);
     this.mesh = new THREE.Mesh(g, GW.mat({ id: ID.FIRE, color: 0xffffff, vertexColors: true, unlit: true, side: THREE.DoubleSide }));
-    this.mesh.frustumCulled = false; scene.add(this.mesh);
+    this.mesh.frustumCulled = false; this.mesh.layers.set(1); scene.add(this.mesh);
     this.color = new THREE.Color(1, 0.6, 0.2);
   }
   Trail.prototype.push = function (a, b, on) {
@@ -114,6 +114,7 @@
       this.fill = part(grp, g, mFill);
     }
     this.fill.scale.setScalar(0.01);
+    grp.traverse(o => o.layers.set(1));
   }
   Telegraph.prototype.update = function (dt) {
     this.t += dt;
