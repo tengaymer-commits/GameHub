@@ -48,6 +48,9 @@ Every run is saved as you play (every few seconds, when you leave, and when the 
 Winning a Pin Rescue, Doge Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
 💡 **Hint** (Pin Rescue, Doge Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
+## Also in this repo: Glyphwake (`glyphwake/`)
+An original ASCII-rendered action RPG vertical slice: Three.js scene → glyph post-processing shader, sword combat with dodge rolls, a rune and metal forge with a 3D blade preview, a quest line and a boss fight. It's standalone: open `http://localhost:8080/glyphwake/`. See [glyphwake/README.md](glyphwake/README.md).
+
 ## Test it
 
 The game is plain HTML/CSS/JS with no build step. Frost Survival uses Three.js (WebGL), which is included in `js/vendor/`.

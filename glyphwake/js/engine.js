@@ -1,0 +1,326 @@
+// Glyphwake: renderer + ASCII post-processing pipeline.
+// The 3D scene renders into an offscreen target whose alpha channel carries a
+// "glyph set" id per material. A full-screen pass splits the screen into
+// character cells, picks a glyph from that set's brightness ramp, then adds bloom.
+(function () {
+  'use strict';
+  const E = window.GW = window.GW || {};
+  const MAXL = 12;
+
+  // ---- glyph sets (index = id written by materials) ----
+  // mode: 0 ascii, 1 raw (pass the rendered pixels), 2 void
+  // gain: brightness multiplier before choosing glyph; under: raw colour underlay
+  // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
+  const SETS = [
+    /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
+    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.25, under: 0.25, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.9, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
+    /* 4 water  */ { ramp: " .,-~~=+*o@", mode: 0, gain: 2.2, under: 0.25, edge: 0, bright: 1.2, white: 0.35, flick: 5 },
+    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
+    /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
+    /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
+    /* 8 fire   */ { ramp: " .'^*+#%@", mode: 0, gain: 0.9, under: 0.45, edge: 0, bright: 1.5, white: 0.2, flick: 9 },
+    /* 9 flower */ { ramp: " .o*o*O@", mode: 0, gain: 1.6, under: 0.1, edge: 0, bright: 1.4, white: 0.6, flick: 0 },
+    /* 10 wood  */ { ramp: " .-=|[#H", mode: 0, gain: 1.9, under: 0.25, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
+    /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.35, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
+    /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
+    /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 1.9, under: 0.12, edge: 0, bright: 1.15, white: 0.3, flick: 0 },
+    /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.3, under: 0.1, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
+    /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
+  ];
+  const ID = E.ID = { VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
+  E.SETS = SETS;
+  const COLS = 16, ROWS = 17; // row 16: edge glyphs
+
+  function buildAtlas() {
+    const cw = 32, ch = 48;
+    const c = document.createElement('canvas');
+    c.width = cw * COLS; c.height = ch * ROWS;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 38px ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
+    const draw = (chr, col, row) => { if (chr !== ' ') g.fillText(chr, col * cw + cw / 2, row * ch + ch / 2 + 2); };
+    SETS.forEach((s, row) => {
+      const r = s.ramp;
+      for (let i = 0; i < COLS; i++) {
+        const k = i === 0 ? 0 : 1 + Math.floor((i - 1) * (r.length - 1) / (COLS - 1));
+        draw(r[Math.min(k, r.length - 1)], i, row);
+      }
+    });
+    '|\\-/+'.split('').forEach((chr, i) => draw(chr, i, 16));
+    const t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    return t;
+  }
+
+  // ---------- shared lighting uniforms ----------
+  const LU = E.LU = {
+    uAmb: { value: new THREE.Color(0.1, 0.12, 0.17) },
+    uMoonDir: { value: new THREE.Vector3(-0.4, 0.8, 0.35).normalize() },
+    uMoonCol: { value: new THREE.Color(0.36, 0.42, 0.58) },
+    uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
+    uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
+    uLN: { value: 0 },
+    uTime: { value: 0 },
+    uCam: { value: new THREE.Vector3() },
+    uFog: { value: 0.012 },
+  };
+
+  const LIGHT_GLSL = `
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
+    uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
+    uniform vec3 uCam; uniform float uFog; uniform float uTime;
+    vec3 lightAt(vec3 W, vec3 n) {
+      vec3 L = uAmb * (0.55 + 0.45 * n.y) + uMoonCol * max(dot(n, uMoonDir), 0.0);
+      for (int i = 0; i < ${MAXL}; i++) {
+        if (i >= uLN) break;
+        vec3 d = uLP[i].xyz - W; float dist = length(d);
+        float att = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0); att *= att;
+        L += uLC[i] * att * (max(dot(n, d / max(dist, 0.001)), 0.0) * 0.75 + 0.25);
+      }
+      return L;
+    }
+    float fogAt(vec3 W) { return exp(-max(length(W - uCam) - 18.0, 0.0) * uFog); }
+  `;
+  E.LIGHT_GLSL = LIGHT_GLSL;
+
+  const UBER_V = `
+    varying vec3 vN; varying vec3 vW; varying vec3 vC;
+    uniform vec3 uColor;
+    void main() {
+      vec4 p = vec4(position, 1.0); vec3 n = normal;
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p; n = mat3(instanceMatrix) * n;
+      #endif
+      vec4 w = modelMatrix * p;
+      vN = normalize(mat3(modelMatrix) * n); vW = w.xyz; vC = uColor;
+      #ifdef USE_COLOR
+        vC *= color;
+      #endif
+      #ifdef USE_INSTANCING_COLOR
+        vC *= instanceColor;
+      #endif
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`;
+  const UBER_F = `
+    varying vec3 vN; varying vec3 vW; varying vec3 vC;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit;
+    ${LIGHT_GLSL}
+    void main() {
+      vec3 n = normalize(vN);
+      if (!gl_FrontFacing) n = -n;
+      vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
+      vec3 V = normalize(uCam - vW);
+      float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
+      vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
+      col *= fogAt(vW);
+      gl_FragColor = vec4(col, (uId + 0.5) / 16.0);
+    }`;
+
+  // material factory
+  E.mat = function (o) {
+    o = o || {};
+    const m = new THREE.ShaderMaterial({
+      uniforms: Object.assign({
+        uColor: { value: new THREE.Color(o.color !== undefined ? o.color : 0xffffff) },
+        uEmissive: { value: new THREE.Color(o.emissive !== undefined ? o.emissive : 0x000000) },
+        uId: { value: o.id !== undefined ? o.id : ID.BODY },
+        uFlash: { value: 0 },
+        uRim: { value: o.rim !== undefined ? o.rim : 0.0 },
+        uUnlit: { value: o.unlit ? 1 : 0 },
+      }, LU),
+      vertexShader: UBER_V, fragmentShader: UBER_F,
+      vertexColors: !!o.vertexColors,
+      side: o.side || THREE.FrontSide,
+    });
+    return m;
+  };
+
+  // ---------- post pipeline ----------
+  const ASCII_F = `
+    uniform sampler2D tScene; uniform sampler2D tAtlas;
+    uniform vec2 uRes; uniform vec2 uCell; uniform float uTime;
+    uniform vec4 uSet[16]; uniform vec4 uSet2[16];
+    varying vec2 vUv;
+    float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float lum(vec3 c) { return max(max(c.r, c.g), c.b) * 0.55 + dot(c, vec3(0.299, 0.587, 0.114)) * 0.45; }
+    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 16.0); }
+    void main() {
+      vec2 fc = gl_FragCoord.xy;
+      vec2 cell = floor(fc / uCell);
+      vec2 cuv = fract(fc / uCell);
+      vec2 cc = (cell + 0.5) * uCell / uRes;
+      vec4 cs = texture2D(tScene, cc);
+      int id = int(cs.a * 16.0);
+      vec4 px = texture2D(tScene, fc / uRes);
+      int pid = int(px.a * 16.0);
+      vec3 raw = px.rgb;
+      // raw sets (grass strokes) are decided per pixel so blades stay crisp lines
+      if (uSet[pid].x > 0.5 && uSet[pid].x < 1.5) { gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return; }
+      if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
+      vec4 S = uSet[id]; vec4 S2 = uSet2[id];
+      if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
+      vec2 q = uCell / uRes * 0.3;
+      vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
+              + texture2D(tScene, cc + vec2(q.x, -q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, -q.y)).rgb) / 6.0;
+      float v = clamp(lum(c) * S.y, 0.0, 1.0);
+      v = pow(v, 0.8);
+      float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
+      v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * 0.16;
+      v = clamp(v, 0.0, 0.999);
+      float idx = floor(v * 16.0);
+      float row = float(id);
+      if (S.w > 0.5 && idx > 0.5) {
+        float mL = idAt(cell + vec2(-1.0, 0.0)) == id ? 1.0 : 0.0;
+        float mR = idAt(cell + vec2(1.0, 0.0)) == id ? 1.0 : 0.0;
+        float mU = idAt(cell + vec2(0.0, 1.0)) == id ? 1.0 : 0.0;
+        float mD = idAt(cell + vec2(0.0, -1.0)) == id ? 1.0 : 0.0;
+        float s = mL + mR + mU + mD;
+        if (s < 3.5) {
+          vec2 g = vec2(mR - mL, mU - mD);
+          row = 16.0;
+          if (dot(g, g) < 0.1) idx = 4.0;
+          else {
+            float a = atan(g.y, g.x);
+            idx = mod(floor(a / 3.14159265 * 4.0 + 0.5), 4.0);
+          }
+          v = max(v, 0.55);
+        }
+      }
+      float gm = texture2D(tAtlas, vec2((idx + cuv.x) / 16.0, (16.0 - row + cuv.y) / 17.0)).r;
+      float mx = max(max(c.r, c.g), c.b);
+      vec3 hue = c / max(mx, 0.03);
+      vec3 tint = mix(hue, vec3(1.0), S2.y * v);
+      vec3 gcol = tint * (0.18 + v * 1.05) * S2.x;
+      gl_FragColor = vec4(c * S.z + gm * gcol, 1.0);
+    }`;
+  const QUAD_V = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+  const BRIGHT_F = `uniform sampler2D tIn; varying vec2 vUv; uniform vec2 uTexel;
+    void main() { vec3 c = vec3(0.0);
+      for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) c += texture2D(tIn, vUv + vec2(float(x), float(y)) * uTexel).rgb;
+      c /= 9.0; gl_FragColor = vec4(max(c - 0.22, 0.0) * 1.4, 1.0); }`;
+  const BLUR_F = `uniform sampler2D tIn; uniform vec2 uDir; varying vec2 vUv;
+    void main() { vec3 c = texture2D(tIn, vUv).rgb * 0.227;
+      c += texture2D(tIn, vUv + uDir * 1.38).rgb * 0.316; c += texture2D(tIn, vUv - uDir * 1.38).rgb * 0.316;
+      c += texture2D(tIn, vUv + uDir * 3.23).rgb * 0.07; c += texture2D(tIn, vUv - uDir * 3.23).rgb * 0.07;
+      gl_FragColor = vec4(c, 1.0); }`;
+  const COMP_F = `uniform sampler2D tA; uniform sampler2D tB; uniform float uBloom; uniform float uHurt; uniform float uTime; uniform vec2 uRes; uniform float uFadeW;
+    varying vec2 vUv;
+    float h21(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      vec3 a = texture2D(tA, vUv).rgb; vec3 b = texture2D(tB, vUv).rgb;
+      vec3 c = a + b * uBloom;
+      vec2 d = vUv - 0.5; d.x *= uRes.x / uRes.y;
+      float vig = smoothstep(1.15, 0.25, length(d));
+      c *= mix(0.55, 1.0, vig);
+      float edge = smoothstep(0.3, 0.95, length(vUv - 0.5) * 1.4);
+      c = mix(c, c * 0.4 + vec3(0.5, 0.0, 0.0) * edge, uHurt * edge);
+      c += (h21(vUv * uRes + uTime) - 0.5) * 0.025;
+      c = mix(c, vec3(1.0), uFadeW);
+      c = c / (1.0 + c * 0.15);
+      gl_FragColor = vec4(c, 1.0);
+    }`;
+
+  E.Renderer = function (canvas) {
+    const r = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
+    r.outputColorSpace = THREE.LinearSRGBColorSpace;
+    r.toneMapping = THREE.NoToneMapping;
+    r.autoClear = true;
+    this.r = r;
+    this.atlas = buildAtlas();
+    this.glyphPx = 9; this.quality = 2;
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+    quad.frustumCulled = false;
+    this.quadScene = new THREE.Scene(); this.quadScene.add(quad); this.quad = quad;
+    this.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const setA = SETS.map(s => new THREE.Vector4(s.mode, s.gain, s.under, s.edge));
+    const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, 0));
+    this.setA = setA;
+    this.asciiMat = new THREE.ShaderMaterial({
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() },
+        uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB } },
+      vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
+    });
+    this.brightMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BRIGHT_F, depthTest: false, depthWrite: false });
+    this.blurMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BLUR_F, depthTest: false, depthWrite: false });
+    this.compMat = new THREE.ShaderMaterial({ uniforms: { tA: { value: null }, tB: { value: null }, uBloom: { value: 1.1 }, uHurt: { value: 0 }, uTime: LU.uTime, uRes: { value: new THREE.Vector2() }, uFadeW: { value: 0 } },
+      vertexShader: QUAD_V, fragmentShader: COMP_F, depthTest: false, depthWrite: false });
+    this.rts = null;
+    this.resize();
+  };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.2 : 1.9; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.resize = function () {
+    const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][this.quality]);
+    const w = window.innerWidth, h = window.innerHeight;
+    this.r.setPixelRatio(dpr); this.r.setSize(w, h, false);
+    const W = Math.floor(w * dpr), H = Math.floor(h * dpr);
+    this.W = W; this.H = H; this.aspect = w / h;
+    const mk = (ww, hh, nearest) => new THREE.WebGLRenderTarget(ww, hh, {
+      minFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter, magFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter,
+      depthBuffer: !!nearest, type: THREE.UnsignedByteType, format: THREE.RGBAFormat,
+    });
+    if (this.rts) Object.values(this.rts).forEach(t => t.dispose());
+    const bw = Math.max(1, W >> 2), bh = Math.max(1, H >> 2);
+    this.rts = { scene: mk(W, H, true), ascii: mk(W, H, false), b1: mk(bw, bh, false), b2: mk(bw, bh, false) };
+    const cw = Math.round(this.glyphPx * dpr * 0.62), ch = Math.round(this.glyphPx * dpr);
+    this.cell = [Math.max(3, cw), Math.max(5, ch)];
+    this.asciiMat.uniforms.uRes.value.set(W, H);
+    this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
+    this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
+    this.compMat.uniforms.uRes.value.set(W, H);
+  };
+  E.Renderer.prototype.pass = function (mat, target) {
+    this.quad.material = mat;
+    this.r.setRenderTarget(target);
+    this.r.render(this.quadScene, this.quadCam);
+  };
+  E.Renderer.prototype.render = function (scene, camera, fx) {
+    const r = this.r, T = this.rts;
+    LU.uCam.value.copy(camera.position);
+    r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
+    r.render(scene, camera);
+    this.asciiMat.uniforms.tScene.value = T.scene.texture;
+    this.pass(this.asciiMat, T.ascii);
+    this.brightMat.uniforms.tIn.value = T.ascii.texture; this.pass(this.brightMat, T.b1);
+    const bw = T.b1.width, bh = T.b1.height;
+    this.blurMat.uniforms.tIn.value = T.b1.texture; this.blurMat.uniforms.uDir.value.set(1 / bw, 0); this.pass(this.blurMat, T.b2);
+    this.blurMat.uniforms.tIn.value = T.b2.texture; this.blurMat.uniforms.uDir.value.set(0, 1 / bh); this.pass(this.blurMat, T.b1);
+    this.blurMat.uniforms.tIn.value = T.b1.texture; this.blurMat.uniforms.uDir.value.set(2 / bw, 0); this.pass(this.blurMat, T.b2);
+    this.blurMat.uniforms.tIn.value = T.b2.texture; this.blurMat.uniforms.uDir.value.set(0, 2 / bh); this.pass(this.blurMat, T.b1);
+    const cu = this.compMat.uniforms;
+    cu.tA.value = T.ascii.texture; cu.tB.value = T.b1.texture;
+    cu.uHurt.value = fx ? fx.hurt : 0; cu.uFadeW.value = fx ? fx.white : 0;
+    this.pass(this.compMat, null);
+  };
+
+  // ---------- light manager: picks the nearest MAXL dynamic lights ----------
+  E.Lights = function () { this.list = []; };
+  E.Lights.prototype.add = function (x, y, z, color, radius, flicker) {
+    const l = { p: new THREE.Vector3(x, y, z), c: new THREE.Color(color), base: new THREE.Color(color), r: radius, flicker: flicker || 0, on: true, seed: Math.random() * 100 };
+    this.list.push(l); return l;
+  };
+  E.Lights.prototype.remove = function (l) { const i = this.list.indexOf(l); if (i >= 0) this.list.splice(i, 1); };
+  E.Lights.prototype.update = function (cx, cz, t) {
+    const arr = this.list.filter(l => l.on);
+    for (const l of arr) l._d = (l.p.x - cx) ** 2 + (l.p.z - cz) ** 2 - l.r * l.r;
+    arr.sort((a, b) => a._d - b._d);
+    const n = Math.min(MAXL, arr.length);
+    for (let i = 0; i < n; i++) {
+      const l = arr[i];
+      let f = 1;
+      if (l.flicker) f = 1 - l.flicker * (0.5 + 0.3 * Math.sin(t * 13 + l.seed) + 0.2 * Math.sin(t * 31 + l.seed * 3)) * 0.6;
+      LU.uLP.value[i].set(l.p.x, l.p.y, l.p.z, l.r);
+      LU.uLC.value[i].copy(l.c).multiplyScalar(f);
+    }
+    LU.uLN.value = n;
+  };
+
+  // ---------- small helpers ----------
+  E.rand = function (seed) { let s = seed >>> 0 || 1; return function () { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; }; };
+  E.clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  E.lerp = (a, b, t) => a + (b - a) * t;
+  E.angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+  E.ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+})();

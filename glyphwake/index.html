@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#05060a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Glyphwake</title>
+<link rel="stylesheet" href="css/glyphwake.css" />
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- ================= HUD ================= -->
+<div id="hud" class="hidden">
+  <div id="bars">
+    <div class="bar-row"><span class="lbl">HP</span><span id="hp-bar" class="abar hp"></span><span id="hp-num" class="num"></span></div>
+    <div class="bar-row"><span class="lbl">ST</span><span id="st-bar" class="abar st"></span></div>
+    <div class="bar-row"><span class="lbl">FO</span><span id="fo-bar" class="abar fo"></span></div>
+  </div>
+  <div id="minimap-wrap"><canvas id="minimap" width="128" height="128"></canvas><div id="mm-n">N</div></div>
+  <div id="quest"><div class="q-title" id="q-title"></div><div class="q-text" id="q-text"></div></div>
+  <div id="hint"></div>
+  <div id="zone-banner"><div class="zb-small" id="zb-small"></div><div class="zb-big" id="zb-big"></div></div>
+  <div id="boss-bar" class="hidden"><div id="boss-name"></div><div id="boss-hp"><i></i><b></b></div></div>
+  <div id="obj-arrow">▲<span id="obj-dist"></span></div>
+  <div id="floaters"></div>
+  <div id="interact" class="hidden"></div>
+  <div id="bottom">
+    <div id="xp"><i id="xp-fill"></i><span id="xp-text"></span></div>
+    <div id="hotbar"></div>
+  </div>
+  <button id="menu-btn" aria-label="Menu">≡</button>
+  <!-- touch controls -->
+  <div id="touch" class="hidden">
+    <div id="stick"><div id="stick-knob"></div></div>
+    <div id="tbtns">
+      <button class="tb big" data-act="attack">⚔</button>
+      <button class="tb" data-act="roll">⟲</button>
+      <button class="tb sk" data-act="s2"><b>◎</b><i></i></button>
+      <button class="tb sk" data-act="s3"><b>»</b><i></i></button>
+      <button class="tb sk" data-act="s4"><b>✶</b><i></i></button>
+      <button class="tb sm" data-act="potion">♥<em id="t-pots"></em></button>
+      <button class="tb sm act" data-act="interact" id="t-interact">E</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DIALOGUE ================= -->
+<div id="dialog" class="hidden">
+  <div class="d-who" id="d-who"></div>
+  <div class="d-text" id="d-text"></div>
+  <div class="d-next">▼ <span class="kbd">E</span> / tap</div>
+</div>
+
+<!-- ================= FORGE ================= -->
+<div id="forge" class="hidden">
+  <div class="f-head"><span>FORGE · <b id="f-name"></b></span><button id="f-close">close (Esc)</button></div>
+  <div class="f-sec">Runes: tap to socket</div>
+  <div id="f-runes" class="f-row"></div>
+  <div class="f-sec">Blade metal: 1 ingot to reforge</div>
+  <div id="f-metals" class="f-row"></div>
+  <div id="f-side">
+    <div class="f-sec">Rune slots</div>
+    <div id="f-slots"></div>
+    <div id="f-stats"></div>
+    <button id="f-temper" class="btn">Temper blade</button>
+  </div>
+  <div class="f-foot">drag: turn · wheel / pinch: zoom · tap a slot to remove a rune</div>
+  <div id="f-tip" class="hidden"></div>
+</div>
+
+<!-- ================= TITLE ================= -->
+<div id="title">
+  <pre id="logo"></pre>
+  <div class="t-sub">a glyph-rendered action RPG · vertical slice</div>
+  <div id="t-menu">
+    <button class="btn" id="t-continue">Continue</button>
+    <button class="btn" id="t-new">New journey</button>
+    <button class="btn ghost" id="t-settings">Settings</button>
+  </div>
+  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact</div>
+</div>
+
+<!-- ================= MENUS ================= -->
+<div id="pause" class="panel hidden">
+  <h2>PAUSED</h2>
+  <div id="char-sheet"></div>
+  <button class="btn" id="p-resume">Resume</button>
+  <button class="btn ghost" id="p-settings">Settings</button>
+  <button class="btn ghost" id="p-quit">Save &amp; quit to title</button>
+</div>
+
+<div id="settings" class="panel hidden">
+  <h2>SETTINGS</h2>
+  <label>Glyph size <input type="range" id="o-glyph" min="5" max="14" step="1" /><span id="o-glyph-v"></span></label>
+  <label>Quality
+    <select id="o-quality"><option value="0">Low</option><option value="1">Medium</option><option value="2">High</option></select>
+  </label>
+  <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
+  <label>Music <input type="range" id="o-mus" min="0" max="1" step="0.05" /></label>
+  <label>Screen shake <input type="checkbox" id="o-shake" /></label>
+  <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
+  <button class="btn" id="s-back">Back</button>
+</div>
+
+<div id="death" class="hidden"><div class="dt">YOU FELL</div><div class="ds">the glyphs remember you…</div><button class="btn" id="death-btn">Rise at the campfire</button></div>
+<div id="fade"></div>
+<div id="toast"></div>
+
+<script src="../js/vendor/three.min.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/world.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/forge.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
