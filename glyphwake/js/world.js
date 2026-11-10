@@ -100,7 +100,7 @@
       g *= GW.lerp(0.25, 1, ss(6, 14, vd));
       const ad = Math.hypot(x - L.arena.x, z - L.arena.z);
       g *= GW.lerp(0.35, 1, ss(10, 18, ad));
-      g *= 0.75 + 0.25 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
+      g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
       const k = j * N + i;
       H[k] = h; G[k] = GW.clamp(g, 0, 1); R[k] = rd; P[k] = pd;
     }
@@ -538,7 +538,7 @@
   }
 
   function buildGrass(scene, tMap, count) {
-    const S = 64;
+    const S = 50;
     const r = GW.rand(99);
     const aOff = new Float32Array(count * 5 * 3), aV = new Float32Array(count * 5 * 2), pos = new Float32Array(count * 5 * 3), idx = [];
     const shape = [[-1, 0], [1, 0], [-0.6, 0.5], [0.6, 0.5], [0, 1]];
@@ -567,7 +567,7 @@
           float ed = max(abs(wp.x - uCenter.x), abs(wp.y - uCenter.y)) / uSize;
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
           float vis = step(fract(sd * 7.31), m.g);
-          float h = (0.45 + 0.75 * fract(sd * 3.7)) * uScale * vis * edgeF;
+          float h = (0.55 + 0.9 * fract(sd * 3.7)) * uScale * vis * edgeF;
           float ang = sd * 6.2831 * 13.0;
           vec2 dir = vec2(cos(ang), sin(ang));
           float t = aV.y;
@@ -580,11 +580,11 @@
             bend += d / max(dd, 0.05) * f * 1.3;
           }
           vec3 p = vec3(wp.x, m.r, wp.y);
-          p.xz += dir * aV.x * 0.05 * (1.0 - t * 0.85) + bend * t * t * h;
+          p.xz += dir * aV.x * 0.032 * (1.0 - t * 0.9) + bend * t * t * h;
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.16, 0.34, 0.17), vec3(0.26, 0.38, 0.24), tone), t);
+          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.17, 0.27, 0.19), vec3(0.25, 0.31, 0.27), tone), t);
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}

@@ -99,7 +99,7 @@
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
     applySettings();
     const q = UI.settings.quality;
-    GW.World.build(scene, { grassCount: [12000, 22000, 34000][q] });
+    GW.World.build(scene, { grassCount: [18000, 36000, 56000][q] });
     G.parts = { spark: new GW.Particles(scene, 500, ID.FIRE), dust: new GW.Particles(scene, 300, ID.STONE), blood: new GW.Particles(scene, 200, ID.BODY) };
     G.player = new GW.Player(scene);
     const Lw = GW.World.L;
@@ -431,12 +431,12 @@
       return;
     }
     const portrait = G.R.aspect < 0.8;
-    let D = portrait ? 16.5 : 13.5;
+    let D = portrait ? 13.5 : 11.5;
     if (G.bossActive) D *= 1.25;
     const pitch = 0.98;
     const fwd = P.fwd();
     const ahead = P.state === 'move' ? 1.2 : 0.6;
-    camT.set(P.pos.x + fwd.x * ahead, P.pos.y, P.pos.z + fwd.z * ahead + (portrait ? -1.5 : 0));
+    camT.set(P.pos.x + fwd.x * ahead, P.pos.y, P.pos.z + fwd.z * ahead + (portrait ? 2.6 : 0));
     camLook.lerp(camT, Math.min(1, dt * 6));
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
     C.position.set(camLook.x, camLook.y + Math.sin(pitch) * D, camLook.z + Math.cos(pitch) * D);

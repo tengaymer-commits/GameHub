@@ -150,6 +150,8 @@ body.touch #hotbar { display: none; }
 #f-side { overflow-y: auto; }
 @media (max-width: 640px) {
   #menu-btn { left: auto; right: 112px; transform: none; }
+  #zone-banner { top: 19%; } .zb-big { font-size: 20px; }
+  #hint { top: calc(13% + var(--safe-t)); font-size: 12px; }
   #quest { top: auto; bottom: calc(330px + var(--safe-b)); left: 12px; right: auto; text-align: left; width: 170px; }
   #minimap-wrap { width: 92px; height: 92px; }
   #bars { font-size: 10px; }
