@@ -86,6 +86,7 @@
     if (!A.ctx) return;
     const t = A.ctx.currentTime;
     // ambience levels
+    if (!isFinite(st.riverDist)) st.riverDist = 99; if (!isFinite(st.fireDist)) st.fireDist = 99;
     const rv = Math.max(0, 1 - st.riverDist / 30);
     A.river.g.gain.setTargetAtTime(rv * 0.09, t, 0.3);
     A.river2.g.gain.setTargetAtTime(rv * 0.25, t, 0.3);

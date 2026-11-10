@@ -18,6 +18,13 @@ python3 -m http.server 8080
 - **Progression**: XP and levels, loot drops (runes and ingots), a 9-step quest line, campfire rests (heal, refill the flask, respawn enemies), autosave.
 - **Feel**: procedural WebAudio (wind, river, crickets, fire, combat drums, an ambient pad), bloom, a vignette, a low-health pulse, an ASCII minimap, an objective marker, and zone banners.
 
+## Characters and animation
+The knight, the Hollows and the Thornwolves are rigged, skinned models with hand-keyed animation clips (idle, walk, run, sword slash, roll, hit, death). They cross-fade by state, and hit frames line up with the clip's fastest swing.
+- Models: **Quaternius** (CC0, public domain), via the `@netforge/asset-library-files` npm package. The knight and Hollows use the "Monarch" rig, and the wolves use the "Wolf" rig.
+- `assets/models/*.glb` were decompressed (meshopt) and trimmed to the clips the game uses with glTF-Transform, so no WebAssembly decoder is needed.
+- Armor is bolted to bones in code: helms on `Head`, cloaks on `Chest`, sword and shield in the fists. The helm, cloak and sword are built from lathed geometry in `js/knight.js`.
+- Loader: Three.js r158 `GLTFLoader` and `SkeletonUtils` (MIT), converted to plain scripts in `js/vendor/`.
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|

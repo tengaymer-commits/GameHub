@@ -268,6 +268,7 @@
   UI.settings = Object.assign({}, DEF);
   try { Object.assign(UI.settings, JSON.parse(localStorage.getItem('glyphwake.settings') || '{}')); } catch (e) { /* storage blocked */ }
   if (matchMedia('(pointer: coarse)').matches && !localStorage.getItem('glyphwake.settings')) { UI.settings.quality = 1; UI.settings.glyph = 8; }
+  if (!UI.settings.v2) { UI.settings.v2 = true; UI.settings.glyph = matchMedia('(pointer: coarse)').matches ? 7 : 8; }
   UI.saveSettings = function () { try { localStorage.setItem('glyphwake.settings', JSON.stringify(UI.settings)); } catch (e) { /* ignore */ } };
   UI.initSettings = function (apply) {
     const S = UI.settings;

@@ -99,6 +99,14 @@
 
   // ---------------- setup ----------------
   function init() {
+    $('t-menu').style.visibility = 'hidden';
+    $('t-foot').textContent = 'loading models…';
+    GW.Assets.load(['monarch', 'wolf'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
+      .then(build).catch(err => { $('t-foot').textContent = 'Could not load the 3D models: ' + err.message; console.error(err); });
+  }
+  function build() {
+    $('t-menu').style.visibility = '';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -237,6 +245,7 @@
     e.pos.set(e.spawn.x, GW.World.heightAt(e.spawn.x, e.spawn.z), e.spawn.z); e.setState('idle'); e.aggro = false;
     e.status = { burn: 0, burnD: 0, poison: 0, poisonD: 0, slow: 0 }; e.kb.set(0, 0, 0); e.cool = 1;
     if (wasDead && e.T.onRespawn) e.T.onRespawn(e);
+    if (e.rig) { e._deathPlayed = false; e._ast = null; e.model.position.y = e.pos.y; e.rig.play(e.type === 'wolf' ? 'Idle' : 'Idle_Sword', { restart: true, fade: 0 }); }
   }
   function respawnPlayer() {
     $('death').classList.add('hidden');
@@ -444,7 +453,7 @@
       return;
     }
     const portrait = G.R.aspect < 0.8;
-    let D = portrait ? 13.5 : 11.5;
+    let D = portrait ? 16.5 : 16;
     if (G.bossActive) D *= 1.25;
     const pitch = 0.98;
     const fwd = P.fwd();

@@ -100,8 +100,13 @@
   const UBER_V = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
     uniform vec3 uColor;
+    #include <skinning_pars_vertex>
     void main() {
-      vec4 p = vec4(position, 1.0); vec3 n = normal;
+      vec3 objectNormal = normal; vec3 transformed = position;
+      #include <skinbase_vertex>
+      #include <skinnormal_vertex>
+      #include <skinning_vertex>
+      vec4 p = vec4(transformed, 1.0); vec3 n = objectNormal;
       #ifdef USE_INSTANCING
         p = instanceMatrix * p; n = mat3(instanceMatrix) * n;
       #endif

@@ -201,6 +201,7 @@
     const mv = new V3(input.mx, 0, input.mz);
     const ml = Math.min(1, mv.length()); if (ml > 0.01) mv.normalize();
     this._mv = ml > 0.1 && this.state === 'move';
+    this._spd = 6.2 * (this.moveMul || 1) * ml * (W.inWater(this.pos.x, this.pos.z) ? 0.55 : 1);
     const wading = W.inWater(this.pos.x, this.pos.z);
     let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
@@ -241,7 +242,7 @@
         this.queued = null;
         const next = this.state === 'attack' ? (this.combo + 1) % 3 : 0;
         this.combo = next; this.cur = Object.assign({}, COMBO[next]);
-        this.cur.dur /= this.ws.speed; this.cur.h0 /= this.ws.speed; this.cur.h1 /= this.ws.speed;
+        this.cur.dur /= this.ws.speed; this.cur.hitAt = this.cur.dur * (this.cur.heavy ? 0.5 : 0.42); this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.07; this.atkN = (this.atkN || 0) + 1;
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
         this.st -= this.cur.st; this.stDelay = 0.6;
@@ -250,7 +251,7 @@
         const sk = SKILLS[q];
         if (this.cd[q] > 0 || this.fo < sk.fo) { this.queued = null; if (this.fo < sk.fo) G.ui.toast('Not enough focus', 0.9); }
         else {
-          this.queued = null; this.fo -= sk.fo; this.cd[q] = sk.cd; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = q;
+          this.queued = null; this.fo -= sk.fo; this.cd[q] = sk.cd; this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = q;
           faceTarget();
           if (q === 's2') { this.cur = { dur: 0.72 }; GWAudio.sfx('heavy'); }
           if (q === 's3') { this.cur = { dur: 0.34 }; this.iframe = 0.36; GWAudio.sfx('roll'); GWAudio.sfx('swing', 1.4); }
@@ -366,55 +367,53 @@
   };
 
   Player.prototype.animate = function (dt) {
-    const m = this.model, b = this.body, sw = this.swing;
+    const m = this.model, b = this.body, R = this.rig;
     m.position.copy(this.pos);
     this.visYaw += GW.angDiff(this.visYaw, this.yaw) * Math.min(1, dt * (this.state === 'move' ? 14 : 30));
     m.rotation.y = this.visYaw;
     b.rotation.set(0, 0, 0); b.position.set(0, 0, 0);
-    const walk = Math.sin(this.walkPhase);
-    let legA = 0, sx = 0.9, sy = -0.55, sz = 0;
-    this.armL.rotation.set(0, 0, 0);
+    // a new action token restarts its clip
+    const tok = this.state + ':' + (this.state === 'attack' ? this.combo + ':' + this.atkN : this.state === 'skill' ? this.skill + ':' + this.atkN : '');
+    const fresh = tok !== this._tok; this._tok = tok;
+    const slashD = R.dur('Sword_Slash'), pk = this.slashPeak || 0.4;
     switch (this.state) {
-      case 'move': {
-        const mv = this._mv ? 1 : 0;
-        legA = walk * 0.6 * mv;
-        b.position.y = Math.abs(Math.cos(this.walkPhase)) * 0.06 * mv;
-        this.armL.rotation.x = -walk * 0.5 * mv;
-        sx = 0.95 + Math.sin(this.t * 2) * 0.03; sy = -0.5;
+      case 'move':
+        if (this._mv) {
+          const run = this._spd > 3.2;
+          R.play(run ? 'Run' : 'Walk', { speed: run ? GW.clamp(this._spd / 5.2, 0.7, 1.4) : GW.clamp(this._spd / 1.6, 0.6, 1.5), fade: 0.18 });
+          b.rotation.x = run ? 0.06 : 0;
+        } else R.play('Idle_Sword', { fade: 0.25 });
         break;
-      }
       case 'attack': {
-        const c = this.cur, k = GW.clamp(this.t / (c.h1 + 0.05), 0, 1), e = 1 - Math.pow(1 - k, 3);
-        if (c.arc === 'h') { sx = 0.1; sy = GW.lerp(c.a0, c.a1, e); b.rotation.y = GW.lerp(-0.4, 0.4, e) * Math.sign(c.a1 - c.a0); }
-        else { sy = 0; sx = GW.lerp(c.a0, c.a1, e); b.rotation.x = GW.lerp(-0.15, 0.3, e); }
-        legA = 0.35;
+        const c = this.cur, at = c.heavy ? 0.0 : 0.12;
+        const speed = (pk - at) * slashD / Math.max(0.05, c.hitAt);
+        if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.06, at, speed });
+        // vary the three swings: twist the body so arcs come from different sides, lean into the heavy
+        const k = GW.clamp(this.t / c.dur, 0, 1), e = Math.sin(k * Math.PI);
+        if (this.combo === 0) b.rotation.y = -0.45 * e;
+        else if (this.combo === 1) b.rotation.y = 0.55 * e;
+        else { b.rotation.x = 0.22 * e; b.position.y = 0.05 * e; }
         break;
       }
-      case 'roll': {
-        const k = this.t / this.cur.dur;
-        b.position.y = 0.8 - Math.abs(Math.cos(k * Math.PI)) * 0.8 + 0.1;
-        b.position.y = 0.55 * Math.sin(k * Math.PI);
-        b.rotation.x = k * TAU;
-        b.position.y += -0.5 * Math.sin(k * Math.PI);
-        legA = 0.9; sx = 1.3;
+      case 'roll':
+        if (fresh) R.play('Roll', { loop: false, restart: true, fade: 0.05, speed: R.dur('Roll') / this.cur.dur });
         break;
-      }
-      case 'skill': {
-        if (this.skill === 's2') { const k = this.t / this.cur.dur; b.rotation.y = -E3(k) * TAU * 2; sy = -1.5; sx = 0.05; }
-        else if (this.skill === 's3') { sx = 0.0; sy = 0.0; b.rotation.x = 0.35; legA = 0.8; }
-        else { sx = -1.2; sy = 0; this.armL.rotation.x = -1.6; }
+      case 'skill':
+        if (this.skill === 's2') {
+          if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, at: 0.2, speed: 1.6 });
+          const k = this.t / this.cur.dur; b.rotation.y = -E3(k) * TAU * 2;
+        } else if (this.skill === 's3') {
+          if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.04, at: Math.max(0, pk - 0.15), speed: 1.1 });
+          b.rotation.x = 0.3;
+        } else if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / this.cur.dur * 0.8 });
         break;
-      }
-      case 'potion': { this.armL.rotation.x = -2.2; this.armL.rotation.z = 0.6; break; }
-      case 'hurt': { b.rotation.x = -0.25; break; }
-      case 'dead': { b.rotation.x = Math.min(1.5, b.rotation.x + 0) ; b.rotation.x = -1.45; b.position.y = 0.25; break; }
+      case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
+      case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;
+      case 'dead': if (fresh) R.play('Death', { loop: false, restart: true, fade: 0.1 }); break;
     }
-    this.legL.rotation.x = legA; this.legR.rotation.x = -legA;
-    this.shinL.rotation.x = Math.max(0, legA) * 1.2 + (this.state === 'roll' ? 1.4 : 0); this.shinR.rotation.x = Math.max(0, -legA) * 1.2 + (this.state === 'roll' ? 1.4 : 0);
-    sw.rotation.set(sx, sy, sz, 'YXZ');
-    if (this.cloak) this.cloak.rotation.x = -0.12 - Math.min(0.5, Math.abs(walk) * 0.15) - (this.state === 'roll' ? 0.5 : 0) - (this._mv ? 0.12 : 0);
+    R.update(dt);
+    if (this.cloak) this.cloak.rotation.x = -0.1 - (this._mv ? Math.min(0.55, this._spd * 0.07) : 0) - (this.state === 'roll' ? 0.3 : 0) + Math.sin(this.t * 2.3) * 0.03;
     if (this.plume) this.plume.rotation.x = Math.sin(this.t * 3) * 0.08 - (this._mv ? 0.25 : 0);
-    if (this.tabard) this.tabard.rotation.x = -legA * 0.25;
     const fl = this.hurtT > 0 ? this.hurtT * 3 : 0;
     for (const mt of this.mats) mt.uniforms.uFlash.value = fl;
   };
@@ -447,6 +446,14 @@
     const W = GW.World, P = G.player;
     this.t += dt; this.flash = Math.max(0, this.flash - dt * 5);
     for (const m of this.mats) m.uniforms.uFlash.value = this.flash * 1.4;
+    if (!this.alive && this.rig) {
+      this.deadT += dt;
+      if (!this._deathPlayed) { this._deathPlayed = true; this.rig.play('Death', { loop: false, restart: true, fade: 0.08 }); }
+      this.rig.update(dt);
+      if (this.deadT > 2.2) this.model.position.y = this.pos.y - (this.deadT - 2.2) * 0.6;
+      if (this.deadT > 3.4 && this.model.visible) { this.model.visible = false; this.shadow.visible = false; }
+      return;
+    }
     if (!this.alive) {
       this.deadT += dt;
       const k = Math.min(1, this.deadT / 0.8);
@@ -486,7 +493,9 @@
     this.pos.y += (gy - this.pos.y) * Math.min(1, dt * 15);
     this.model.position.copy(this.pos); this.model.rotation.y = this.yaw;
     this.shadow.position.set(this.pos.x, gy + 0.03, this.pos.z);
-    if (this.T.anim) this.T.anim(this, dt, ctx);
+    const far = dP > 42 && !this.T.boss;   // off-screen: skip skinning and animation work
+    this.model.visible = !far; this.shadow.visible = !far;
+    if (this.T.anim && !far) this.T.anim(this, dt, ctx);
     G.pushGrass(1 + (G.enemies.indexOf(this) % 5), this.pos.x, this.pos.z, this.radius * 1.4);
   };
   Enemy.prototype.moveTo = function (tx, tz, speed, dt) {
@@ -543,19 +552,12 @@
   TYPES.wolf = {
     name: 'Thornwolf', hp: 42, radius: 0.6, poise: 10, aggro: 13, leash: 34, xp: 22, dmg: 10, speed: 7.2, kind: 'beast',
     build(e) {
-      const fur = e.mat({ id: ID.BODY, color: 0x6a6a74, rim: 0.4 }), thorn = e.mat({ id: ID.BONE, color: 0xd8d0b8 }), eye = e.mat({ id: ID.FIRE, color: 0, emissive: 0xff3020, unlit: true });
-      const b = e.body = new THREE.Group(); e.model.add(b);
-      part(b, box(0.55, 0.5, 1.3), fur, 0, 0.75, 0);
-      e.head = new THREE.Group(); e.head.position.set(0, 0.95, 0.75); b.add(e.head);
-      part(e.head, box(0.4, 0.38, 0.45), fur, 0, 0, 0.1);
-      part(e.head, box(0.26, 0.22, 0.35), fur, 0, -0.06, 0.45);
-      part(e.head, new THREE.ConeGeometry(0.08, 0.22, 4), fur, 0.13, 0.25, 0.0); part(e.head, new THREE.ConeGeometry(0.08, 0.22, 4), fur, -0.13, 0.25, 0.0);
-      part(e.head, box(0.07, 0.05, 0.05), eye, 0.12, 0.06, 0.33); part(e.head, box(0.07, 0.05, 0.05), eye, -0.12, 0.06, 0.33);
-      for (let k = 0; k < 5; k++) part(b, new THREE.ConeGeometry(0.07, 0.4, 4), thorn, 0, 1.05, 0.45 - k * 0.22, -0.5, 0, 0);
-      e.legs = [];
-      [[0.2, 0.45], [-0.2, 0.45], [0.2, -0.45], [-0.2, -0.45]].forEach(([x, z]) => { const l = new THREE.Group(); l.position.set(x, 0.55, z); b.add(l); part(l, box(0.13, 0.55, 0.15), fur, 0, -0.27, 0); e.legs.push(l); });
-      e.tail = part(b, box(0.1, 0.1, 0.6), fur, 0, 0.9, -0.85, 0.5, 0, 0);
-      e.eyeMat = eye;
+      e.rig = new GW.Rig('wolf', 0.27, (mn) => mn === 'Eyes_Black' ? { id: ID.FIRE, color: 0, emissive: 0xff3020, unlit: true }
+        : mn === 'Nose' ? { id: ID.BODY, color: 0x202024 } : mn === 'Main_Light' ? { id: ID.BODY, color: 0x9a9aa2, rim: 0.4 } : { id: ID.BODY, color: 0x585862, rim: 0.5 });
+      e.model.add(e.rig.root); e.mats = e.rig.mats.slice();
+      e.eyeMat = e.rig.mats.find(m => m.uniforms.uUnlit.value > 0);
+      e.rig.mixer.timeScale = 0.9 + Math.random() * 0.2;
+      e.rig.play('Idle', { fade: 0, at: Math.random() });
     },
     ai(e, c) {
       const { dt, G, P, dP, slow } = c;
@@ -585,13 +587,17 @@
       }
     },
     anim(e, dt) {
-      const run = e.moving ? 1 : 0; e.ph = (e.ph || 0) + dt * (e.state === 'chase' ? 14 : 7) * (run || 0.0);
-      const s = Math.sin(e.ph);
-      e.legs[0].rotation.x = s * 0.8 * run; e.legs[3].rotation.x = s * 0.8 * run; e.legs[1].rotation.x = -s * 0.8 * run; e.legs[2].rotation.x = -s * 0.8 * run;
-      e.body.rotation.x = e.state === 'windup' ? -0.25 : e.state === 'lunge' ? 0.15 : 0;
-      e.body.position.y = e.state === 'windup' ? -0.15 : Math.abs(s) * 0.05 * run;
-      e.tail.rotation.y = Math.sin(e.t * 6) * 0.4;
-      e.eyeMat.uniforms.uEmissive.value.setRGB(e.state === 'windup' ? 2 : 1, 0.15, 0.1);
+      const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
+      switch (e.state) {
+        case 'windup': if (fresh) R.play('Attack', { loop: false, restart: true, fade: 0.08, speed: R.dur('Attack') / 0.85 }); break;
+        case 'lunge': break;
+        case 'stagger': if (fresh) R.play(Math.random() < 0.5 ? 'Idle_HitReact_Left' : 'Idle_HitReact_Right', { loop: false, restart: true, fade: 0.05, speed: 1.6 }); break;
+        case 'chase': R.play(e.moving ? 'Gallop' : 'Idle', { speed: 1.15, fade: 0.2 }); break;
+        case 'wander': case 'return': R.play('Walk', { speed: 1.3, fade: 0.25 }); break;
+        default: R.play('Idle', { fade: 0.3 });
+      }
+      R.update(dt);
+      if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(e.state === 'windup' ? 2.2 : 1, 0.15, 0.1);
     },
   };
 
@@ -599,21 +605,37 @@
   TYPES.hollow = {
     name: 'Hollow', hp: 95, radius: 0.6, poise: 28, aggro: 11, leash: 28, xp: 48, dmg: 16, speed: 3.6, kind: 'undead',
     build(e) {
-      const bone = e.mat({ id: ID.BONE, color: 0xc8c0a8, rim: 0.4 }), rust = e.mat({ id: ID.METAL, color: 0x6a5a4a, rim: 0.5 }), eye = e.mat({ id: ID.FIRE, color: 0, emissive: 0x40c0ff, unlit: true });
-      const b = e.body = new THREE.Group(); e.model.add(b);
-      e.legL = new THREE.Group(); e.legL.position.set(0.17, 0.95, 0); b.add(e.legL); part(e.legL, box(0.12, 0.95, 0.12), bone, 0, -0.47, 0);
-      e.legR = new THREE.Group(); e.legR.position.set(-0.17, 0.95, 0); b.add(e.legR); part(e.legR, box(0.12, 0.95, 0.12), bone, 0, -0.47, 0);
-      part(b, box(0.6, 0.75, 0.36), rust, 0, 1.35, 0);
-      for (let k = 0; k < 3; k++) part(b, box(0.5, 0.05, 0.4), bone, 0, 1.1 + k * 0.18, 0);
-      part(b, new THREE.SphereGeometry(0.22, 8, 6), bone, 0, 1.95, 0.03);
-      part(b, new THREE.CylinderGeometry(0.25, 0.26, 0.25, 8, 1, true), rust, 0, 2.0, 0);
-      part(b, box(0.07, 0.04, 0.04), eye, 0.08, 1.95, 0.2); part(b, box(0.07, 0.04, 0.04), eye, -0.08, 1.95, 0.2);
-      e.shield = new THREE.Group(); e.shield.position.set(0.48, 1.35, 0.2); b.add(e.shield);
-      part(e.shield, box(0.1, 0.9, 0.7), rust, 0, 0, 0, 0, 0.3, 0);
-      e.arm = new THREE.Group(); e.arm.position.set(-0.42, 1.55, 0); b.add(e.arm);
-      part(e.arm, box(0.12, 0.12, 0.6), bone, 0, 0, 0.3);
-      part(e.arm, box(0.07, 0.03, 1.2), rust, 0, 0, 1.15);
-      e.eyeMat = eye;
+      const R = e.rig = new GW.Rig('monarch', 1.08, (mn, o) => {
+        const head = /head/i.test(o.name) || /head/i.test((o.parent && o.parent.name) || '');
+        switch (mn) {
+          case 'Eye': return { id: ID.FIRE, color: 0, emissive: 0x40c8ff, unlit: true };
+          case 'Skin': return { id: ID.BONE, color: 0xa8ac98, rim: 0.4 };
+          case 'Hair_White': return null;
+          case 'Gold': return head ? { id: ID.METAL, color: 0x6a5a3a, rim: 0.4 } : { id: ID.METAL, color: 0x7a6a4a };
+          case 'Metal': return { id: ID.METAL, color: 0x6e6050, rim: 0.6 };
+          case 'Metal_Dark': return { id: ID.MAIL, color: 0x4a4a50, rim: 0.4 };
+          case 'Blue': return { id: ID.CLOTH, color: 0x2a3434, rim: 0.3 };
+          case 'DarkBrown': return { id: ID.LEATHER, color: 0x3a2a1a };
+          default: return { id: ID.CLOTH, color: 0x4a4438 };
+        }
+      });
+      e.model.add(R.root);
+      GW.Knight.bindPose(R);
+      const rust = GW.mat({ id: ID.METAL, color: 0x7a6a5a, rim: 0.6 }), wood = GW.mat({ id: ID.WOOD, color: 0x3a2a1a });
+      const sw = GW.Knight.buildSword({ blade: rust, hilt: wood, guard: rust }, 0.95);
+      R.attach('Wrist.R', sw.sword, GW.Knight.gripPlace(R, 'R'));
+      const sh = new THREE.Group();
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 10), GW.mat({ id: ID.WOOD, color: 0x4a3828, rim: 0.4 }));
+      disc.rotation.z = Math.PI / 2; disc.position.x = -0.07; sh.add(disc);
+      const boss = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), rust); boss.position.x = -0.1; sh.add(boss);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.025, 4, 16), rust); rim.rotation.y = Math.PI / 2; rim.position.x = -0.07; sh.add(rim);
+      R.attach('Wrist.L', sh, GW.Knight.gripPlace(R, 'L'));
+      e.shield = sh;
+      e.mats = R.mats.concat([rust, wood, disc.material]);
+      e.eyeMat = R.mats.find(m => m.uniforms.uUnlit.value > 0);
+      if (TYPES.hollow.pk === undefined) TYPES.hollow.pk = R.peakFraction('Sword_Slash', 'Wrist.R');
+      R.mixer.timeScale = 0.92 + Math.random() * 0.16;
+      R.play('Idle_Sword', { fade: 0, at: Math.random() });
     },
     ai(e, c) {
       const { dt, G, P, dP, slow } = c;
@@ -637,16 +659,20 @@
       }
     },
     anim(e, dt) {
-      e.ph = (e.ph || 0) + dt * (e.moving ? 7 : 0);
-      const s = Math.sin(e.ph);
-      e.legL.rotation.x = s * 0.5; e.legR.rotation.x = -s * 0.5;
-      let ax = 0.4, ay = 0;
-      if (e.state === 'windup' || e.state === 'windup2') { const k = Math.min(1, e.t / 0.4); ax = -1.6 * k; ay = 0.6 * k; }
-      if (e.state === 'slash') { const k = Math.min(1, e.t / 0.18); ax = GW.lerp(-1.6, 0.9, k); ay = GW.lerp(0.6, -0.9, k); }
-      e.arm.rotation.set(ax, ay, 0, 'YXZ');
-      e.shield.rotation.y = e.state === 'block' ? -0.9 : 0; e.shield.position.z = e.state === 'block' ? 0.45 : 0.2;
-      e.body.rotation.x = e.state === 'stagger' ? -0.3 : 0;
-      e.eyeMat.uniforms.uEmissive.value.setRGB(0.25, 0.75, 1.0).multiplyScalar(e.state.startsWith('windup') ? 2.2 : 1);
+      const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
+      const pk = TYPES.hollow.pk || 0.45, D = R.dur('Sword_Slash');
+      switch (e.state) {
+        case 'windup': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.1, speed: pk * D / 0.7 }); break;
+        case 'windup2': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.08, at: 0.15, speed: (pk - 0.15) * D / 0.43 }); break;
+        case 'slash': break;
+        case 'stagger': if (fresh) R.play('HitRecieve', { loop: false, restart: true, fade: 0.05, speed: 1.2 }); break;
+        case 'block': if (fresh) R.play('HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.5 }); break;
+        case 'chase': R.play(e.moving ? 'Walk' : 'Idle_Sword', { speed: 1.5, fade: 0.25 }); break;
+        case 'wander': case 'return': R.play('Walk', { speed: 1.0, fade: 0.3 }); break;
+        default: R.play('Idle_Sword', { fade: 0.3 });
+      }
+      R.update(dt);
+      if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(0.25, 0.8, 1.0).multiplyScalar(e.state.startsWith('windup') ? 2.4 : 1.2);
     },
   };
 

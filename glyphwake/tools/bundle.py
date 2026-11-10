@@ -12,6 +12,10 @@ src = src.replace('<script src="../js/vendor/three.min.js"></script>', three)
 def inline(m):
     code = (root / m.group(1)).read_text().replace('</script', '<\\/script')
     return '<script>\n' + code + '\n</script>'
+import base64
+models = {p.stem: base64.b64encode(p.read_bytes()).decode() for p in sorted((root / 'assets/models').glob('*.glb'))}
+embed = '<script>window.GW_EMBED = ' + __import__('json').dumps(models) + ';</script>'
+src = src.replace('<script src="js/rig.js"></script>', embed + '\n<script src="js/rig.js"></script>')
 src = re.sub(r'<script src="(js/[^"]+)"></script>', inline, src)
 if '--fragment' in sys.argv:
     title = re.search(r'<title>.*?</title>', src).group(0)
