@@ -95,7 +95,7 @@
       if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
       let g = 0.95;
       g *= ss(RIVER_W - 0.3, RIVER_W + 1.2, rd);
-      g *= GW.lerp(0.15, 1, ss(0.6, 2.4, pd));
+      g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
       const vd = Math.hypot(x - L.village.x, z - L.village.z);
       g *= GW.lerp(0.25, 1, ss(6, 14, vd));
       const ad = Math.hypot(x - L.arena.x, z - L.arena.z);
@@ -210,7 +210,7 @@
       let c = [0.07, 0.12, 0.065];
       const n = 0.8 + 0.4 * Math.sin(x * 0.7) * Math.sin(z * 0.9);
       c = c.map(v => v * n);
-      const dirt = [0.17, 0.12, 0.075];
+      const dirt = [0.2, 0.16, 0.11];
       const pf = 1 - ss(0.8, 2.6, pd);
       c = c.map((v, k) => GW.lerp(v, dirt[k], Math.max(pf, (1 - g) * 0.6)));
       const bed = [0.06, 0.08, 0.11];
@@ -558,10 +558,10 @@
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth;
         varying vec3 vW; varying vec3 vCol; varying float vT;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -591,7 +591,7 @@
             bend += d / max(dd, 0.05) * f * 1.3;
           }
           vec3 p = vec3(wp.x, m.r, wp.y);
-          p.xz += dir * aV.x * 0.032 * (1.0 - t * 0.9) + bend * t * t * h;
+          p.xz += dir * aV.x * 0.032 * uWidth * (1.0 - t * 0.9) + bend * t * t * h;
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
@@ -605,7 +605,7 @@
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}
         void main(){
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
-          vec3 col = vCol * (L * 2.8 + 0.22 * (0.55 + 0.45 * gShadow));
+          vec3 col = vCol * (L * 2.8 + 0.22 * (0.7 + 0.3 * gShadow));
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,

@@ -112,7 +112,7 @@
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
     applySettings();
     const q = UI.settings.quality;
-    GW.World.build(scene, { grassCount: [18000, 36000, 56000][q] });
+    GW.World.build(scene, { grassCount: [22000, 44000, 90000][q] });
     G.parts = { spark: new GW.Particles(scene, 500, ID.FIRE), dust: new GW.Particles(scene, 300, ID.STONE), blood: new GW.Particles(scene, 200, ID.BODY) };
     G.player = new GW.Player(scene);
     const Lw = GW.World.L;
@@ -457,7 +457,9 @@
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
     GW.LU.uFogStart.value = D + 10;
-    GW.World.grass.mat.uniforms.uSize.value = 50 * Math.max(1, D / 20);
+    const gu = GW.World.grass.mat.uniforms;
+    gu.uSize.value = 50 * Math.max(1, D / 22);
+    gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);
     const pitch = 0.98;
     const fwd = P.fwd();
     const ahead = P.state === 'move' ? 1.2 : 0.6;

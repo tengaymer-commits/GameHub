@@ -157,7 +157,7 @@
     this.buildModel(scene);
     this.trail = new Trail(scene, 16);
     this.shadow = shadow(scene, 0.5);
-    this.light = GW.World.lights.add(0, 2, 0, new THREE.Color(0.95, 0.9, 0.85), 10, 0);
+    this.light = GW.World.lights.add(0, 2, 0, new THREE.Color(0.22, 0.25, 0.32), 5.5, 0);
     this.recalc();
   }
   Player.prototype.buildModel = function (scene) {

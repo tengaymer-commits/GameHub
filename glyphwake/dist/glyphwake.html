@@ -285,7 +285,7 @@ body.touch #hotbar { display: none; }
 
 <div id="settings" class="panel hidden">
   <h2>SETTINGS</h2>
-  <label>Camera distance <input type="range" id="o-zoom" min="0.6" max="2.6" step="0.05" /><span id="o-zoom-v"></span></label>
+  <label>Camera distance <input type="range" id="o-zoom" min="0.6" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
   <label>Glyph size <input type="range" id="o-glyph" min="5" max="14" step="1" /><span id="o-glyph-v"></span></label>
   <label>Quality
     <select id="o-quality"><option value="0">Low</option><option value="1">Medium</option><option value="2">High</option></select>
@@ -5554,8 +5554,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.25, under: 0.25, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.7, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.6, under: 0.16, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.95, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
     /* 4 water  */ { ramp: " .,-~~=+*o@", mode: 0, gain: 2.2, under: 0.25, edge: 0, bright: 1.2, white: 0.35, flick: 5 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
@@ -5610,7 +5610,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------- shared lighting uniforms ----------
   const LU = E.LU = {
     uAmb: { value: new THREE.Color(0.1, 0.12, 0.17) },
-    uMoonDir: { value: new THREE.Vector3(-0.55, 0.62, 0.5).normalize() },
+    uMoonDir: { value: new THREE.Vector3(-0.5, 0.78, 0.38).normalize() },
     uMoonCol: { value: new THREE.Color(0.36, 0.42, 0.58) },
     uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
@@ -5623,6 +5623,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
+    uDepthPass: { value: 0 },
     uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   };
 
@@ -5631,7 +5632,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol;
-    uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel;
+    uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
     float gShadow;
     // moon shadow map, 3x3 PCF with a normal offset against acne
     float shadowAt(vec3 W, vec3 n) {
@@ -5649,7 +5650,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     vec3 lightAt(vec3 W, vec3 n) {
       float sh = shadowAt(W, n); gShadow = sh;
-      vec3 L = uAmb * (0.55 + 0.45 * n.y) * (0.72 + 0.28 * sh) + uMoonCol * max(dot(n, uMoonDir), 0.0) * sh;
+      vec3 L = uAmb * (0.55 + 0.45 * n.y) * (0.85 + 0.15 * sh) + uMoonCol * max(dot(n, uMoonDir), 0.0) * (0.4 + 0.6 * sh);
       for (int i = 0; i < ${MAXL}; i++) {
         if (i >= uLN) break;
         vec3 d = uLP[i].xyz - W; float dist = length(d);
@@ -5703,6 +5704,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec;
     ${LIGHT_GLSL}
     void main() {
+      if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
       vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
@@ -5837,9 +5839,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       c = mix(c, c * 0.4 + vec3(0.5, 0.0, 0.0) * edge, uHurt * edge);
       c += (h21(vUv * uRes + uTime) - 0.5) * 0.025;
       c = mix(c, vec3(1.0), uFadeW);
-      vec3 x = c * 1.2;
-      vec3 aces = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-      c = mix(c / (1.0 + c * 0.15), aces, 0.65);
+      c *= 1.12;
+      c = c / (1.0 + c * 0.18);
       float lu = dot(c, vec3(0.299, 0.587, 0.114));
       c += vec3(-0.008, 0.0, 0.02) * (1.0 - lu) + vec3(0.03, 0.014, -0.018) * lu;
       gl_FragColor = vec4(c, 1.0);
@@ -5873,7 +5874,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     this.rts = null;
     this.resize();
   };
-  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.2 : 1.7; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.95; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
     const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][this.quality]);
     const w = window.innerWidth, h = window.innerHeight;
@@ -5916,10 +5917,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const d = LU.uMoonDir.value;
     C.position.set(fx + d.x * 100, focus.y + d.y * 100, fz + d.z * 100); C.up.set(0, 1, 0); C.lookAt(fx, focus.y, fz);
     C.updateMatrixWorld(); C.layers.set(0);
-    scene.overrideMaterial = this.depthMat;
+    // the game's own shader writes packed depth here, so skinned and instanced meshes pose correctly
+    LU.uDepthPass.value = 1; LU.uShadowOn.value = 0;
     this.r.setRenderTarget(this.shadowRT); this.r.setClearColor(0xffffff, 1); this.r.clear();
     this.r.render(scene, C);
-    scene.overrideMaterial = null;
+    LU.uDepthPass.value = 0;
     LU.uShadowMat.value.multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
     LU.uShadowMap.value = this.shadowRT.texture; LU.uShadowOn.value = 1;
   };
@@ -6422,7 +6424,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
       let g = 0.95;
       g *= ss(RIVER_W - 0.3, RIVER_W + 1.2, rd);
-      g *= GW.lerp(0.15, 1, ss(0.6, 2.4, pd));
+      g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
       const vd = Math.hypot(x - L.village.x, z - L.village.z);
       g *= GW.lerp(0.25, 1, ss(6, 14, vd));
       const ad = Math.hypot(x - L.arena.x, z - L.arena.z);
@@ -6537,7 +6539,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       let c = [0.07, 0.12, 0.065];
       const n = 0.8 + 0.4 * Math.sin(x * 0.7) * Math.sin(z * 0.9);
       c = c.map(v => v * n);
-      const dirt = [0.17, 0.12, 0.075];
+      const dirt = [0.2, 0.16, 0.11];
       const pf = 1 - ss(0.8, 2.6, pd);
       c = c.map((v, k) => GW.lerp(v, dirt[k], Math.max(pf, (1 - g) * 0.6)));
       const bed = [0.06, 0.08, 0.11];
@@ -6885,10 +6887,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth;
         varying vec3 vW; varying vec3 vCol; varying float vT;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -6918,7 +6920,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
             bend += d / max(dd, 0.05) * f * 1.3;
           }
           vec3 p = vec3(wp.x, m.r, wp.y);
-          p.xz += dir * aV.x * 0.032 * (1.0 - t * 0.9) + bend * t * t * h;
+          p.xz += dir * aV.x * 0.032 * uWidth * (1.0 - t * 0.9) + bend * t * t * h;
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
@@ -6932,7 +6934,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}
         void main(){
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
-          vec3 col = vCol * (L * 2.8 + 0.22 * (0.55 + 0.45 * gShadow));
+          vec3 col = vCol * (L * 2.8 + 0.22 * (0.7 + 0.3 * gShadow));
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
@@ -7160,7 +7162,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     this.buildModel(scene);
     this.trail = new Trail(scene, 16);
     this.shadow = shadow(scene, 0.5);
-    this.light = GW.World.lights.add(0, 2, 0, new THREE.Color(0.95, 0.9, 0.85), 10, 0);
+    this.light = GW.World.lights.add(0, 2, 0, new THREE.Color(0.22, 0.25, 0.32), 5.5, 0);
     this.recalc();
   }
   Player.prototype.buildModel = function (scene) {
@@ -8413,7 +8415,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   if (!UI.settings.zoom) UI.settings.zoom = 1.3;
   let zoomSaveT = null;
   UI.setZoom = function (z) {
-    UI.settings.zoom = GW.clamp(z, 0.6, 2.6);
+    UI.settings.zoom = GW.clamp(z, 0.6, 2.2);
     const el = document.getElementById('o-zoom'); if (el) { el.value = UI.settings.zoom; document.getElementById('o-zoom-v').textContent = Math.round(UI.settings.zoom * 100) + '%'; }
     clearTimeout(zoomSaveT); zoomSaveT = setTimeout(UI.saveSettings, 400);
   };
@@ -8549,7 +8551,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
     applySettings();
     const q = UI.settings.quality;
-    GW.World.build(scene, { grassCount: [18000, 36000, 56000][q] });
+    GW.World.build(scene, { grassCount: [22000, 44000, 90000][q] });
     G.parts = { spark: new GW.Particles(scene, 500, ID.FIRE), dust: new GW.Particles(scene, 300, ID.STONE), blood: new GW.Particles(scene, 200, ID.BODY) };
     G.player = new GW.Player(scene);
     const Lw = GW.World.L;
@@ -8894,7 +8896,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
     GW.LU.uFogStart.value = D + 10;
-    GW.World.grass.mat.uniforms.uSize.value = 50 * Math.max(1, D / 20);
+    const gu = GW.World.grass.mat.uniforms;
+    gu.uSize.value = 50 * Math.max(1, D / 22);
+    gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);
     const pitch = 0.98;
     const fwd = P.fwd();
     const ahead = P.state === 'move' ? 1.2 : 0.6;

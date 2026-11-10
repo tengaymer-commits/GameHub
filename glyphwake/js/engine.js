@@ -13,8 +13,8 @@
   // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.25, under: 0.25, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.7, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.6, under: 0.16, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.95, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
     /* 4 water  */ { ramp: " .,-~~=+*o@", mode: 0, gain: 2.2, under: 0.25, edge: 0, bright: 1.2, white: 0.35, flick: 5 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
@@ -69,7 +69,7 @@
   // ---------- shared lighting uniforms ----------
   const LU = E.LU = {
     uAmb: { value: new THREE.Color(0.1, 0.12, 0.17) },
-    uMoonDir: { value: new THREE.Vector3(-0.55, 0.62, 0.5).normalize() },
+    uMoonDir: { value: new THREE.Vector3(-0.5, 0.78, 0.38).normalize() },
     uMoonCol: { value: new THREE.Color(0.36, 0.42, 0.58) },
     uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
@@ -82,6 +82,7 @@
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
+    uDepthPass: { value: 0 },
     uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   };
 
@@ -90,7 +91,7 @@
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol;
-    uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel;
+    uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
     float gShadow;
     // moon shadow map, 3x3 PCF with a normal offset against acne
     float shadowAt(vec3 W, vec3 n) {
@@ -108,7 +109,7 @@
     }
     vec3 lightAt(vec3 W, vec3 n) {
       float sh = shadowAt(W, n); gShadow = sh;
-      vec3 L = uAmb * (0.55 + 0.45 * n.y) * (0.72 + 0.28 * sh) + uMoonCol * max(dot(n, uMoonDir), 0.0) * sh;
+      vec3 L = uAmb * (0.55 + 0.45 * n.y) * (0.85 + 0.15 * sh) + uMoonCol * max(dot(n, uMoonDir), 0.0) * (0.4 + 0.6 * sh);
       for (int i = 0; i < ${MAXL}; i++) {
         if (i >= uLN) break;
         vec3 d = uLP[i].xyz - W; float dist = length(d);
@@ -162,6 +163,7 @@
     uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec;
     ${LIGHT_GLSL}
     void main() {
+      if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
       vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
@@ -296,9 +298,8 @@
       c = mix(c, c * 0.4 + vec3(0.5, 0.0, 0.0) * edge, uHurt * edge);
       c += (h21(vUv * uRes + uTime) - 0.5) * 0.025;
       c = mix(c, vec3(1.0), uFadeW);
-      vec3 x = c * 1.2;
-      vec3 aces = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
-      c = mix(c / (1.0 + c * 0.15), aces, 0.65);
+      c *= 1.12;
+      c = c / (1.0 + c * 0.18);
       float lu = dot(c, vec3(0.299, 0.587, 0.114));
       c += vec3(-0.008, 0.0, 0.02) * (1.0 - lu) + vec3(0.03, 0.014, -0.018) * lu;
       gl_FragColor = vec4(c, 1.0);
@@ -332,7 +333,7 @@
     this.rts = null;
     this.resize();
   };
-  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.2 : 1.7; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.95; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
     const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][this.quality]);
     const w = window.innerWidth, h = window.innerHeight;
@@ -375,10 +376,11 @@
     const d = LU.uMoonDir.value;
     C.position.set(fx + d.x * 100, focus.y + d.y * 100, fz + d.z * 100); C.up.set(0, 1, 0); C.lookAt(fx, focus.y, fz);
     C.updateMatrixWorld(); C.layers.set(0);
-    scene.overrideMaterial = this.depthMat;
+    // the game's own shader writes packed depth here, so skinned and instanced meshes pose correctly
+    LU.uDepthPass.value = 1; LU.uShadowOn.value = 0;
     this.r.setRenderTarget(this.shadowRT); this.r.setClearColor(0xffffff, 1); this.r.clear();
     this.r.render(scene, C);
-    scene.overrideMaterial = null;
+    LU.uDepthPass.value = 0;
     LU.uShadowMat.value.multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
     LU.uShadowMap.value = this.shadowRT.texture; LU.uShadowOn.value = 1;
   };
