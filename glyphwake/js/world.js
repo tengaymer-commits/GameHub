@@ -481,24 +481,32 @@
   // ----- night sky: gradient dome, stars, a low moon, distant mountains (follows the camera) -----
   function buildSky(scene) {
     const g = W.sky = new THREE.Group(); scene.add(g);
-    const moonVis = new THREE.Vector3(-0.62, 0.3, 0.72).normalize();
+    const moonVis = new THREE.Vector3(-0.18, 0.86, -0.48).normalize();
     W.moonVis = moonVis;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(330, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
       uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime },
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
-      fragmentShader: `varying vec3 vDir; uniform vec3 uMoon;
+      fragmentShader: `varying vec3 vDir; uniform vec3 uMoon; uniform float uTime;
+        float ch(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+        float cn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(ch(i), ch(i + vec2(1.0, 0.0)), f.x), mix(ch(i + vec2(0.0, 1.0)), ch(i + vec2(1.0, 1.0)), f.x), f.y); }
         void main(){
           float y = vDir.y;
           vec3 hor = vec3(0.07, 0.09, 0.15), zen = vec3(0.006, 0.01, 0.025);
           vec3 col = mix(hor, zen, smoothstep(-0.02, 0.55, y));
           float m = max(dot(vDir, uMoon), 0.0);
           col += vec3(0.45, 0.52, 0.7) * (pow(m, 90.0) * 0.5 + pow(m, 12.0) * 0.08);
+          // drifting clouds, lit around the moon
+          vec2 cp = vDir.xz / (abs(y) + 0.25) * 2.2 + vec2(uTime * 0.012, uTime * 0.004);
+          float cl = cn(cp) * 0.6 + cn(cp * 2.3 + 4.0) * 0.3 + cn(cp * 5.1 + 9.0) * 0.1;
+          float cm = smoothstep(0.52, 0.78, cl) * smoothstep(0.02, 0.25, y);
+          col = mix(col, vec3(0.16, 0.17, 0.21) + vec3(0.45, 0.48, 0.55) * pow(m, 6.0), cm * 0.85);
           if (y < 0.0) col = mix(col, vec3(0.022, 0.032, 0.058), smoothstep(0.0, -0.08, y));
           gl_FragColor = vec4(col, (${ID.SKY}.0 + 0.5) / 32.0);
         }`,
     }));
-    dome.frustumCulled = false; dome.layers.set(1); dome.renderOrder = -10; g.add(dome);
+    dome.frustumCulled = false; dome.renderOrder = -10; g.add(dome);
     // stars
     const n = 900, r = GW.rand(42);
     const stars = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), GW.mat({ id: ID.STAR, color: 0xffffff, unlit: true, noFog: true }), n);
@@ -509,10 +517,26 @@
       const big = r(); m4.compose(v, q, sc.setScalar(big < 0.92 ? 0.7 + r() * 0.8 : 1.8 + r() * 1.2));
       stars.setMatrixAt(i, m4); stars.setColorAt(i, c.setHSL(0.58 + (r() - 0.5) * 0.15, 0.3, 0.55 + r() * 0.4));
     }
-    stars.frustumCulled = false; stars.layers.set(1); g.add(stars);
+    stars.frustumCulled = false; g.add(stars);
     // the moon, low on the horizon
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(13, 20, 14), GW.mat({ id: ID.MOON, color: 0, emissive: 0xd8e0f0, unlit: true, noFog: true }));
-    moon.position.copy(moonVis).multiplyScalar(290); moon.layers.set(1); g.add(moon);
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(34, 32, 20), new THREE.ShaderMaterial({
+      uniforms: { uMoon: { value: moonVis } },
+      vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normal); vP = position; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `varying vec3 vN; varying vec3 vP; uniform vec3 uMoon;
+        float mh(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+        float mn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(mh(i), mh(i + vec3(1,0,0)), f.x), mix(mh(i + vec3(0,1,0)), mh(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(mh(i + vec3(0,0,1)), mh(i + vec3(1,0,1)), f.x), mix(mh(i + vec3(0,1,1)), mh(i + vec3(1,1,1)), f.x), f.y), f.z); }
+        void main(){
+          vec3 q = vP / 34.0;
+          float maria = smoothstep(0.45, 0.7, mn(q * 2.2 + 3.0)) * 0.45;
+          float craters = smoothstep(0.62, 0.8, mn(q * 7.0)) * 0.25 + smoothstep(0.7, 0.85, mn(q * 15.0 + 2.0)) * 0.15;
+          float limb = 0.55 + 0.45 * pow(max(dot(normalize(vN), -uMoon), 0.0), 0.4);
+          vec3 col = vec3(0.86, 0.88, 0.94) * (1.0 - maria - craters) * limb;
+          gl_FragColor = vec4(col, (${ID.MOON}.0 + 0.5) / 32.0);
+        }`,
+    }));
+    moon.position.copy(moonVis).multiplyScalar(285); g.add(moon);
     // distant mountains: a jagged ring that the night haze turns into silhouettes
     const N = 160, pos = [], idx = [], rm = GW.rand(7);
     for (let i = 0; i <= N; i++) {
@@ -523,7 +547,8 @@
     }
     const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); mg.setIndex(idx); mg.computeVertexNormals();
     const mtn = new THREE.Mesh(mg, GW.mat({ id: ID.STONE, color: 0x1a2030, side: THREE.DoubleSide }));
-    mtn.frustumCulled = false; mtn.layers.set(1); g.add(mtn);
+    mtn.frustumCulled = false; g.add(mtn);
+    g.traverse(o => o.layers.set(2));   // sky layer: seen by the camera and the water's reflection, never casts shadows
   }
   W.updateSky = function (cam) { if (W.sky) W.sky.position.set(cam.position.x, 0, cam.position.z); };
 
@@ -637,23 +662,42 @@
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(posA, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvA, 2)); g.setIndex(idx);
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({}, GW.LU),
+      uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() } }, GW.LU),
+      side: THREE.DoubleSide,
       vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: `varying vec2 vUv; varying vec3 vW; ${GW.LIGHT_GLSL}
         float h(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
           return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
+        uniform vec3 uMoonVis; uniform sampler2D uRefl; uniform mat4 uReflMat; uniform float uReflOn;
         void main(){
           float e = min(vUv.x, 1.0 - vUv.x);
-          float foam = smoothstep(0.2, 0.1, e) * (0.6 + 0.4 * n2(vec2(vUv.y * 0.8 - uTime * 1.2, vUv.x * 10.0)));
-          float streak = smoothstep(0.62, 0.95, n2(vec2(vUv.y * 0.35 - uTime * 0.9, vUv.x * 7.0)) * n2(vec2(vUv.y * 1.3 - uTime * 1.6, vUv.x * 3.0 + 7.0)) * 1.8);
-          vec2 rp = vec2(vUv.y * 1.6 - uTime * 1.3, vUv.x * 9.0);
-          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.9, 1.0, (n2(rp + 13.7) - 0.5) * 0.9));
-          vec3 L = lightAt(vW, wn);
+          // current: long streaks running downstream, faster in the middle of the channel
+          float mid = 1.0 - abs(vUv.x - 0.5) * 2.0;
+          float flow = uTime * (1.0 + 0.8 * mid);
+          float streak = smoothstep(0.55, 0.9, n2(vec2(vUv.y * 0.22 - flow * 0.55, vUv.x * 11.0)) * n2(vec2(vUv.y * 0.9 - flow * 1.1, vUv.x * 4.0 + 7.0)) * 1.9);
+          float foam = smoothstep(0.22, 0.06, e) * (0.55 + 0.45 * n2(vec2(vUv.y * 1.1 - flow * 1.4, vUv.x * 14.0)));
+          // ripple normal
+          vec2 rp = vec2(vUv.y * 2.2 - flow * 1.6, vUv.x * 12.0);
+          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.5 + (n2(rp * 2.3 + 5.1) - 0.5) * 0.25, 1.0, (n2(rp + 13.7) - 0.5) * 0.5));
+          vec3 L = lightAt(vW, vec3(0.0, 1.0, 0.0));
           vec3 V = normalize(uCam - vW);
-          vec3 deep = vec3(0.02, 0.05, 0.11);
-          vec3 col = deep + L * vec3(0.12, 0.2, 0.35) + vec3(0.45, 0.62, 0.9) * (foam * 0.8 + streak * 0.55) * (0.5 + L * 1.5);
-          col += specAt(vW, wn, V, 90.0) * 1.4;
+          // reflection: sky colour by Fresnel, the moon and nearby fires as shimmering streaks
+          float fres = 0.04 + 0.96 * pow(1.0 - max(dot(wn, V), 0.0), 5.0);
+          vec3 R = reflect(-V, wn);
+          vec3 skyR = mix(vec3(0.07, 0.09, 0.15), vec3(0.01, 0.015, 0.035), smoothstep(0.0, 0.6, R.y));
+          float mr = max(dot(R, uMoonVis), 0.0);
+          vec3 moonR = vec3(0.85, 0.9, 1.0) * (pow(mr, 160.0) * 2.5 + pow(mr, 18.0) * 0.18);
+          vec3 body = vec3(0.012, 0.025, 0.06) + L * vec3(0.03, 0.06, 0.11);
+          vec3 col;
+          if (uReflOn > 0.5) {
+            // dark mirror: the mirrored scene, wobbling with the ripples
+            vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.9, 1.0);
+            vec3 refl = texture2D(uRefl, rq.xy / rq.w).rgb;
+            col = body + refl * (0.7 + 0.3 * fres);
+          } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
+          col += specAt(vW, wn, V, 60.0) * 1.1;
+          col += vec3(0.42, 0.56, 0.8) * (streak * 0.2 + foam * 0.45) * (0.35 + L * 1.2);
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
@@ -716,8 +760,8 @@
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vec3 lush = mix(vec3(0.16, 0.29, 0.17), vec3(0.24, 0.33, 0.24), tone);
-          vec3 dry = vec3(0.3, 0.3, 0.17), cool = vec3(0.13, 0.26, 0.24);
+          vec3 lush = mix(vec3(0.13, 0.3, 0.18), vec3(0.19, 0.36, 0.23), tone);
+          vec3 dry = vec3(0.26, 0.31, 0.17), cool = vec3(0.12, 0.28, 0.22);
           vec3 tip = mix(mix(lush, dry, smoothstep(0.55, 0.85, fA) * 0.75), cool, smoothstep(0.6, 0.9, fB) * 0.6);
           tip *= 1.0 + gust * 0.35 * t;
           vCol = mix(vec3(0.02, 0.045, 0.025), tip, t);

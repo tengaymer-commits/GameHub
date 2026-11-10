@@ -149,7 +149,7 @@
   function applySettings() {
     const S = UI.settings, R = G.R;
     R.glyphPx = S.glyph; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
-    R.setShadows([0, 1024, 2048][S.quality]);
+    R.setShadows([0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
     GWAudio.setVolume(S.vol, S.mus);
   }
   function openSettings(from) { G.settingsFrom = from; $('settings').classList.remove('hidden'); $('pause').classList.add('hidden'); $('title').classList.add('hidden'); }
@@ -481,7 +481,7 @@
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
     // keep the grass patch centred a little ahead of the view, not on the hero
     const ahead2 = gu.uSize.value * (pitch < 0.75 ? 0.28 : 0.12);
-    GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.42 + ahead2 * 0.6;
+    GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
     G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
     GW.World.updateSky(C);
   }
@@ -582,6 +582,8 @@
           UI.label(e, '▬'.repeat(f) + '▭'.repeat(n - f), lp, 'ehp');
         }
       }
+      if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', 'Wanderer', lp, 'name', '#e8e4d8'); }
+      for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), e.T.name, lp, 'name', e.aggro ? '#ff9a8a' : '#c8ccd8'); }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       if (G.bossActive && G.boss.alive) UI.boss(true, GW.ETYPES.warden.name, G.boss.hp, G.boss.maxHp);
       G.saveT += dt; if (G.saveT > 20) { G.saveT = 0; save(); UI.saveSettings(); }
@@ -591,7 +593,7 @@
     G.parts.spark.update(sdt); G.parts.dust.update(sdt); G.parts.blood.update(sdt);
     const focus = G.state === 'title' ? GW.World.L.village : P.pos;
     GW.World.update(sdt || 0, G.t, focus.x, focus.z);
-    if (G.grassCenter && G.state !== 'title') GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z);
+    if (G.grassCenter && G.state !== 'title') { GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z); GW.World.terrainMat.uniforms.uGrassC.value.set(G.grassCenter.x, G.grassCenter.z); }
     if (G.state === 'title') GW.World.updateSky(G.camera);
     // embers rising from campfires near the view
     if (sdt > 0 && frame % 2 === 0) for (const it of GW.World.interact) {
@@ -606,7 +608,8 @@
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70) });
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70),
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * 1.6 + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
     if (GWAudio.ctx) {

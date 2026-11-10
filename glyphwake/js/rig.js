@@ -43,7 +43,7 @@
       const spec = matMap(o.userData.srcMat, o);
       if (!spec) { o.visible = false; continue; }
       o.visible = true;
-      const m = GW.mat(Object.assign({ rim: 0.5 }, spec));
+      const m = GW.mat(Object.assign({ rim: 0.85 }, spec));
       o.material = m; this.mats.push(m);
     }
   };

@@ -26,7 +26,9 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 - Loader: Three.js r158 `GLTFLoader` and `SkeletonUtils` (MIT), converted to plain scripts in `js/vendor/`.
 
 ## World art
-- Night sky dome with stars, a low moon with glow, and a ring of distant mountains that the haze turns into silhouettes.
+- Night sky dome with stars, drifting moon-lit clouds, a large cratered glyph moon, and a ring of distant mountains that the haze turns into silhouettes.
+- The river is a dark mirror: when water is in view, the scene (characters, trees, sky, moon, clouds) is re-rendered from a mirrored camera at half resolution and sampled with ripple distortion, so reflections come out as glyphs too. Medium and High quality only.
+- Earth between the grass: soil, moss, leaf litter and pebbles. Faint glyphs are thinned at random so dark ground doesn't read as a dot grid. Characters get a soft self-fill, dense glyph fills and bright silhouettes. Hunting enemies get a red ground ring, and names float above the hero and nearby enemies.
 - Kenney Nature Kit models (CC0, via the same asset pack): tall pines, dark firs, oaks, autumn birches, logs, stumps, boulders, bushes and glowing Wispwood mushrooms. They're instanced per material and mixed with the procedural trees.
 - Beyond the live grass patch the ground renders as a meadow-colored field, so low camera angles show grass out to the treeline. Embers rise from every campfire.
 

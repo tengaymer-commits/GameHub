@@ -439,6 +439,9 @@
     this.mats = []; this.model = new THREE.Group(); scene.add(this.model);
     T.build(this);
     this.shadow = shadow(scene, T.radius * 1.3);
+    // faint red ring under an enemy that is hunting you
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(T.radius * 1.15, T.radius * 1.3, 28).rotateX(-Math.PI / 2), GW.mat({ id: ID.FIRE, color: 0, emissive: 0x7a1408, unlit: true, side: THREE.DoubleSide }));
+    this.ring.layers.set(1); this.ring.visible = false; scene.add(this.ring);
   }
   Enemy.prototype.mat = function (o) { const m = GW.mat(o); this.mats.push(m); return m; };
   Enemy.prototype.distTo = function (p) { return Math.hypot(p.x - this.pos.x, p.z - this.pos.z); };
@@ -448,6 +451,7 @@
     const W = GW.World, P = G.player;
     this.t += dt; this.flash = Math.max(0, this.flash - dt * 5);
     for (const m of this.mats) m.uniforms.uFlash.value = this.flash * 1.4;
+    if (!this.alive && this.ring) this.ring.visible = false;
     if (!this.alive && this.rig) {
       this.deadT += dt;
       if (!this._deathPlayed) { this._deathPlayed = true; this.rig.play('Death', { loop: false, restart: true, fade: 0.08 }); }
@@ -497,6 +501,8 @@
     this.shadow.position.set(this.pos.x, gy + 0.03, this.pos.z);
     const far = dP > 42 && !this.T.boss;   // off-screen: skip skinning and animation work
     this.model.visible = !far; this.shadow.visible = !far;
+    this.ring.visible = !far && this.aggro && !this.T.boss && this.type !== 'husk';
+    if (this.ring.visible) { this.ring.position.set(this.pos.x, gy + 0.06, this.pos.z); const k = this.state === 'windup' || this.state === 'windup2' ? 2.2 : 1; this.ring.material.uniforms.uEmissive.value.setRGB(0.48 * k, 0.08 * k, 0.03 * k); }
     if (this.T.anim && !far) this.T.anim(this, dt, ctx);
     G.pushGrass(1 + (G.enemies.indexOf(this) % 5), this.pos.x, this.pos.z, this.radius * 1.4);
   };
@@ -555,7 +561,7 @@
     name: 'Thornwolf', hp: 42, radius: 0.6, poise: 10, aggro: 13, leash: 34, xp: 22, dmg: 10, speed: 7.2, kind: 'beast',
     build(e) {
       e.rig = new GW.Rig('wolf', 0.27, (mn) => mn === 'Eyes_Black' ? { id: ID.FIRE, color: 0, emissive: 0xff3020, unlit: true }
-        : mn === 'Nose' ? { id: ID.BODY, color: 0x202024 } : mn === 'Main_Light' ? { id: ID.BODY, color: 0x9a9aa2, rim: 0.4 } : { id: ID.BODY, color: 0x585862, rim: 0.5 });
+        : mn === 'Nose' ? { id: ID.BODY, color: 0x202024 } : mn === 'Main_Light' ? { id: ID.BODY, color: 0xc0c0c8, rim: 0.6 } : { id: ID.BODY, color: 0x8a8a96, rim: 0.8 });
       e.model.add(e.rig.root); e.mats = e.rig.mats.slice();
       e.eyeMat = e.rig.mats.find(m => m.uniforms.uUnlit.value > 0);
       e.rig.mixer.timeScale = 0.9 + Math.random() * 0.2;

@@ -5556,10 +5556,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.6, under: 0.16, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 2.5, under: 0.42, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
     /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.95, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
-    /* 4 water  */ { ramp: " .,-~~=+*o@", mode: 0, gain: 2.2, under: 0.25, edge: 0, bright: 1.2, white: 0.35, flick: 5 },
+    /* 4 water  */ { ramp: " -~~~~≈≈≈*o@", mode: 0, gain: 2.3, under: 0.4, edge: 0, bright: 1.25, white: 0.4, flick: 4 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
@@ -5583,7 +5583,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   SETS.push(
     /* 23 sky     */ { ramp: "    ..'`", mode: 0, gain: 2.6, under: 0.9, edge: 0, bright: 0.6, white: 0.2, flick: 0 },
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
-    /* 25 moon    */ { ramp: " .:oO0@", mode: 0, gain: 1.0, under: 0.55, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
+    /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.12; });
@@ -5631,6 +5631,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
     uDepthPass: { value: 0 },
+    uRefl: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 },
     uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   };
 
@@ -5708,7 +5709,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC;
+    float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+    float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
@@ -5717,12 +5721,23 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
-      vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
+      vec3 base = vC;
+      if (uFarGrass > 0.0) {
+        // earth between the grass: brown soil, mossy patches, leaf litter and pebbles
+        float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1), sp = th(floor(vW.xz * 5.0));
+        vec3 soil = mix(vec3(0.17, 0.135, 0.09), vec3(0.1, 0.16, 0.09), smoothstep(0.35, 0.7, n1));
+        soil = mix(soil, vec3(0.2, 0.12, 0.06), smoothstep(0.7, 0.9, n2) * 0.6);
+        soil *= 0.75 + 0.5 * n2;
+        if (sp > 0.94) soil += vec3(0.16, 0.16, 0.17) * (sp - 0.94) * 16.0;
+        float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
+        base = mix(vC * 1.3, soil, 0.45 + 0.4 * grassy);
+      }
+      vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;
       if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
       float outId = uId;
       if (uFarGrass > 0.0) {
         // beyond the live grass patch the ground turns into a meadow-coloured field that blends with the blades
-        float dd = length(vW.xz - uCam.xz);
+        float dd = length(vW.xz - uGrassC);
         float h = fract(sin(dot(floor(vW.xz * 3.0), vec2(12.9898, 78.233))) * 43758.5453);
         float k = smoothstep(uFarGrass * 0.75, uFarGrass * 1.1, dd + (h - 0.5) * 6.0);
         if (k > 0.5) {
@@ -5736,6 +5751,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }`;
 
   const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.12, 13: 0.1, 6: 0.15, 22: 0.06 };
+  // characters get a soft self-fill so they never sink into the night
+  const FILL = { 6: 0.3, 7: 0.22, 11: 0.3, 12: 0.28, 16: 0.24, 17: 0.22, 18: 0.28, 19: 0.26, 20: 0.3, 21: 0.26, 22: 0.34 };
   // material factory
   E.mat = function (o) {
     o = o || {};
@@ -5749,6 +5766,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         uUnlit: { value: o.unlit ? 1 : 0 },
         uNoFog: { value: o.noFog ? 1 : 0 },
         uFarGrass: { value: o.farGrass || 0 },
+        uGrassC: { value: new THREE.Vector2() },
+        uFill: { value: o.fill !== undefined ? o.fill : (FILL[o.id] || 0) },
         uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,
@@ -5796,7 +5815,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
       float jit = actor ? S3.x : 0.16;
       v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
-      if (actor) v = max(v, 0.28);
+      if (actor) v = max(v * 1.15, 0.46);
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
@@ -5804,6 +5823,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (S3.y > 1.5 && S3.y < 2.5) idx -= mod(cell.y, 3.0) < 0.5 ? 3.0 : 0.0;
       if (S3.y > 2.5) idx -= mod(cell.x + floor(cell.y * 0.5) * 1.0, 2.0) * 2.0;
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
+      if (!actor && id != 4 && idx > 0.5 && idx < 3.5 && h21(cell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
       float edgeBoost = 0.0;
       if (actor) {
@@ -5833,7 +5853,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       float mx = max(max(c.r, c.g), c.b);
       vec3 hue = c / max(mx, 0.03);
       vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
-      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.45) * S2.x;
+      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.55) * S2.x * (actor ? 1.12 : 1.0);
       vec3 under = actor ? c * S.z : c * S.z;
       gl_FragColor = vec4(under + gm * gcol, 1.0);
     }`;
@@ -5940,16 +5960,39 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     C.updateMatrixWorld(); C.layers.set(0);
     // the game's own shader writes packed depth here, so skinned and instanced meshes pose correctly
     LU.uDepthPass.value = 1; LU.uShadowOn.value = 0;
+    LU.uShadowMap.value = this.dummyTex || (this.dummyTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1));
+    this.dummyTex.needsUpdate = this.dummyTex.needsUpdate || false;
     this.r.setRenderTarget(this.shadowRT); this.r.setClearColor(0xffffff, 1); this.r.clear();
     this.r.render(scene, C);
     LU.uDepthPass.value = 0;
     LU.uShadowMat.value.multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
     LU.uShadowMap.value = this.shadowRT.texture; LU.uShadowOn.value = 1;
   };
+  // planar reflection for the water: render layers 0 (world, characters) and 2 (sky) from a mirrored camera
+  E.Renderer.prototype.renderReflection = function (scene, camera, h) {
+    const W = Math.max(2, this.W >> 1), H = Math.max(2, this.H >> 1);
+    if (!this.reflRT || this.reflRT.width !== W || this.reflRT.height !== H) {
+      if (this.reflRT) this.reflRT.dispose();
+      this.reflRT = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+      this.reflCam = new THREE.PerspectiveCamera();
+    }
+    const C = this.reflCam, p = camera.position, d = camera.getWorldDirection(new THREE.Vector3());
+    C.copy(camera, false);
+    C.position.set(p.x, 2 * h - p.y, p.z);
+    C.up.set(0, -1, 0);
+    const t = p.clone().add(d.multiplyScalar(10)); C.lookAt(t.x, 2 * h - t.y, t.z);
+    C.updateMatrixWorld(); C.projectionMatrix.copy(camera.projectionMatrix);
+    C.layers.set(0); C.layers.enable(2);
+    this.r.setRenderTarget(this.reflRT); this.r.setClearColor(0x000000, 1); this.r.clear();
+    this.r.render(scene, C);
+    LU.uReflMat.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(C.projectionMatrix).multiply(C.matrixWorldInverse);
+    LU.uRefl.value = this.reflRT.texture; LU.uReflOn.value = 1;
+  };
   E.Renderer.prototype.render = function (scene, camera, fx) {
     const r = this.r, T = this.rts;
     LU.uCam.value.copy(camera.position);
-    camera.layers.enable(1);
+    camera.layers.enable(1); camera.layers.enable(2);
+    if (fx && fx.reflY !== undefined && this.reflOn) this.renderReflection(scene, camera, fx.reflY); else LU.uReflOn.value = 0;
     if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;
     r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
     r.render(scene, camera);
@@ -6045,7 +6088,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const spec = matMap(o.userData.srcMat, o);
       if (!spec) { o.visible = false; continue; }
       o.visible = true;
-      const m = GW.mat(Object.assign({ rim: 0.5 }, spec));
+      const m = GW.mat(Object.assign({ rim: 0.85 }, spec));
       o.material = m; this.mats.push(m);
     }
   };
@@ -6831,24 +6874,32 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ----- night sky: gradient dome, stars, a low moon, distant mountains (follows the camera) -----
   function buildSky(scene) {
     const g = W.sky = new THREE.Group(); scene.add(g);
-    const moonVis = new THREE.Vector3(-0.62, 0.3, 0.72).normalize();
+    const moonVis = new THREE.Vector3(-0.18, 0.86, -0.48).normalize();
     W.moonVis = moonVis;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(330, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
       uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime },
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
-      fragmentShader: `varying vec3 vDir; uniform vec3 uMoon;
+      fragmentShader: `varying vec3 vDir; uniform vec3 uMoon; uniform float uTime;
+        float ch(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+        float cn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(ch(i), ch(i + vec2(1.0, 0.0)), f.x), mix(ch(i + vec2(0.0, 1.0)), ch(i + vec2(1.0, 1.0)), f.x), f.y); }
         void main(){
           float y = vDir.y;
           vec3 hor = vec3(0.07, 0.09, 0.15), zen = vec3(0.006, 0.01, 0.025);
           vec3 col = mix(hor, zen, smoothstep(-0.02, 0.55, y));
           float m = max(dot(vDir, uMoon), 0.0);
           col += vec3(0.45, 0.52, 0.7) * (pow(m, 90.0) * 0.5 + pow(m, 12.0) * 0.08);
+          // drifting clouds, lit around the moon
+          vec2 cp = vDir.xz / (abs(y) + 0.25) * 2.2 + vec2(uTime * 0.012, uTime * 0.004);
+          float cl = cn(cp) * 0.6 + cn(cp * 2.3 + 4.0) * 0.3 + cn(cp * 5.1 + 9.0) * 0.1;
+          float cm = smoothstep(0.52, 0.78, cl) * smoothstep(0.02, 0.25, y);
+          col = mix(col, vec3(0.16, 0.17, 0.21) + vec3(0.45, 0.48, 0.55) * pow(m, 6.0), cm * 0.85);
           if (y < 0.0) col = mix(col, vec3(0.022, 0.032, 0.058), smoothstep(0.0, -0.08, y));
           gl_FragColor = vec4(col, (${ID.SKY}.0 + 0.5) / 32.0);
         }`,
     }));
-    dome.frustumCulled = false; dome.layers.set(1); dome.renderOrder = -10; g.add(dome);
+    dome.frustumCulled = false; dome.renderOrder = -10; g.add(dome);
     // stars
     const n = 900, r = GW.rand(42);
     const stars = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), GW.mat({ id: ID.STAR, color: 0xffffff, unlit: true, noFog: true }), n);
@@ -6859,10 +6910,26 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const big = r(); m4.compose(v, q, sc.setScalar(big < 0.92 ? 0.7 + r() * 0.8 : 1.8 + r() * 1.2));
       stars.setMatrixAt(i, m4); stars.setColorAt(i, c.setHSL(0.58 + (r() - 0.5) * 0.15, 0.3, 0.55 + r() * 0.4));
     }
-    stars.frustumCulled = false; stars.layers.set(1); g.add(stars);
+    stars.frustumCulled = false; g.add(stars);
     // the moon, low on the horizon
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(13, 20, 14), GW.mat({ id: ID.MOON, color: 0, emissive: 0xd8e0f0, unlit: true, noFog: true }));
-    moon.position.copy(moonVis).multiplyScalar(290); moon.layers.set(1); g.add(moon);
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(34, 32, 20), new THREE.ShaderMaterial({
+      uniforms: { uMoon: { value: moonVis } },
+      vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normal); vP = position; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `varying vec3 vN; varying vec3 vP; uniform vec3 uMoon;
+        float mh(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+        float mn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(mh(i), mh(i + vec3(1,0,0)), f.x), mix(mh(i + vec3(0,1,0)), mh(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(mh(i + vec3(0,0,1)), mh(i + vec3(1,0,1)), f.x), mix(mh(i + vec3(0,1,1)), mh(i + vec3(1,1,1)), f.x), f.y), f.z); }
+        void main(){
+          vec3 q = vP / 34.0;
+          float maria = smoothstep(0.45, 0.7, mn(q * 2.2 + 3.0)) * 0.45;
+          float craters = smoothstep(0.62, 0.8, mn(q * 7.0)) * 0.25 + smoothstep(0.7, 0.85, mn(q * 15.0 + 2.0)) * 0.15;
+          float limb = 0.55 + 0.45 * pow(max(dot(normalize(vN), -uMoon), 0.0), 0.4);
+          vec3 col = vec3(0.86, 0.88, 0.94) * (1.0 - maria - craters) * limb;
+          gl_FragColor = vec4(col, (${ID.MOON}.0 + 0.5) / 32.0);
+        }`,
+    }));
+    moon.position.copy(moonVis).multiplyScalar(285); g.add(moon);
     // distant mountains: a jagged ring that the night haze turns into silhouettes
     const N = 160, pos = [], idx = [], rm = GW.rand(7);
     for (let i = 0; i <= N; i++) {
@@ -6873,7 +6940,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); mg.setIndex(idx); mg.computeVertexNormals();
     const mtn = new THREE.Mesh(mg, GW.mat({ id: ID.STONE, color: 0x1a2030, side: THREE.DoubleSide }));
-    mtn.frustumCulled = false; mtn.layers.set(1); g.add(mtn);
+    mtn.frustumCulled = false; g.add(mtn);
+    g.traverse(o => o.layers.set(2));   // sky layer: seen by the camera and the water's reflection, never casts shadows
   }
   W.updateSky = function (cam) { if (W.sky) W.sky.position.set(cam.position.x, 0, cam.position.z); };
 
@@ -6987,23 +7055,42 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(posA, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvA, 2)); g.setIndex(idx);
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({}, GW.LU),
+      uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() } }, GW.LU),
+      side: THREE.DoubleSide,
       vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: `varying vec2 vUv; varying vec3 vW; ${GW.LIGHT_GLSL}
         float h(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
           return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
+        uniform vec3 uMoonVis; uniform sampler2D uRefl; uniform mat4 uReflMat; uniform float uReflOn;
         void main(){
           float e = min(vUv.x, 1.0 - vUv.x);
-          float foam = smoothstep(0.2, 0.1, e) * (0.6 + 0.4 * n2(vec2(vUv.y * 0.8 - uTime * 1.2, vUv.x * 10.0)));
-          float streak = smoothstep(0.62, 0.95, n2(vec2(vUv.y * 0.35 - uTime * 0.9, vUv.x * 7.0)) * n2(vec2(vUv.y * 1.3 - uTime * 1.6, vUv.x * 3.0 + 7.0)) * 1.8);
-          vec2 rp = vec2(vUv.y * 1.6 - uTime * 1.3, vUv.x * 9.0);
-          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.9, 1.0, (n2(rp + 13.7) - 0.5) * 0.9));
-          vec3 L = lightAt(vW, wn);
+          // current: long streaks running downstream, faster in the middle of the channel
+          float mid = 1.0 - abs(vUv.x - 0.5) * 2.0;
+          float flow = uTime * (1.0 + 0.8 * mid);
+          float streak = smoothstep(0.55, 0.9, n2(vec2(vUv.y * 0.22 - flow * 0.55, vUv.x * 11.0)) * n2(vec2(vUv.y * 0.9 - flow * 1.1, vUv.x * 4.0 + 7.0)) * 1.9);
+          float foam = smoothstep(0.22, 0.06, e) * (0.55 + 0.45 * n2(vec2(vUv.y * 1.1 - flow * 1.4, vUv.x * 14.0)));
+          // ripple normal
+          vec2 rp = vec2(vUv.y * 2.2 - flow * 1.6, vUv.x * 12.0);
+          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.5 + (n2(rp * 2.3 + 5.1) - 0.5) * 0.25, 1.0, (n2(rp + 13.7) - 0.5) * 0.5));
+          vec3 L = lightAt(vW, vec3(0.0, 1.0, 0.0));
           vec3 V = normalize(uCam - vW);
-          vec3 deep = vec3(0.02, 0.05, 0.11);
-          vec3 col = deep + L * vec3(0.12, 0.2, 0.35) + vec3(0.45, 0.62, 0.9) * (foam * 0.8 + streak * 0.55) * (0.5 + L * 1.5);
-          col += specAt(vW, wn, V, 90.0) * 1.4;
+          // reflection: sky colour by Fresnel, the moon and nearby fires as shimmering streaks
+          float fres = 0.04 + 0.96 * pow(1.0 - max(dot(wn, V), 0.0), 5.0);
+          vec3 R = reflect(-V, wn);
+          vec3 skyR = mix(vec3(0.07, 0.09, 0.15), vec3(0.01, 0.015, 0.035), smoothstep(0.0, 0.6, R.y));
+          float mr = max(dot(R, uMoonVis), 0.0);
+          vec3 moonR = vec3(0.85, 0.9, 1.0) * (pow(mr, 160.0) * 2.5 + pow(mr, 18.0) * 0.18);
+          vec3 body = vec3(0.012, 0.025, 0.06) + L * vec3(0.03, 0.06, 0.11);
+          vec3 col;
+          if (uReflOn > 0.5) {
+            // dark mirror: the mirrored scene, wobbling with the ripples
+            vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.9, 1.0);
+            vec3 refl = texture2D(uRefl, rq.xy / rq.w).rgb;
+            col = body + refl * (0.7 + 0.3 * fres);
+          } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
+          col += specAt(vW, wn, V, 60.0) * 1.1;
+          col += vec3(0.42, 0.56, 0.8) * (streak * 0.2 + foam * 0.45) * (0.35 + L * 1.2);
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
@@ -7066,8 +7153,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vec3 lush = mix(vec3(0.16, 0.29, 0.17), vec3(0.24, 0.33, 0.24), tone);
-          vec3 dry = vec3(0.3, 0.3, 0.17), cool = vec3(0.13, 0.26, 0.24);
+          vec3 lush = mix(vec3(0.13, 0.3, 0.18), vec3(0.19, 0.36, 0.23), tone);
+          vec3 dry = vec3(0.26, 0.31, 0.17), cool = vec3(0.12, 0.28, 0.22);
           vec3 tip = mix(mix(lush, dry, smoothstep(0.55, 0.85, fA) * 0.75), cool, smoothstep(0.6, 0.9, fB) * 0.6);
           tip *= 1.0 + gust * 0.35 * t;
           vCol = mix(vec3(0.02, 0.045, 0.025), tip, t);
@@ -7586,6 +7673,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     this.mats = []; this.model = new THREE.Group(); scene.add(this.model);
     T.build(this);
     this.shadow = shadow(scene, T.radius * 1.3);
+    // faint red ring under an enemy that is hunting you
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(T.radius * 1.15, T.radius * 1.3, 28).rotateX(-Math.PI / 2), GW.mat({ id: ID.FIRE, color: 0, emissive: 0x7a1408, unlit: true, side: THREE.DoubleSide }));
+    this.ring.layers.set(1); this.ring.visible = false; scene.add(this.ring);
   }
   Enemy.prototype.mat = function (o) { const m = GW.mat(o); this.mats.push(m); return m; };
   Enemy.prototype.distTo = function (p) { return Math.hypot(p.x - this.pos.x, p.z - this.pos.z); };
@@ -7595,6 +7685,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const W = GW.World, P = G.player;
     this.t += dt; this.flash = Math.max(0, this.flash - dt * 5);
     for (const m of this.mats) m.uniforms.uFlash.value = this.flash * 1.4;
+    if (!this.alive && this.ring) this.ring.visible = false;
     if (!this.alive && this.rig) {
       this.deadT += dt;
       if (!this._deathPlayed) { this._deathPlayed = true; this.rig.play('Death', { loop: false, restart: true, fade: 0.08 }); }
@@ -7644,6 +7735,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     this.shadow.position.set(this.pos.x, gy + 0.03, this.pos.z);
     const far = dP > 42 && !this.T.boss;   // off-screen: skip skinning and animation work
     this.model.visible = !far; this.shadow.visible = !far;
+    this.ring.visible = !far && this.aggro && !this.T.boss && this.type !== 'husk';
+    if (this.ring.visible) { this.ring.position.set(this.pos.x, gy + 0.06, this.pos.z); const k = this.state === 'windup' || this.state === 'windup2' ? 2.2 : 1; this.ring.material.uniforms.uEmissive.value.setRGB(0.48 * k, 0.08 * k, 0.03 * k); }
     if (this.T.anim && !far) this.T.anim(this, dt, ctx);
     G.pushGrass(1 + (G.enemies.indexOf(this) % 5), this.pos.x, this.pos.z, this.radius * 1.4);
   };
@@ -7702,7 +7795,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     name: 'Thornwolf', hp: 42, radius: 0.6, poise: 10, aggro: 13, leash: 34, xp: 22, dmg: 10, speed: 7.2, kind: 'beast',
     build(e) {
       e.rig = new GW.Rig('wolf', 0.27, (mn) => mn === 'Eyes_Black' ? { id: ID.FIRE, color: 0, emissive: 0xff3020, unlit: true }
-        : mn === 'Nose' ? { id: ID.BODY, color: 0x202024 } : mn === 'Main_Light' ? { id: ID.BODY, color: 0x9a9aa2, rim: 0.4 } : { id: ID.BODY, color: 0x585862, rim: 0.5 });
+        : mn === 'Nose' ? { id: ID.BODY, color: 0x202024 } : mn === 'Main_Light' ? { id: ID.BODY, color: 0xc0c0c8, rim: 0.6 } : { id: ID.BODY, color: 0x8a8a96, rim: 0.8 });
       e.model.add(e.rig.root); e.mats = e.rig.mats.slice();
       e.eyeMat = e.rig.mats.find(m => m.uniforms.uUnlit.value > 0);
       e.rig.mixer.timeScale = 0.9 + Math.random() * 0.2;
@@ -8755,7 +8848,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function applySettings() {
     const S = UI.settings, R = G.R;
     R.glyphPx = S.glyph; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
-    R.setShadows([0, 1024, 2048][S.quality]);
+    R.setShadows([0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
     GWAudio.setVolume(S.vol, S.mus);
   }
   function openSettings(from) { G.settingsFrom = from; $('settings').classList.remove('hidden'); $('pause').classList.add('hidden'); $('title').classList.add('hidden'); }
@@ -9087,7 +9180,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
     // keep the grass patch centred a little ahead of the view, not on the hero
     const ahead2 = gu.uSize.value * (pitch < 0.75 ? 0.28 : 0.12);
-    GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.42 + ahead2 * 0.6;
+    GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
     G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
     GW.World.updateSky(C);
   }
@@ -9188,6 +9281,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           UI.label(e, '▬'.repeat(f) + '▭'.repeat(n - f), lp, 'ehp');
         }
       }
+      if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', 'Wanderer', lp, 'name', '#e8e4d8'); }
+      for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), e.T.name, lp, 'name', e.aggro ? '#ff9a8a' : '#c8ccd8'); }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       if (G.bossActive && G.boss.alive) UI.boss(true, GW.ETYPES.warden.name, G.boss.hp, G.boss.maxHp);
       G.saveT += dt; if (G.saveT > 20) { G.saveT = 0; save(); UI.saveSettings(); }
@@ -9197,7 +9292,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.parts.spark.update(sdt); G.parts.dust.update(sdt); G.parts.blood.update(sdt);
     const focus = G.state === 'title' ? GW.World.L.village : P.pos;
     GW.World.update(sdt || 0, G.t, focus.x, focus.z);
-    if (G.grassCenter && G.state !== 'title') GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z);
+    if (G.grassCenter && G.state !== 'title') { GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z); GW.World.terrainMat.uniforms.uGrassC.value.set(G.grassCenter.x, G.grassCenter.z); }
     if (G.state === 'title') GW.World.updateSky(G.camera);
     // embers rising from campfires near the view
     if (sdt > 0 && frame % 2 === 0) for (const it of GW.World.interact) {
@@ -9212,7 +9307,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70) });
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70),
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * 1.6 + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
     if (GWAudio.ctx) {

@@ -13,10 +13,10 @@
   // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 1 ground */ { ramp: "   ..,,'`-:;~", mode: 0, gain: 1.6, under: 0.16, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 2.5, under: 0.42, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
     /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.95, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
-    /* 4 water  */ { ramp: " .,-~~=+*o@", mode: 0, gain: 2.2, under: 0.25, edge: 0, bright: 1.2, white: 0.35, flick: 5 },
+    /* 4 water  */ { ramp: " -~~~~≈≈≈*o@", mode: 0, gain: 2.3, under: 0.4, edge: 0, bright: 1.25, white: 0.4, flick: 4 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
@@ -40,7 +40,7 @@
   SETS.push(
     /* 23 sky     */ { ramp: "    ..'`", mode: 0, gain: 2.6, under: 0.9, edge: 0, bright: 0.6, white: 0.2, flick: 0 },
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
-    /* 25 moon    */ { ramp: " .:oO0@", mode: 0, gain: 1.0, under: 0.55, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
+    /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.12; });
@@ -88,6 +88,7 @@
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
     uDepthPass: { value: 0 },
+    uRefl: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 },
     uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   };
 
@@ -165,7 +166,10 @@
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC;
+    float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+    float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
@@ -174,12 +178,23 @@
       vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
-      vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
+      vec3 base = vC;
+      if (uFarGrass > 0.0) {
+        // earth between the grass: brown soil, mossy patches, leaf litter and pebbles
+        float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1), sp = th(floor(vW.xz * 5.0));
+        vec3 soil = mix(vec3(0.17, 0.135, 0.09), vec3(0.1, 0.16, 0.09), smoothstep(0.35, 0.7, n1));
+        soil = mix(soil, vec3(0.2, 0.12, 0.06), smoothstep(0.7, 0.9, n2) * 0.6);
+        soil *= 0.75 + 0.5 * n2;
+        if (sp > 0.94) soil += vec3(0.16, 0.16, 0.17) * (sp - 0.94) * 16.0;
+        float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
+        base = mix(vC * 1.3, soil, 0.45 + 0.4 * grassy);
+      }
+      vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;
       if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
       float outId = uId;
       if (uFarGrass > 0.0) {
         // beyond the live grass patch the ground turns into a meadow-coloured field that blends with the blades
-        float dd = length(vW.xz - uCam.xz);
+        float dd = length(vW.xz - uGrassC);
         float h = fract(sin(dot(floor(vW.xz * 3.0), vec2(12.9898, 78.233))) * 43758.5453);
         float k = smoothstep(uFarGrass * 0.75, uFarGrass * 1.1, dd + (h - 0.5) * 6.0);
         if (k > 0.5) {
@@ -193,6 +208,8 @@
     }`;
 
   const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.12, 13: 0.1, 6: 0.15, 22: 0.06 };
+  // characters get a soft self-fill so they never sink into the night
+  const FILL = { 6: 0.3, 7: 0.22, 11: 0.3, 12: 0.28, 16: 0.24, 17: 0.22, 18: 0.28, 19: 0.26, 20: 0.3, 21: 0.26, 22: 0.34 };
   // material factory
   E.mat = function (o) {
     o = o || {};
@@ -206,6 +223,8 @@
         uUnlit: { value: o.unlit ? 1 : 0 },
         uNoFog: { value: o.noFog ? 1 : 0 },
         uFarGrass: { value: o.farGrass || 0 },
+        uGrassC: { value: new THREE.Vector2() },
+        uFill: { value: o.fill !== undefined ? o.fill : (FILL[o.id] || 0) },
         uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,
@@ -253,7 +272,7 @@
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
       float jit = actor ? S3.x : 0.16;
       v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
-      if (actor) v = max(v, 0.28);
+      if (actor) v = max(v * 1.15, 0.46);
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
@@ -261,6 +280,7 @@
       if (S3.y > 1.5 && S3.y < 2.5) idx -= mod(cell.y, 3.0) < 0.5 ? 3.0 : 0.0;
       if (S3.y > 2.5) idx -= mod(cell.x + floor(cell.y * 0.5) * 1.0, 2.0) * 2.0;
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
+      if (!actor && id != 4 && idx > 0.5 && idx < 3.5 && h21(cell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
       float edgeBoost = 0.0;
       if (actor) {
@@ -290,7 +310,7 @@
       float mx = max(max(c.r, c.g), c.b);
       vec3 hue = c / max(mx, 0.03);
       vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
-      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.45) * S2.x;
+      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.55) * S2.x * (actor ? 1.12 : 1.0);
       vec3 under = actor ? c * S.z : c * S.z;
       gl_FragColor = vec4(under + gm * gcol, 1.0);
     }`;
@@ -397,16 +417,39 @@
     C.updateMatrixWorld(); C.layers.set(0);
     // the game's own shader writes packed depth here, so skinned and instanced meshes pose correctly
     LU.uDepthPass.value = 1; LU.uShadowOn.value = 0;
+    LU.uShadowMap.value = this.dummyTex || (this.dummyTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1));
+    this.dummyTex.needsUpdate = this.dummyTex.needsUpdate || false;
     this.r.setRenderTarget(this.shadowRT); this.r.setClearColor(0xffffff, 1); this.r.clear();
     this.r.render(scene, C);
     LU.uDepthPass.value = 0;
     LU.uShadowMat.value.multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
     LU.uShadowMap.value = this.shadowRT.texture; LU.uShadowOn.value = 1;
   };
+  // planar reflection for the water: render layers 0 (world, characters) and 2 (sky) from a mirrored camera
+  E.Renderer.prototype.renderReflection = function (scene, camera, h) {
+    const W = Math.max(2, this.W >> 1), H = Math.max(2, this.H >> 1);
+    if (!this.reflRT || this.reflRT.width !== W || this.reflRT.height !== H) {
+      if (this.reflRT) this.reflRT.dispose();
+      this.reflRT = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+      this.reflCam = new THREE.PerspectiveCamera();
+    }
+    const C = this.reflCam, p = camera.position, d = camera.getWorldDirection(new THREE.Vector3());
+    C.copy(camera, false);
+    C.position.set(p.x, 2 * h - p.y, p.z);
+    C.up.set(0, -1, 0);
+    const t = p.clone().add(d.multiplyScalar(10)); C.lookAt(t.x, 2 * h - t.y, t.z);
+    C.updateMatrixWorld(); C.projectionMatrix.copy(camera.projectionMatrix);
+    C.layers.set(0); C.layers.enable(2);
+    this.r.setRenderTarget(this.reflRT); this.r.setClearColor(0x000000, 1); this.r.clear();
+    this.r.render(scene, C);
+    LU.uReflMat.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(C.projectionMatrix).multiply(C.matrixWorldInverse);
+    LU.uRefl.value = this.reflRT.texture; LU.uReflOn.value = 1;
+  };
   E.Renderer.prototype.render = function (scene, camera, fx) {
     const r = this.r, T = this.rts;
     LU.uCam.value.copy(camera.position);
-    camera.layers.enable(1);
+    camera.layers.enable(1); camera.layers.enable(2);
+    if (fx && fx.reflY !== undefined && this.reflOn) this.renderReflection(scene, camera, fx.reflY); else LU.uReflOn.value = 0;
     if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;
     r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
     r.render(scene, camera);
