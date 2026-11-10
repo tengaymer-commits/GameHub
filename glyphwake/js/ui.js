@@ -10,7 +10,7 @@
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'interact', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll' };
+  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'interact', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {

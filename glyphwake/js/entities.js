@@ -150,7 +150,8 @@
     this.state = 'move'; this.t = 0; this.combo = 0; this.queued = null; this.iframe = 0;
     this.cd = { s2: 0, s3: 0, s4: 0 };
     this.weapon = { metal: 'iron', runes: [null, null, null] };
-    this.inv = { runes: {}, ingots: {} };
+    this.gear = Object.assign({}, GW.Knight.DEFAULT);
+    this.inv = { runes: {}, ingots: {}, armor: { greathelm: 1, knightplate: 1, crimson: 1 } };
     this.hitSet = new Set(); this.walkPhase = 0; this.hurtT = 0; this.healT = 0;
     this.buildModel(scene);
     this.trail = new Trail(scene, 16);
@@ -160,62 +161,17 @@
   }
   Player.prototype.buildModel = function (scene) {
     const g = this.model = new THREE.Group(); scene.add(g);
-    const body = this.body = new THREE.Group(); g.add(body);
-    const armor = GW.mat({ id: ID.METAL, color: 0x9aa0ae, rim: 0.6 });
-    const dark = GW.mat({ id: ID.CLOTH, color: 0x2a2a34, rim: 0.3 });
-    const cloak = GW.mat({ id: ID.CLOTH, color: 0xb01a1a, rim: 0.4, side: THREE.DoubleSide });
-    const skin = GW.mat({ id: ID.BODY, color: 0xd0b8a0, rim: 0.4 });
-    this.mats = [armor, dark, cloak, skin];
-    // legs: thigh + shin with a knee joint, human proportions (about 1.85 m tall)
-    const leg = (x) => {
-      const hip = new THREE.Group(); hip.position.set(x, 0.92, 0); body.add(hip);
-      part(hip, box(0.12, 0.46, 0.14), dark, 0, -0.23, 0);
-      const knee = new THREE.Group(); knee.position.set(0, -0.46, 0); hip.add(knee);
-      part(knee, box(0.1, 0.42, 0.12), dark, 0, -0.21, 0);
-      part(knee, box(0.11, 0.16, 0.13), armor, 0, -0.06, 0.01); // knee guard
-      part(knee, box(0.11, 0.09, 0.22), armor, 0, -0.42, 0.04); // boot
-      return [hip, knee];
-    };
-    [this.legL, this.shinL] = leg(0.09); [this.legR, this.shinR] = leg(-0.09);
-    // pelvis + belt
-    part(body, box(0.3, 0.14, 0.18), dark, 0, 0.96, 0);
-    part(body, box(0.32, 0.05, 0.2), GW.mat({ id: ID.WOOD, color: 0x4a3020 }), 0, 1.02, 0);
-    // torso: tapered from shoulders to waist, flattened front-to-back
-    const tg = new THREE.CylinderGeometry(0.19, 0.14, 0.52, 8); tg.scale(1, 1, 0.62);
-    part(body, tg, armor, 0, 1.3, 0);
-    // pauldrons
-    part(body, new THREE.SphereGeometry(0.095, 8, 6), armor, 0.21, 1.52, 0).scale.set(1.25, 0.8, 1.1);
-    part(body, new THREE.SphereGeometry(0.095, 8, 6), armor, -0.21, 1.52, 0).scale.set(1.25, 0.8, 1.1);
-    // cloak hangs from the shoulders
-    const cg = new THREE.CylinderGeometry(0.19, 0.42, 1.22, 10, 3, true, Math.PI * 0.5, Math.PI);
-    this.cloak = part(body, cg, cloak, 0, 0.98, -0.06);
-    // neck, head, helm
-    part(body, new THREE.CylinderGeometry(0.05, 0.055, 0.1, 6), skin, 0, 1.6, 0.01);
-    part(body, new THREE.SphereGeometry(0.115, 10, 8), skin, 0, 1.72, 0.015).scale.set(0.9, 1.1, 1);
-    part(body, new THREE.CylinderGeometry(0.122, 0.128, 0.16, 10), armor, 0, 1.76, 0);
-    part(body, new THREE.ConeGeometry(0.125, 0.17, 10), armor, 0, 1.92, 0);
-    part(body, box(0.16, 0.025, 0.03), dark, 0, 1.75, 0.12);
-    // left arm (upper + forearm), hangs at the side
-    this.armL = new THREE.Group(); this.armL.position.set(0.23, 1.48, 0); body.add(this.armL);
-    part(this.armL, box(0.08, 0.3, 0.09), armor, 0, -0.15, 0);
-    part(this.armL, box(0.07, 0.27, 0.08), dark, 0, -0.43, 0);
-    part(this.armL, box(0.07, 0.08, 0.08), skin, 0, -0.6, 0);
-    // sword pivot + right arm + sword
-    const sp = this.swing = new THREE.Group(); sp.position.set(0, 1.42, 0.03); body.add(sp);
-    part(sp, box(0.08, 0.08, 0.46), armor, -0.21, 0.0, 0.2);
-    const sword = this.sword = new THREE.Group(); sword.position.set(-0.21, 0, 0.46); sp.add(sword);
-    this.swordMats = { blade: GW.mat({ id: ID.METAL, color: 0xb8c0cc, rim: 1.0 }), hilt: GW.mat({ id: ID.WOOD, color: 0x4a3020 }), guard: GW.mat({ id: ID.METAL, color: 0x8a7040, rim: 0.5 }) };
-    part(sword, box(0.045, 0.045, 0.24), this.swordMats.hilt, 0, 0, -0.02);
-    part(sword, box(0.3, 0.05, 0.06), this.swordMats.guard, 0, 0, 0.12);
-    this.blade = part(sword, box(0.07, 0.022, 1.1), this.swordMats.blade, 0, 0, 0.7);
-    this.tipObj = new THREE.Object3D(); this.tipObj.position.set(0, 0, 1.27); sword.add(this.tipObj);
-    this.baseObj = new THREE.Object3D(); this.baseObj.position.set(0, 0, 0.24); sword.add(this.baseObj);
-    this.mats.push(this.swordMats.blade);
+    this.body = new THREE.Group(); g.add(this.body);
+    this.swordMats = { blade: GW.mat({ id: ID.METAL, color: 0xb8c0cc, rim: 1.0 }), hilt: GW.mat({ id: ID.LEATHER, color: 0x4a3020 }), guard: GW.mat({ id: ID.METAL, color: 0xc8a050, rim: 0.6 }) };
+    GW.Knight.dress(this);
   };
   Player.prototype.recalc = function () {
     const s = GW.Forge.weaponStats(this.weapon, this.level);
     this.ws = s;
-    const vig = s.vigor || 0;
+    const gs = this.gs = GW.Knight.stats(this.gear);
+    s.crit += gs.crit; s.focusRegen *= 1 + gs.focus;
+    this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
+    const vig = (s.vigor || 0) + gs.hp;
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);
     if (this.maxHp > old) this.hp += this.maxHp - old;
@@ -238,7 +194,7 @@
     if (this.state === 'dead') { this.animate(dt); return; }
     // regen
     this.stDelay -= dt;
-    if (this.stDelay <= 0 && this.state !== 'roll') this.st = Math.min(100, this.st + 38 * dt);
+    if (this.stDelay <= 0 && this.state !== 'roll') this.st = Math.min(100, this.st + 38 * (this.stMul || 1) * dt);
     this.fo = Math.min(100, this.fo + dt * 4.5 * (this.ws.focusRegen || 1));
     if (this.healT > 0) { const h = Math.min(this.healT, dt * 1.6) * this.maxHp * 0.45 / 0.6; this.healT -= dt * 1.6; this.hp = Math.min(this.maxHp, this.hp + h); }
 
@@ -246,7 +202,7 @@
     const ml = Math.min(1, mv.length()); if (ml > 0.01) mv.normalize();
     this._mv = ml > 0.1 && this.state === 'move';
     const wading = W.inWater(this.pos.x, this.pos.z);
-    let speed = 6.2 * (wading ? 0.55 : 1);
+    let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
 
     // buffer inputs
@@ -456,7 +412,9 @@
     this.legL.rotation.x = legA; this.legR.rotation.x = -legA;
     this.shinL.rotation.x = Math.max(0, legA) * 1.2 + (this.state === 'roll' ? 1.4 : 0); this.shinR.rotation.x = Math.max(0, -legA) * 1.2 + (this.state === 'roll' ? 1.4 : 0);
     sw.rotation.set(sx, sy, sz, 'YXZ');
-    this.cloak.rotation.x = -0.12 - Math.min(0.5, Math.abs(walk) * 0.15) - (this.state === 'roll' ? 0.5 : 0);
+    if (this.cloak) this.cloak.rotation.x = -0.12 - Math.min(0.5, Math.abs(walk) * 0.15) - (this.state === 'roll' ? 0.5 : 0) - (this._mv ? 0.12 : 0);
+    if (this.plume) this.plume.rotation.x = Math.sin(this.t * 3) * 0.08 - (this._mv ? 0.25 : 0);
+    if (this.tabard) this.tabard.rotation.x = -legA * 0.25;
     const fl = this.hurtT > 0 ? this.hurtT * 3 : 0;
     for (const mt of this.mats) mt.uniforms.uFlash.value = fl;
   };

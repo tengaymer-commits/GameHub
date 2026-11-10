@@ -81,7 +81,7 @@ button { font-family: var(--mono); color: var(--fg); }
 .hs .cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.7); }
 .hs .c { position: absolute; right: 4px; bottom: 1px; font-size: 9px; color: var(--fg); }
 .hs.lack .g { opacity: .35; }
-#menu-btn { position: absolute; left: 50%; transform: translateX(-50%); top: calc(6px + var(--safe-t)); pointer-events: auto; background: rgba(0,0,0,.4); border: 1px solid var(--line); font-size: 16px; width: 34px; height: 28px; cursor: pointer; }
+#menu-btn { position: absolute; left: calc(50% - 17px); top: calc(6px + var(--safe-t)); pointer-events: auto; background: rgba(0,0,0,.4); border: 1px solid var(--line); font-size: 16px; width: 34px; height: 28px; cursor: pointer; }
 
 /* touch */
 #touch { position: absolute; inset: 0; pointer-events: none; }
@@ -135,6 +135,20 @@ button { font-family: var(--mono); color: var(--fg); }
   #f-stats { padding: 4px 10px; }
 }
 
+/* ---------- gear ---------- */
+#gear { position: fixed; inset: 0; z-index: 6; font-size: 11px; pointer-events: none; }
+#gear > * { pointer-events: auto; }
+#g-side { position: absolute; right: 0; top: calc(34px + var(--safe-t)); bottom: 26px; width: 300px; border-left: 1px solid var(--line); background: rgba(0,0,0,.78); overflow-y: auto; }
+#g-side .f-row { background: none; }
+#g-side .f-sec { background: none; }
+#g-stats { padding: 10px; line-height: 1.6; white-space: pre-line; color: #b8c0d0; }
+#g-stats b { color: var(--gold); font-weight: 400; }
+#gear-btn { position: absolute; left: calc(50% + 24px); top: calc(6px + var(--safe-t)); pointer-events: auto; background: rgba(0,0,0,.4); border: 1px solid var(--line); font-size: 15px; width: 34px; height: 28px; cursor: pointer; color: var(--gold); }
+@media (max-width: 640px) {
+  #g-side { left: 0; right: 0; width: auto; top: auto; height: 46%; border-left: none; border-top: 1px solid var(--line); }
+  #gear-btn { left: auto; right: 152px; }
+}
+
 /* ---------- title ---------- */
 #title { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 8; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,.7) 100%); }
 #logo { margin: 0; font-size: clamp(5px, 1.7vw, 13px); line-height: 1.05; color: #e8e2d0; text-shadow: 0 0 12px rgba(255,190,110,.55), 0 0 2px #fff; }
@@ -160,7 +174,7 @@ button { font-family: var(--mono); color: var(--fg); }
 body.touch #hotbar { display: none; }
 #f-side { overflow-y: auto; }
 @media (max-width: 640px) {
-  #menu-btn { left: auto; right: 112px; transform: none; }
+  #menu-btn { left: auto; right: 112px; }
   #zone-banner { top: 19%; } .zb-big { font-size: 20px; }
   #hint { top: calc(13% + var(--safe-t)); font-size: 12px; }
   #quest { top: auto; bottom: calc(330px + var(--safe-b)); left: 12px; right: auto; text-align: left; width: 170px; }
@@ -197,6 +211,7 @@ body.touch #hotbar { display: none; }
     <div id="hotbar"></div>
   </div>
   <button id="menu-btn" aria-label="Menu">≡</button>
+  <button id="gear-btn" aria-label="Gear">⛨</button>
   <!-- touch controls -->
   <div id="touch" class="hidden">
     <div id="stick"><div id="stick-knob"></div></div>
@@ -236,6 +251,16 @@ body.touch #hotbar { display: none; }
   <div id="f-tip" class="hidden"></div>
 </div>
 
+<!-- ================= GEAR ================= -->
+<div id="gear" class="hidden">
+  <div class="f-head"><span>GEAR · <b>knight of the vale</b></span><button id="g-close">close (C)</button></div>
+  <div id="g-side">
+    <div id="g-lists"></div>
+    <div id="g-stats"></div>
+  </div>
+  <div class="f-foot">drag to turn · tap a piece to wear it</div>
+</div>
+
 <!-- ================= TITLE ================= -->
 <div id="title">
   <pre id="logo"></pre>
@@ -253,6 +278,7 @@ body.touch #hotbar { display: none; }
   <h2>PAUSED</h2>
   <div id="char-sheet"></div>
   <button class="btn" id="p-resume">Resume</button>
+  <button class="btn" id="p-gear">Gear (C)</button>
   <button class="btn ghost" id="p-settings">Settings</button>
   <button class="btn ghost" id="p-quit">Save &amp; quit to title</button>
 </div>
@@ -493,10 +519,21 @@ body.touch #hotbar { display: none; }
     /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 1.9, under: 0.12, edge: 0, bright: 1.15, white: 0.3, flick: 0 },
     /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.3, under: 0.1, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
+    // ---- armour glyph patterns (actors) ----
+    /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
+    /* 17 plate   */ { ramp: " .-=:=#H#@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.35, white: 0.5, flick: 0, actor: 1, jit: 0.06, pat: 2 },
+    /* 18 leather */ { ramp: " .,:;x%&%", mode: 0, gain: 2.2, under: 0.15, edge: 0, bright: 1.15, white: 0.15, flick: 0, actor: 1, jit: 0.18, pat: 0 },
+    /* 19 scale   */ { ramp: " .vvVwWWM", mode: 0, gain: 2.1, under: 0.12, edge: 0, bright: 1.2, white: 0.3, flick: 0, actor: 1, jit: 0.08, pat: 3 },
+    /* 20 silk    */ { ramp: " .'~^*\"&", mode: 0, gain: 2.2, under: 0.18, edge: 0, bright: 1.2, white: 0.1, flick: 0, actor: 1, jit: 0.12, pat: 0 },
+    /* 21 boneplt */ { ramp: " .,!|IXX$", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.45, flick: 0, actor: 1, jit: 0.1, pat: 2 },
+    /* 22 tabard  */ { ramp: " .:;=+x#%", mode: 0, gain: 2.3, under: 0.2, edge: 0, bright: 1.25, white: 0.05, flick: 0, actor: 1, jit: 0.1, pat: 0 },
   ];
-  const ID = E.ID = { VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
+  // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
+  [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.12; });
+  while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
+  const ID = E.ID = { MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
   E.SETS = SETS;
-  const COLS = 16, ROWS = 17; // row 16: edge glyphs
+  const COLS = 16, ROWS = 33; // row 32: edge glyphs
 
   function buildAtlas() {
     const cw = 32, ch = 48;
@@ -514,7 +551,7 @@ body.touch #hotbar { display: none; }
         draw(r[Math.min(k, r.length - 1)], i, row);
       }
     });
-    '|\\-/+'.split('').forEach((chr, i) => draw(chr, i, 16));
+    '|\\-/+'.split('').forEach((chr, i) => draw(chr, i, 32));
     const t = new THREE.CanvasTexture(c);
     t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
     return t;
@@ -581,7 +618,7 @@ body.touch #hotbar { display: none; }
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
       col *= fogAt(vW);
-      gl_FragColor = vec4(col, (uId + 0.5) / 16.0);
+      gl_FragColor = vec4(col, (uId + 0.5) / 32.0);
     }`;
 
   // material factory
@@ -607,25 +644,31 @@ body.touch #hotbar { display: none; }
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
     uniform vec2 uRes; uniform vec2 uCell; uniform float uTime;
-    uniform vec4 uSet[16]; uniform vec4 uSet2[16];
+    uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
     float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float lum(vec3 c) { return max(max(c.r, c.g), c.b) * 0.55 + dot(c, vec3(0.299, 0.587, 0.114)) * 0.45; }
-    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 16.0); }
+    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 32.0); }
+    float actorAt(vec2 cell) { return uSet2[idAt(cell)].w; }
     void main() {
       vec2 fc = gl_FragCoord.xy;
       vec2 cell = floor(fc / uCell);
       vec2 cuv = fract(fc / uCell);
       vec2 cc = (cell + 0.5) * uCell / uRes;
       vec4 cs = texture2D(tScene, cc);
-      int id = int(cs.a * 16.0);
+      int id = int(cs.a * 32.0);
+      bool actor = uSet2[id].w > 0.5;
       vec4 px = texture2D(tScene, fc / uRes);
-      int pid = int(px.a * 16.0);
+      int pid = int(px.a * 32.0);
       vec3 raw = px.rgb;
-      // raw sets (grass strokes) are decided per pixel so blades stay crisp lines
-      if (uSet[pid].x > 0.5 && uSet[pid].x < 1.5) { gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return; }
+      // raw sets (grass strokes) are decided per pixel so blades stay crisp lines;
+      // around characters the grass is darkened into a halo so silhouettes read
+      if (!actor && uSet[pid].x > 0.5 && uSet[pid].x < 1.5) {
+        float halo = max(max(actorAt(cell + vec2(1.0, 0.0)), actorAt(cell - vec2(1.0, 0.0))), max(actorAt(cell + vec2(0.0, 1.0)), actorAt(cell - vec2(0.0, 1.0))));
+        gl_FragColor = vec4(raw * uSet[pid].y * (1.0 - 0.8 * halo), 1.0); return;
+      }
       if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
-      vec4 S = uSet[id]; vec4 S2 = uSet2[id];
+      vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
       vec2 q = uCell / uRes * 0.3;
       vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
@@ -633,33 +676,48 @@ body.touch #hotbar { display: none; }
       float v = clamp(lum(c) * S.y, 0.0, 1.0);
       v = pow(v, 0.8);
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
-      v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * 0.16 * smoothstep(0.03, 0.2, v);
+      float jit = actor ? S3.x : 0.16;
+      v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
+      if (actor) v = max(v, 0.28);
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
+      // woven patterns: mail checker, plate bands, scale rows
+      if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
+      if (S3.y > 1.5 && S3.y < 2.5) idx -= mod(cell.y, 3.0) < 0.5 ? 3.0 : 0.0;
+      if (S3.y > 2.5) idx -= mod(cell.x + floor(cell.y * 0.5) * 1.0, 2.0) * 2.0;
+      idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
       float row = float(id);
-      if (S.w > 0.5 && idx > 0.5) {
+      float edgeBoost = 0.0;
+      if (actor) {
+        float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));
+        float mU = actorAt(cell + vec2(0.0, 1.0)), mD = actorAt(cell + vec2(0.0, -1.0));
+        if (mL + mR + mU + mD < 3.5) {
+          vec2 g = vec2(mR - mL, mU - mD);
+          row = 32.0;
+          if (dot(g, g) < 0.1) idx = 4.0;
+          else idx = mod(floor(atan(g.y, g.x) / 3.14159265 * 4.0 + 0.5), 4.0);
+          edgeBoost = 1.0;
+        }
+      } else if (S.w > 0.5 && idx > 0.5) {
         float mL = idAt(cell + vec2(-1.0, 0.0)) == id ? 1.0 : 0.0;
         float mR = idAt(cell + vec2(1.0, 0.0)) == id ? 1.0 : 0.0;
         float mU = idAt(cell + vec2(0.0, 1.0)) == id ? 1.0 : 0.0;
         float mD = idAt(cell + vec2(0.0, -1.0)) == id ? 1.0 : 0.0;
-        float s = mL + mR + mU + mD;
-        if (s < 3.5) {
+        if (mL + mR + mU + mD < 3.5) {
           vec2 g = vec2(mR - mL, mU - mD);
-          row = 16.0;
+          row = 32.0;
           if (dot(g, g) < 0.1) idx = 4.0;
-          else {
-            float a = atan(g.y, g.x);
-            idx = mod(floor(a / 3.14159265 * 4.0 + 0.5), 4.0);
-          }
+          else idx = mod(floor(atan(g.y, g.x) / 3.14159265 * 4.0 + 0.5), 4.0);
           v = max(v, 0.55);
         }
       }
-      float gm = texture2D(tAtlas, vec2((idx + cuv.x) / 16.0, (16.0 - row + cuv.y) / 17.0)).r;
+      float gm = texture2D(tAtlas, vec2((idx + cuv.x) / 16.0, (32.0 - row + cuv.y) / 33.0)).r;
       float mx = max(max(c.r, c.g), c.b);
       vec3 hue = c / max(mx, 0.03);
-      vec3 tint = mix(hue, vec3(1.0), S2.y * v);
-      vec3 gcol = tint * (0.18 + v * 1.05) * S2.x;
-      gl_FragColor = vec4(c * S.z + gm * gcol, 1.0);
+      vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
+      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.45) * S2.x;
+      vec3 under = actor ? c * S.z : c * S.z;
+      gl_FragColor = vec4(under + gm * gcol, 1.0);
     }`;
   const QUAD_V = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
   const BRIGHT_F = `uniform sampler2D tIn; varying vec2 vUv; uniform vec2 uTexel;
@@ -701,11 +759,12 @@ body.touch #hotbar { display: none; }
     this.quadScene = new THREE.Scene(); this.quadScene.add(quad); this.quad = quad;
     this.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const setA = SETS.map(s => new THREE.Vector4(s.mode, s.gain, s.under, s.edge));
-    const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, 0));
+    const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, s.actor || 0));
+    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() },
-        uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB } },
+        uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
     this.brightMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BRIGHT_F, depthTest: false, depthWrite: false });
@@ -788,6 +847,269 @@ body.touch #hotbar { display: none; }
   E.lerp = (a, b, t) => a + (b - a) * t;
   E.angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
   E.ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+})();
+
+</script>
+<script>
+// Glyphwake: the hero's body and armour. Every piece is shaped geometry tagged with
+// its own glyph set, so mail renders as rings, plate as banded strokes, scale as v-rows.
+(function () {
+  'use strict';
+  const GW = window.GW, ID = GW.ID;
+  const K = GW.Knight = {};
+
+  K.GEAR = {
+    helm: {
+      greathelm: { name: 'Knight\'s Great Helm', set: ID.PLATE, color: 0xb0b6c2, armor: 4, desc: 'Barrel helm with a cross-braced visor and a crimson plume.' },
+      sallet: { name: 'Iron Sallet', set: ID.PLATE, color: 0x8a909c, armor: 3, crit: 0.04, desc: 'Swept-back sallet. Better sight: +4% crit.' },
+      coif: { name: 'Mail Coif', set: ID.MAIL, color: 0xb8bcc8, armor: 2, hp: 10, desc: 'Riveted rings over a padded cap. +10 health.' },
+      hood: { name: 'Ranger\'s Hood', set: ID.LEATHER, color: 0x4f5e3c, armor: 1, crit: 0.07, desc: 'Oiled leather hood. +7% crit.' },
+      horned: { name: 'Warden-bone Helm', set: ID.BONEPLATE, color: 0xd8d0b8, armor: 5, hp: 20, desc: 'Carved from the Warden\'s crown. +20 health.' },
+    },
+    chest: {
+      knightplate: { name: 'Knight\'s Plate', set: ID.PLATE, color: 0xb0b6c2, armor: 7, move: -0.04, desc: 'Full harness over a crimson tabard. Heavy: -4% move speed.' },
+      hauberk: { name: 'Mail Hauberk', set: ID.MAIL, color: 0xb0b4c0, armor: 4, stam: 0.2, desc: 'Knee-length mail. +20% stamina regen.' },
+      leather: { name: 'Leather Jerkin', set: ID.LEATHER, color: 0x6a4a2e, armor: 2, move: 0.1, desc: 'Light and quiet. +10% move speed.' },
+      scale: { name: 'Wyrmscale Coat', set: ID.SCALE, color: 0x4a8a72, armor: 5, focus: 0.2, desc: 'Overlapping green scales. +20% focus regen.' },
+    },
+    cloak: {
+      crimson: { name: 'Crimson Cloak', set: ID.CLOTH, color: 0xa81616, armor: 0, desc: 'A knight\'s cloak, wool-heavy.' },
+      night: { name: 'Nightweave Mantle', set: ID.SILK, color: 0x30307a, armor: 0, focus: 0.25, desc: 'Woven at dusk. +25% focus regen.' },
+      ember: { name: 'Emberlined Cloak', set: ID.SILK, color: 0xd0601e, armor: 1, hp: 15, desc: 'Lined with warm ash-silk. +15 health.' },
+      none: { name: 'No cloak', set: ID.CLOTH, color: 0, armor: 0, desc: 'Nothing on your back.' },
+    },
+  };
+  K.SLOTS = ['helm', 'chest', 'cloak'];
+  K.DEFAULT = { helm: 'greathelm', chest: 'knightplate', cloak: 'crimson' };
+  K.pattern = function (set) { return { [ID.PLATE]: '=#H#', [ID.MAIL]: 'o0O8', [ID.LEATHER]: ';x%&', [ID.SCALE]: 'vVwW', [ID.SILK]: '~^*&', [ID.BONEPLATE]: '!|IX', [ID.CLOTH]: ':ox%' }[set] || '##'; };
+
+  K.stats = function (gear) {
+    const s = { armor: 0, hp: 0, crit: 0, move: 0, stam: 0, focus: 0 };
+    for (const slot of K.SLOTS) { const g = K.GEAR[slot][gear[slot]]; if (!g) continue; for (const k in s) s[k] += g[k] || 0; }
+    s.reduce = Math.min(0.5, s.armor * 0.025);
+    return s;
+  };
+
+  // ---------- geometry helpers ----------
+  const V2 = THREE.Vector2;
+  function lathe(prof, segs, sz) { const g = new THREE.LatheGeometry(prof.map(p => new V2(p[0], p[1])), segs || 14); if (sz) g.scale(1, 1, sz); g.computeVertexNormals(); return g; }
+  function mesh(parent, geom, mat, x, y, z, rx, ry, rz) {
+    const m = new THREE.Mesh(geom, mat); m.position.set(x || 0, y || 0, z || 0);
+    if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
+    parent.add(m); return m;
+  }
+  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const dome = (r, frac) => new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, Math.PI * (frac || 0.5));
+
+  // ---------- dress the player ----------
+  K.dress = function (P) {
+    const body = P.body;
+    while (body.children.length) body.remove(body.children[0]);
+    const gear = P.gear;
+    const H = K.GEAR.helm[gear.helm], C = K.GEAR.chest[gear.chest], CL = K.GEAR.cloak[gear.cloak];
+    const M = (o) => GW.mat(Object.assign({ rim: 0.5, side: THREE.DoubleSide }, o));
+    const plate = M({ id: ID.PLATE, color: 0xb0b6c2, rim: 0.9 });
+    const darkSteel = M({ id: ID.PLATE, color: 0x5a5f6a, rim: 0.6 });
+    const brass = M({ id: ID.METAL, color: 0xc8a050, rim: 0.7 });
+    const under = M({ id: ID.CLOTH, color: 0x2a2630, rim: 0.3 });
+    const leatherM = M({ id: ID.LEATHER, color: 0x5a3c24, rim: 0.3 });
+    const skin = M({ id: ID.BODY, color: 0xd0b8a0, rim: 0.4 });
+    const slit = GW.mat({ id: ID.VOID, color: 0x000000, unlit: true });
+    const chestM = M({ id: C.set, color: C.color, rim: 0.8 });
+    const helmM = M({ id: H.set, color: H.color, rim: 0.9 });
+    const knight = gear.chest === 'knightplate';
+    const mats = [plate, darkSteel, brass, under, leatherM, skin, chestM, helmM];
+
+    // ---- legs: hip -> knee, with armour by chest type ----
+    const leg = (x) => {
+      const hip = new THREE.Group(); hip.position.set(x, 0.92, 0); body.add(hip);
+      const knee = new THREE.Group(); knee.position.set(0, -0.46, 0); hip.add(knee);
+      if (knight) {
+        mesh(hip, lathe([[0.055, -0.46], [0.068, -0.3], [0.075, -0.05], [0.07, 0.02]], 10, 1.1), plate);   // cuisse
+        mesh(knee, dome(0.065, 0.55), plate, 0, 0.0, 0.03, -0.3);                                          // poleyn
+        mesh(knee, box(0.06, 0.03, 0.05), brass, 0, 0, 0.085);
+        mesh(knee, lathe([[0.045, -0.4], [0.06, -0.32], [0.062, -0.12], [0.055, 0]], 10, 1.15), plate);     // greave
+        mesh(knee, box(0.1, 0.07, 0.24), plate, 0, -0.43, 0.05);                                            // sabaton
+        mesh(knee, box(0.09, 0.03, 0.08), darkSteel, 0, -0.42, 0.17, 0.3);
+      } else {
+        mesh(hip, box(0.12, 0.46, 0.14), under, 0, -0.23, 0);
+        mesh(knee, box(0.1, 0.32, 0.12), under, 0, -0.16, 0);
+        mesh(knee, box(0.11, 0.16, 0.14), leatherM, 0, -0.36, 0.01);
+        mesh(knee, box(0.11, 0.07, 0.22), leatherM, 0, -0.43, 0.04);
+      }
+      return [hip, knee];
+    };
+    [P.legL, P.shinL] = leg(0.095); [P.legR, P.shinR] = leg(-0.095);
+
+    // ---- torso ----
+    mesh(body, box(0.3, 0.14, 0.18), under, 0, 0.97, 0);
+    if (knight) {
+      // breastplate with a centre ridge, faulds, gorget
+      mesh(body, lathe([[0.14, 0.0], [0.17, 0.12], [0.2, 0.3], [0.205, 0.42], [0.17, 0.53], [0.09, 0.58]], 16, 0.7), plate, 0, 0.98, 0);
+      mesh(body, box(0.014, 0.42, 0.02), brass, 0, 1.27, 0.145, -0.08);
+      mesh(body, lathe([[0.155, 0.12], [0.18, 0.0], [0.2, -0.1]], 16, 0.72), plate, 0, 0.97, 0);
+      mesh(body, lathe([[0.18, 0.0], [0.205, -0.1]], 16, 0.74), darkSteel, 0, 0.86, 0);
+      mesh(body, lathe([[0.1, 0.0], [0.09, 0.06], [0.07, 0.1]], 12), plate, 0, 1.55, 0);
+      mesh(body, box(0.34, 0.04, 0.2), leatherM, 0, 1.0, 0);                            // sword belt
+      mesh(body, box(0.05, 0.05, 0.03), brass, 0, 1.0, 0.105);
+      // tabard front and back: crimson with a pale cross
+      const tab = M({ id: ID.TABARD, color: 0xa81818, rim: 0.3 }), tabCross = M({ id: ID.TABARD, color: 0xe8d8b0, rim: 0.3 });
+      mats.push(tab, tabCross);
+      P.tabard = mesh(body, box(0.15, 0.42, 0.012), tab, 0, 0.78, 0.13);
+      mesh(body, box(0.03, 0.26, 0.014), tabCross, 0, 0.8, 0.137); mesh(body, box(0.12, 0.03, 0.014), tabCross, 0, 0.86, 0.137);
+      mesh(body, box(0.15, 0.4, 0.012), tab, 0, 0.8, -0.13);
+      // layered pauldrons (three lames each)
+      for (const sx of [1, -1]) {
+        for (let k = 0; k < 3; k++) {
+          const p = mesh(body, dome(0.13 - k * 0.018, 0.5), plate, sx * (0.215 + k * 0.012), 1.56 - k * 0.055, 0);
+          p.scale.set(1.0, 0.7, 1.05); p.rotation.z = -sx * (0.35 + k * 0.12);
+        }
+        mesh(body, box(0.03, 0.03, 0.03), brass, sx * 0.24, 1.6, 0.09);
+      }
+      // scabbard on the left hip
+      mesh(body, box(0.05, 0.75, 0.03), leatherM, 0.19, 0.72, -0.08, 0.45, 0, 0.12);
+      mesh(body, box(0.06, 0.05, 0.045), brass, 0.205, 0.43, -0.22, 0.45, 0, 0.12);
+    } else if (gear.chest === 'hauberk') {
+      mesh(body, lathe([[0.2, -0.32], [0.17, -0.05], [0.15, 0.05], [0.19, 0.35], [0.2, 0.5], [0.12, 0.6]], 16, 0.72), chestM, 0, 0.98, 0);
+      mesh(body, box(0.33, 0.05, 0.2), leatherM, 0, 1.0, 0);
+      for (const sx of [1, -1]) mesh(body, dome(0.105, 0.5), chestM, sx * 0.21, 1.53, 0, 0, 0, -sx * 0.4).scale.set(1, 0.7, 1);
+    } else if (gear.chest === 'leather') {
+      mesh(body, lathe([[0.15, 0.0], [0.18, 0.2], [0.19, 0.42], [0.15, 0.54], [0.09, 0.58]], 14, 0.66), chestM, 0, 0.98, 0);
+      mesh(body, box(0.03, 0.62, 0.02), leatherM, 0.06, 1.28, 0.12, 0, 0, 0.5);
+      mesh(body, box(0.32, 0.05, 0.19), leatherM, 0, 1.0, 0);
+    } else {
+      mesh(body, lathe([[0.19, -0.2], [0.15, 0.0], [0.19, 0.25], [0.2, 0.45], [0.14, 0.56], [0.09, 0.6]], 16, 0.7), chestM, 0, 0.98, 0);
+      for (const sx of [1, -1]) mesh(body, dome(0.115, 0.5), chestM, sx * 0.22, 1.54, 0, 0, 0, -sx * 0.45).scale.set(1, 0.65, 1);
+      mesh(body, box(0.32, 0.05, 0.19), leatherM, 0, 1.0, 0);
+    }
+
+    // ---- cloak ----
+    P.cloak = null;
+    if (gear.cloak !== 'none') {
+      const cm = M({ id: CL.set, color: CL.color, rim: 0.4, side: THREE.DoubleSide }); mats.push(cm);
+      const g = new THREE.CylinderGeometry(0.2, 0.34, 1.2, 12, 4, true, Math.PI * 0.55, Math.PI * 0.9);
+      const pos = g.attributes.position; for (let i = 0; i < pos.count; i++) { const y = pos.getY(i), x = pos.getX(i); pos.setZ(i, pos.getZ(i) + Math.sin(x * 14) * 0.02 * (0.6 - y)); }
+      g.computeVertexNormals();
+      P.cloak = mesh(body, g, cm, 0, 0.97, -0.07);
+      if (knight) mesh(body, box(0.32, 0.06, 0.08), cm, 0, 1.6, -0.09);
+    }
+
+    // ---- head & helm ----
+    mesh(body, new THREE.CylinderGeometry(0.05, 0.055, 0.1, 6), skin, 0, 1.6, 0.01);
+    const head = new THREE.Group(); head.position.set(0, 1.72, 0); body.add(head); P.head = head;
+    if (gear.helm === 'greathelm') {
+      mesh(head, lathe([[0.0, 0.215], [0.07, 0.21], [0.12, 0.19], [0.14, 0.14], [0.145, 0.0], [0.142, -0.1], [0.13, -0.13]], 16, 1.05), helmM);
+      mesh(head, box(0.22, 0.02, 0.05), slit, 0, 0.04, 0.135);
+      mesh(head, box(0.03, 0.27, 0.03), brass, 0, 0.02, 0.145);           // cross brace
+      mesh(head, box(0.2, 0.03, 0.025), brass, 0, 0.09, 0.14);
+      for (let k = 0; k < 4; k++) mesh(head, box(0.012, 0.012, 0.02), slit, 0.05 + (k % 2) * 0.025, -0.04 - Math.floor(k / 2) * 0.025, 0.142);
+      const plume = M({ id: ID.SILK, color: 0xc01818, rim: 0.3 }); mats.push(plume);
+      P.plume = new THREE.Group(); P.plume.position.set(0, 0.21, -0.01); head.add(P.plume);
+      for (let k = 0; k < 6; k++) mesh(P.plume, new THREE.ConeGeometry(0.028, 0.3, 5), plume, (k - 2.5) * 0.008, 0.08 + k * 0.012, -0.06 - k * 0.04, -1.0 - k * 0.12);
+    } else if (gear.helm === 'sallet') {
+      mesh(head, lathe([[0.0, 0.17], [0.09, 0.16], [0.135, 0.1], [0.145, 0.0], [0.15, -0.06]], 14, 1.05), helmM);
+      mesh(head, new THREE.ConeGeometry(0.17, 0.14, 12, 1, true), helmM, 0, -0.06, -0.06, -0.5);
+      mesh(head, box(0.2, 0.02, 0.04), slit, 0, 0.02, 0.135);
+      mesh(head, lathe([[0.13, -0.02], [0.12, -0.14], [0.05, -0.17]], 12, 0.9), helmM, 0, 0, 0.02);   // bevor
+    } else if (gear.helm === 'coif') {
+      mesh(head, new THREE.SphereGeometry(0.135, 12, 9), helmM).scale.set(0.95, 1.1, 1);
+      mesh(head, lathe([[0.12, 0.0], [0.15, -0.12], [0.2, -0.17]], 14, 0.8), helmM, 0, -0.04, 0);
+      mesh(head, box(0.12, 0.1, 0.03), skin, 0, 0.0, 0.12);
+      mesh(head, box(0.1, 0.015, 0.02), slit, 0, 0.025, 0.135);
+    } else if (gear.helm === 'hood') {
+      mesh(head, new THREE.SphereGeometry(0.12, 10, 8), skin).scale.set(0.9, 1.1, 1);
+      mesh(head, new THREE.ConeGeometry(0.17, 0.42, 10, 1, true), helmM, 0, 0.08, -0.04, -0.35);
+      mesh(head, lathe([[0.13, 0.0], [0.17, -0.12], [0.22, -0.16]], 12, 0.8), helmM, 0, -0.06, 0);
+      mesh(head, box(0.1, 0.02, 0.02), slit, 0, 0.02, 0.12);
+    } else if (gear.helm === 'horned') {
+      mesh(head, lathe([[0.0, 0.19], [0.1, 0.17], [0.145, 0.08], [0.15, -0.06], [0.13, -0.12]], 14, 1.05), helmM);
+      mesh(head, box(0.2, 0.025, 0.05), slit, 0, 0.03, 0.135);
+      for (const sx of [1, -1]) {
+        const h = new THREE.Group(); h.position.set(sx * 0.13, 0.1, 0); h.rotation.z = -sx * 1.0; head.add(h);
+        mesh(h, new THREE.ConeGeometry(0.04, 0.22, 6), helmM, 0, 0.11, 0);
+        mesh(h, new THREE.ConeGeometry(0.025, 0.16, 6), helmM, 0, 0.27, -0.03, -0.5, 0, sx * 0.6);
+      }
+    }
+
+    // ---- left arm: rerebrace, couter, vambrace, gauntlet ----
+    P.armL = new THREE.Group(); P.armL.position.set(0.235, 1.48, 0); body.add(P.armL);
+    const armMat = knight ? plate : gear.chest === 'hauberk' || gear.chest === 'scale' ? chestM : under;
+    mesh(P.armL, lathe([[0.04, -0.28], [0.048, -0.15], [0.05, 0.0]], 8), armMat);
+    if (knight) mesh(P.armL, dome(0.048, 0.6), plate, 0, -0.3, -0.02, 1.4);
+    mesh(P.armL, lathe([[0.034, -0.56], [0.044, -0.45], [0.042, -0.3]], 8), knight ? plate : leatherM);
+    mesh(P.armL, box(0.075, 0.09, 0.075), knight ? darkSteel : leatherM, 0, -0.6, 0.01);
+
+    // ---- right arm + sword live in the swing pivot ----
+    const sp = P.swing = new THREE.Group(); sp.position.set(0, 1.44, 0.02); body.add(sp);
+    const arm = lathe([[0.045, 0.0], [0.05, 0.22], [0.04, 0.44]], 8); arm.rotateX(Math.PI / 2);
+    mesh(sp, arm, armMat, -0.215, 0, 0);
+    if (knight) mesh(sp, dome(0.048, 0.6), plate, -0.215, 0.0, 0.24, 0, 0, 0);
+    mesh(sp, box(0.08, 0.08, 0.09), knight ? darkSteel : leatherM, -0.215, 0, 0.46);
+    const sword = P.sword = new THREE.Group(); sword.position.set(-0.215, 0, 0.48); sp.add(sword);
+    const sm = P.swordMats;
+    mesh(sword, box(0.04, 0.04, 0.22), sm.hilt, 0, 0, -0.01);
+    mesh(sword, new THREE.OctahedronGeometry(0.035, 0), sm.guard, 0, 0, -0.14);
+    mesh(sword, box(0.3, 0.035, 0.05), sm.guard, 0, 0, 0.11);
+    const bg = new THREE.BoxGeometry(0.075, 0.022, 1.15, 1, 1, 8); const bp = bg.attributes.position;
+    for (let i = 0; i < bp.count; i++) { const k = (bp.getZ(i) + 0.575) / 1.15; if (k > 0.86) bp.setX(i, bp.getX(i) * Math.max(0, (1 - k) / 0.14)); }
+    bg.computeVertexNormals();
+    P.blade = mesh(sword, bg, sm.blade, 0, 0, 0.71);
+    P.tipObj = new THREE.Object3D(); P.tipObj.position.set(0, 0, 1.28); sword.add(P.tipObj);
+    P.baseObj = new THREE.Object3D(); P.baseObj.position.set(0, 0, 0.24); sword.add(P.baseObj);
+
+    P.mats = mats.concat([sm.blade]);
+  };
+
+  // ---------- gear screen ----------
+  const $ = id => document.getElementById(id);
+  const U = K.UI = { ang: 0.4, open: false };
+  U.toggle = function (G, on) {
+    U.G = G; U.open = on;
+    $('gear').classList.toggle('hidden', !on);
+    if (on) { U.ang = G.player.visYaw + 0.5; U.render(); GWAudio.sfx('ui'); }
+  };
+  U.render = function () {
+    const P = U.G.player, gs = K.stats(P.gear);
+    const lists = $('g-lists'); lists.innerHTML = '';
+    for (const slot of K.SLOTS) {
+      const h = document.createElement('div'); h.className = 'f-sec'; h.textContent = slot === 'helm' ? 'Helm' : slot === 'chest' ? 'Body armour' : 'Cloak'; lists.appendChild(h);
+      const row = document.createElement('div'); row.className = 'f-row';
+      for (const key of Object.keys(K.GEAR[slot])) {
+        const it = K.GEAR[slot][key], owned = key === 'none' || P.inv.armor[key];
+        if (!owned) continue;
+        const b = document.createElement('button'); b.className = 'chip' + (P.gear[slot] === key ? ' sel' : '');
+        const col = '#' + (it.color || 0x6b7385).toString(16).padStart(6, '0');
+        b.innerHTML = `<span style="color:${col}">${K.pattern(it.set)}</span> ${it.name}`;
+        b.onclick = () => { P.gear[slot] = key; K.dress(P); P.recalc(); GWAudio.sfx(slot === 'cloak' ? 'roll' : 'block'); U.render(); U.G.save(); };
+        b.title = it.desc;
+        row.appendChild(b);
+      }
+      const unknown = Object.keys(K.GEAR[slot]).filter(k => k !== 'none' && !P.inv.armor[k]).length;
+      if (unknown) { const d = document.createElement('span'); d.className = 'chip off'; d.textContent = '? ×' + unknown; row.appendChild(d); }
+      lists.appendChild(row);
+    }
+    const lines = [`Armour <b>${gs.armor}</b>  (−${Math.round(gs.reduce * 100)}% damage taken)`];
+    if (gs.hp) lines.push('Health +' + gs.hp);
+    if (gs.crit) lines.push('Critical +' + Math.round(gs.crit * 100) + '%');
+    if (gs.move) lines.push('Move speed ' + (gs.move > 0 ? '+' : '') + Math.round(gs.move * 100) + '%');
+    if (gs.stam) lines.push('Stamina regen +' + Math.round(gs.stam * 100) + '%');
+    if (gs.focus) lines.push('Focus regen +' + Math.round(gs.focus * 100) + '%');
+    for (const slot of K.SLOTS) { const it = K.GEAR[slot][P.gear[slot]]; lines.push(`<span style="color:#6b7385">${it.name}:</span> ${it.desc}`); }
+    $('g-stats').innerHTML = lines.join('\n');
+  };
+  U.freeRect = function () {
+    const W = window.innerWidth, H = window.innerHeight, side = $('g-side').getBoundingClientRect();
+    if (W <= 640) return { cx: W / 2, cy: (40 + side.top) / 2 };
+    return { cx: side.left / 2, cy: H / 2 };
+  };
+  U.init = function (G) {
+    $('g-close').onclick = () => G.closeGear();
+    let last = null;
+    const cv = $('gl');
+    cv.addEventListener('pointerdown', e => { if (U.open) { last = e.clientX; U.drag = true; } });
+    window.addEventListener('pointermove', e => { if (U.open && last !== null) { U.ang -= (e.clientX - last) * 0.012; last = e.clientX; } });
+    window.addEventListener('pointerup', () => { last = null; U.drag = false; });
+  };
 })();
 
 </script>
@@ -1324,7 +1646,7 @@ body.touch #hotbar { display: none; }
           vec3 deep = vec3(0.02, 0.05, 0.11);
           vec3 col = deep + L * vec3(0.12, 0.2, 0.35) + vec3(0.45, 0.62, 0.9) * (foam * 0.8 + streak * 0.55) * (0.5 + L * 1.5);
           col *= fogAt(vW);
-          gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 16.0);
+          gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
     });
     const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
@@ -1378,7 +1700,7 @@ body.touch #hotbar { display: none; }
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.17, 0.27, 0.19), vec3(0.25, 0.31, 0.27), tone), t);
+          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.16, 0.29, 0.17), vec3(0.24, 0.33, 0.24), tone), t);
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}
@@ -1386,7 +1708,7 @@ body.touch #hotbar { display: none; }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 col = vCol * (L * 2.8 + 0.22);
           col *= fogAt(vW);
-          gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 16.0);
+          gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
     });
     const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
@@ -1605,7 +1927,8 @@ body.touch #hotbar { display: none; }
     this.state = 'move'; this.t = 0; this.combo = 0; this.queued = null; this.iframe = 0;
     this.cd = { s2: 0, s3: 0, s4: 0 };
     this.weapon = { metal: 'iron', runes: [null, null, null] };
-    this.inv = { runes: {}, ingots: {} };
+    this.gear = Object.assign({}, GW.Knight.DEFAULT);
+    this.inv = { runes: {}, ingots: {}, armor: { greathelm: 1, knightplate: 1, crimson: 1 } };
     this.hitSet = new Set(); this.walkPhase = 0; this.hurtT = 0; this.healT = 0;
     this.buildModel(scene);
     this.trail = new Trail(scene, 16);
@@ -1615,62 +1938,17 @@ body.touch #hotbar { display: none; }
   }
   Player.prototype.buildModel = function (scene) {
     const g = this.model = new THREE.Group(); scene.add(g);
-    const body = this.body = new THREE.Group(); g.add(body);
-    const armor = GW.mat({ id: ID.METAL, color: 0x9aa0ae, rim: 0.6 });
-    const dark = GW.mat({ id: ID.CLOTH, color: 0x2a2a34, rim: 0.3 });
-    const cloak = GW.mat({ id: ID.CLOTH, color: 0xb01a1a, rim: 0.4, side: THREE.DoubleSide });
-    const skin = GW.mat({ id: ID.BODY, color: 0xd0b8a0, rim: 0.4 });
-    this.mats = [armor, dark, cloak, skin];
-    // legs: thigh + shin with a knee joint, human proportions (about 1.85 m tall)
-    const leg = (x) => {
-      const hip = new THREE.Group(); hip.position.set(x, 0.92, 0); body.add(hip);
-      part(hip, box(0.12, 0.46, 0.14), dark, 0, -0.23, 0);
-      const knee = new THREE.Group(); knee.position.set(0, -0.46, 0); hip.add(knee);
-      part(knee, box(0.1, 0.42, 0.12), dark, 0, -0.21, 0);
-      part(knee, box(0.11, 0.16, 0.13), armor, 0, -0.06, 0.01); // knee guard
-      part(knee, box(0.11, 0.09, 0.22), armor, 0, -0.42, 0.04); // boot
-      return [hip, knee];
-    };
-    [this.legL, this.shinL] = leg(0.09); [this.legR, this.shinR] = leg(-0.09);
-    // pelvis + belt
-    part(body, box(0.3, 0.14, 0.18), dark, 0, 0.96, 0);
-    part(body, box(0.32, 0.05, 0.2), GW.mat({ id: ID.WOOD, color: 0x4a3020 }), 0, 1.02, 0);
-    // torso: tapered from shoulders to waist, flattened front-to-back
-    const tg = new THREE.CylinderGeometry(0.19, 0.14, 0.52, 8); tg.scale(1, 1, 0.62);
-    part(body, tg, armor, 0, 1.3, 0);
-    // pauldrons
-    part(body, new THREE.SphereGeometry(0.095, 8, 6), armor, 0.21, 1.52, 0).scale.set(1.25, 0.8, 1.1);
-    part(body, new THREE.SphereGeometry(0.095, 8, 6), armor, -0.21, 1.52, 0).scale.set(1.25, 0.8, 1.1);
-    // cloak hangs from the shoulders
-    const cg = new THREE.CylinderGeometry(0.19, 0.42, 1.22, 10, 3, true, Math.PI * 0.5, Math.PI);
-    this.cloak = part(body, cg, cloak, 0, 0.98, -0.06);
-    // neck, head, helm
-    part(body, new THREE.CylinderGeometry(0.05, 0.055, 0.1, 6), skin, 0, 1.6, 0.01);
-    part(body, new THREE.SphereGeometry(0.115, 10, 8), skin, 0, 1.72, 0.015).scale.set(0.9, 1.1, 1);
-    part(body, new THREE.CylinderGeometry(0.122, 0.128, 0.16, 10), armor, 0, 1.76, 0);
-    part(body, new THREE.ConeGeometry(0.125, 0.17, 10), armor, 0, 1.92, 0);
-    part(body, box(0.16, 0.025, 0.03), dark, 0, 1.75, 0.12);
-    // left arm (upper + forearm), hangs at the side
-    this.armL = new THREE.Group(); this.armL.position.set(0.23, 1.48, 0); body.add(this.armL);
-    part(this.armL, box(0.08, 0.3, 0.09), armor, 0, -0.15, 0);
-    part(this.armL, box(0.07, 0.27, 0.08), dark, 0, -0.43, 0);
-    part(this.armL, box(0.07, 0.08, 0.08), skin, 0, -0.6, 0);
-    // sword pivot + right arm + sword
-    const sp = this.swing = new THREE.Group(); sp.position.set(0, 1.42, 0.03); body.add(sp);
-    part(sp, box(0.08, 0.08, 0.46), armor, -0.21, 0.0, 0.2);
-    const sword = this.sword = new THREE.Group(); sword.position.set(-0.21, 0, 0.46); sp.add(sword);
-    this.swordMats = { blade: GW.mat({ id: ID.METAL, color: 0xb8c0cc, rim: 1.0 }), hilt: GW.mat({ id: ID.WOOD, color: 0x4a3020 }), guard: GW.mat({ id: ID.METAL, color: 0x8a7040, rim: 0.5 }) };
-    part(sword, box(0.045, 0.045, 0.24), this.swordMats.hilt, 0, 0, -0.02);
-    part(sword, box(0.3, 0.05, 0.06), this.swordMats.guard, 0, 0, 0.12);
-    this.blade = part(sword, box(0.07, 0.022, 1.1), this.swordMats.blade, 0, 0, 0.7);
-    this.tipObj = new THREE.Object3D(); this.tipObj.position.set(0, 0, 1.27); sword.add(this.tipObj);
-    this.baseObj = new THREE.Object3D(); this.baseObj.position.set(0, 0, 0.24); sword.add(this.baseObj);
-    this.mats.push(this.swordMats.blade);
+    this.body = new THREE.Group(); g.add(this.body);
+    this.swordMats = { blade: GW.mat({ id: ID.METAL, color: 0xb8c0cc, rim: 1.0 }), hilt: GW.mat({ id: ID.LEATHER, color: 0x4a3020 }), guard: GW.mat({ id: ID.METAL, color: 0xc8a050, rim: 0.6 }) };
+    GW.Knight.dress(this);
   };
   Player.prototype.recalc = function () {
     const s = GW.Forge.weaponStats(this.weapon, this.level);
     this.ws = s;
-    const vig = s.vigor || 0;
+    const gs = this.gs = GW.Knight.stats(this.gear);
+    s.crit += gs.crit; s.focusRegen *= 1 + gs.focus;
+    this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
+    const vig = (s.vigor || 0) + gs.hp;
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);
     if (this.maxHp > old) this.hp += this.maxHp - old;
@@ -1693,7 +1971,7 @@ body.touch #hotbar { display: none; }
     if (this.state === 'dead') { this.animate(dt); return; }
     // regen
     this.stDelay -= dt;
-    if (this.stDelay <= 0 && this.state !== 'roll') this.st = Math.min(100, this.st + 38 * dt);
+    if (this.stDelay <= 0 && this.state !== 'roll') this.st = Math.min(100, this.st + 38 * (this.stMul || 1) * dt);
     this.fo = Math.min(100, this.fo + dt * 4.5 * (this.ws.focusRegen || 1));
     if (this.healT > 0) { const h = Math.min(this.healT, dt * 1.6) * this.maxHp * 0.45 / 0.6; this.healT -= dt * 1.6; this.hp = Math.min(this.maxHp, this.hp + h); }
 
@@ -1701,7 +1979,7 @@ body.touch #hotbar { display: none; }
     const ml = Math.min(1, mv.length()); if (ml > 0.01) mv.normalize();
     this._mv = ml > 0.1 && this.state === 'move';
     const wading = W.inWater(this.pos.x, this.pos.z);
-    let speed = 6.2 * (wading ? 0.55 : 1);
+    let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
 
     // buffer inputs
@@ -1911,7 +2189,9 @@ body.touch #hotbar { display: none; }
     this.legL.rotation.x = legA; this.legR.rotation.x = -legA;
     this.shinL.rotation.x = Math.max(0, legA) * 1.2 + (this.state === 'roll' ? 1.4 : 0); this.shinR.rotation.x = Math.max(0, -legA) * 1.2 + (this.state === 'roll' ? 1.4 : 0);
     sw.rotation.set(sx, sy, sz, 'YXZ');
-    this.cloak.rotation.x = -0.12 - Math.min(0.5, Math.abs(walk) * 0.15) - (this.state === 'roll' ? 0.5 : 0);
+    if (this.cloak) this.cloak.rotation.x = -0.12 - Math.min(0.5, Math.abs(walk) * 0.15) - (this.state === 'roll' ? 0.5 : 0) - (this._mv ? 0.12 : 0);
+    if (this.plume) this.plume.rotation.x = Math.sin(this.t * 3) * 0.08 - (this._mv ? 0.25 : 0);
+    if (this.tabard) this.tabard.rotation.x = -legA * 0.25;
     const fl = this.hurtT > 0 ? this.hurtT * 3 : 0;
     for (const mt of this.mats) mt.uniforms.uFlash.value = fl;
   };
@@ -2613,7 +2893,7 @@ body.touch #hotbar { display: none; }
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'interact', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll' };
+  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'interact', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {
@@ -2932,6 +3212,11 @@ body.touch #hotbar { display: none; }
   function give(kind, key, n) {
     const P = G.player; n = n || 1;
     if (kind === 'rune') { P.inv.runes[key] = (P.inv.runes[key] || 0) + n; const R = GW.Forge.RUNES[key]; UI.toast(`<span style="color:#${R.color.toString(16).padStart(6, '0')}">${R.g}</span> ${R.name} rune${n > 1 ? ' ×' + n : ''}`, 3); }
+    else if (kind === 'armor') {
+      const slot = GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key]), it = GW.Knight.GEAR[slot][key];
+      const isNew = !P.inv.armor[key]; P.inv.armor[key] = 1;
+      UI.toast(`<span style="color:#${it.color.toString(16).padStart(6, '0')}">${GW.Knight.pattern(it.set)}</span> ${it.name}${isNew ? ' · <span style="color:#ffcf6a">open Gear to wear it</span>' : ''}`, 4);
+    }
     else { P.inv.ingots[key] = (P.inv.ingots[key] || 0) + n; const M = GW.Forge.METALS[key]; UI.toast(`<span style="color:#${M.color.toString(16).padStart(6, '0')}">${M.glyph}</span> ${M.name} ingot${n > 1 ? ' ×' + n : ''}`, 3); }
     GWAudio.sfx('pickup');
   }
@@ -2942,9 +3227,9 @@ body.touch #hotbar { display: none; }
     refreshQuest();
     if (G.counters[key] >= q.need[key]) {
       if (q.id === 'wake') { advance(); setTimeout(() => UI.hint('Follow the <span style="color:#ffcf6a">▲ marker</span> north to Emberhold.', 5), 1500); }
-      else if (q.id === 'wolves') { give('rune', 'frost'); give('rune', 'swift'); gainXP(120); advance(); whisper('The wolves are thinned. West, the ruins still mutter. Break what walks there.'); }
-      else if (q.id === 'hollows') { give('ingot', 'silver'); give('rune', 'keen'); give('rune', 'ward'); gainXP(200); advance(); whisper('East, in Wispwood, lanterns drift that no hand carries. Snuff three.'); }
-      else if (q.id === 'wisps') { give('ingot', 'duskglass'); give('rune', 'storm'); give('rune', 'vigor'); gainXP(240); advance(); whisper('Come back to the fire, wanderer. The stones have spoken.'); }
+      else if (q.id === 'wolves') { give('rune', 'frost'); give('rune', 'swift'); give('armor', 'hood'); gainXP(120); advance(); whisper('The wolves are thinned. West, the ruins still mutter. Break what walks there.'); }
+      else if (q.id === 'hollows') { give('ingot', 'silver'); give('armor', 'sallet'); give('rune', 'keen'); give('rune', 'ward'); gainXP(200); advance(); whisper('East, in Wispwood, lanterns drift that no hand carries. Snuff three.'); }
+      else if (q.id === 'wisps') { give('ingot', 'duskglass'); give('armor', 'night'); give('rune', 'storm'); give('rune', 'vigor'); gainXP(240); advance(); whisper('Come back to the fire, wanderer. The stones have spoken.'); }
     }
   }
   function whisper(text) { setTimeout(() => UI.toast('<span style="color:#ffcf6a">Mara (whisper):</span> ' + text, 6), 2200); }
@@ -2996,7 +3281,8 @@ body.touch #hotbar { display: none; }
     spawnAll();
     G.player.place(Lw.start.x, Lw.start.z + 5);
     UI.initInput(G); UI.buildHotbar(); UI.initMinimap();
-    GW.Forge.UI.init();
+    GW.Forge.UI.init(); GW.Knight.UI.init(G);
+    $('p-gear').onclick = () => openGear(); $('gear-btn').onclick = () => openGear();
     UI.initSettings(applySettings);
     $('logo').textContent = UI.makeLogo('GLYPHWAKE');
     // menus
@@ -3054,6 +3340,8 @@ body.touch #hotbar { display: none; }
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks });
           P.weapon = d.weapon; P.inv = d.inv;
+          P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
+          P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
         }
@@ -3085,6 +3373,9 @@ body.touch #hotbar { display: none; }
     const ingots = Object.entries(P.inv.ingots).filter(([, n]) => n > 0).map(([k, n]) => F.METALS[k].name + '×' + n).join(', ') || '·';
     $('char-sheet').textContent = `Level ${P.level}   HP ${Math.ceil(P.hp)}/${P.maxHp}\nBlade: ${F.weaponName(P.weapon)}\nDamage ${s.dmg.toFixed(1)} · Crit ${Math.round(s.crit * 100)}% · Speed ${Math.round(s.speed * 100)}%\nRunes in pack: ${runes}\nIngots: ${ingots}\nFlasks: ${P.flasks}/${P.maxFlasks}`;
   }
+  function openGear() { if (G.state !== 'play' && G.state !== 'paused') return; $('pause').classList.add('hidden'); G.state = 'gear'; $('hud').classList.add('hidden'); GW.Knight.UI.toggle(G, true); }
+  G.closeGear = function () { GW.Knight.UI.toggle(G, false); G.state = 'play'; $('hud').classList.remove('hidden'); G.camera.clearViewOffset(); G.snapCam = true; save(); };
+  G.openGear = openGear;
   function openForge() { if (G.state !== 'play') return; G.state = 'forge'; $('hud').classList.add('hidden'); GW.Forge.UI.open(G); }
   G.closeForge = function () { G.state = 'play'; $('hud').classList.remove('hidden'); save(); };
   G.onSocket = function () { if (QUESTS[G.stage].id === 'smith') { give('ingot', 'bronze'); give('ingot', 'steel'); setTimeout(() => { advance(); UI.toast('Hesk: "Take these ingots, too. Try a new metal."', 4); }, 400); } };
@@ -3210,6 +3501,8 @@ body.touch #hotbar { display: none; }
     const drops = { wolf: [['rune', ['ember', 'frost', 'venom', 'swift'], 0.12], ['ingot', ['bronze'], 0.12]],
       hollow: [['rune', ['keen', 'ward', 'storm', 'vigor'], 0.16], ['ingot', ['steel', 'silver'], 0.2]],
       wisp: [['rune', ['storm', 'frost', 'thirst'], 0.16], ['ingot', ['duskglass', 'gold'], 0.14]] }[e.type] || [];
+    const armorDrops = { wolf: [['armor', ['leather', 'coif'], 0.05]], hollow: [['armor', ['hauberk', 'coif', 'sallet'], 0.08]], wisp: [['armor', ['scale', 'night'], 0.07]] }[e.type] || [];
+    drops.push(...armorDrops.filter(([, pool]) => pool.some(k => !P.inv.armor[k])).map(([k, pool, ch]) => [k, pool.filter(x => !P.inv.armor[x]), ch]));
     for (const [kind, pool, ch] of drops) if (Math.random() < ch * luck) spawnPickup(kind, pool[Math.floor(Math.random() * pool.length)], e.pos);
     if (e.T.boss) bossDefeated(e);
   }
@@ -3224,7 +3517,7 @@ body.touch #hotbar { display: none; }
     }
   }
   function spawnPickup(kind, key, at) {
-    const col = kind === 'rune' ? GW.Forge.RUNES[key].color : GW.Forge.METALS[key].color;
+    const col = kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
     const m = new THREE.Mesh(kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
     const p = at.clone(); p.x += (Math.random() - 0.5) * 1.2; p.z += (Math.random() - 0.5) * 1.2;
     m.position.copy(p); G.scene.add(m);
@@ -3239,7 +3532,7 @@ body.touch #hotbar { display: none; }
       if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
     }
-    dmg = Math.round(dmg * (1 - P.ws.ward));
+    dmg = Math.round(dmg * (1 - P.ws.ward) * (1 - (P.gs ? P.gs.reduce : 0)));
     P.hp -= dmg; P.hurtT = 0.35; G.hurtFx = Math.min(1, G.hurtFx + 0.6);
     UI.float(String(dmg), P.pos, { color: '#ff5050', size: 15, y: 2.4 });
     GWAudio.sfx('hurt'); G.shake(o.heavy ? 0.6 : 0.3); G.hitstop = 0.06;
@@ -3280,7 +3573,7 @@ body.touch #hotbar { display: none; }
     G.flashWhite = 1; G.shake(1.2); GWAudio.sfx('boom'); GWAudio.sfx('quest');
     for (let k = 0; k < 80; k++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 9; G.parts.spark.emit(e.pos.x, e.pos.y + 3, e.pos.z, Math.cos(a) * s, 3 + Math.random() * 8, Math.sin(a) * s, 2, 1.4, Math.random() < 0.5 ? 0x60d0ff : 0xffd060, -6); }
     GW.World.arenaStones.forEach(s => { s.band.material.uniforms.uEmissive.value.setRGB(0.3, 0.8, 1.0); });
-    spawnPickup('ingot', 'starfall', e.pos); spawnPickup('rune', 'thirst', e.pos); spawnPickup('rune', 'venom', e.pos);
+    spawnPickup('ingot', 'starfall', e.pos); spawnPickup('armor', 'horned', e.pos); spawnPickup('armor', 'ember', e.pos); spawnPickup('rune', 'thirst', e.pos); spawnPickup('rune', 'venom', e.pos);
     setTimeout(() => { UI.banner('VERTICAL SLICE COMPLETE', 'THE WARDEN FALLS', 6); }, 1200);
     setTimeout(() => { if (QUESTS[G.stage].id === 'boss') advance(); }, 7000);
     save();
@@ -3302,7 +3595,7 @@ body.touch #hotbar { display: none; }
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
+    const d = { v: 1, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
   function loadData() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
@@ -3352,10 +3645,26 @@ body.touch #hotbar { display: none; }
     const pressed = I.consume();
     if (pressed.menu) {
       if (G.state === 'forge') GW.Forge.UI.close();
+      else if (G.state === 'gear') G.closeGear();
       else if (G.state === 'play' && !UI.inDialog()) togglePause(true);
       else if (G.state === 'paused') togglePause(false);
     }
     UI.tick(dt);
+    if (pressed.gear) { if (G.state === 'gear') G.closeGear(); else if (G.state === 'play' && !UI.inDialog()) openGear(); }
+    if (G.state === 'gear') {
+      const U = GW.Knight.UI, C = G.camera;
+      if (!U.drag) U.ang += dt * 0.25;
+      G.player.animate(0.016);
+      const p = G.player.pos, r = window.innerWidth < 640 ? 6.4 : 3.8;
+      C.aspect = G.R.aspect; C.fov = 40; C.updateProjectionMatrix();
+      C.position.set(p.x + Math.sin(U.ang) * r, p.y + 1.6, p.z + Math.cos(U.ang) * r);
+      C.lookAt(p.x, p.y + 1.0, p.z);
+      const fr = U.freeRect(); C.setViewOffset(window.innerWidth, window.innerHeight, window.innerWidth / 2 - fr.cx, window.innerHeight / 2 - fr.cy, window.innerWidth, window.innerHeight);
+      for (const u of GW.World.grass.push) u.z = 0; GW.World.grass.push[0].set(p.x, p.z, 3.2);
+      GW.World.update(0, G.t, p.x, p.z); GW.World.lights.update(p.x, p.z, G.t);
+      G.R.render(G.scene, C, { hurt: 0, white: 0 });
+      return;
+    }
     if (G.state === 'forge') {
       if (pressed.interact) GW.Forge.UI.close();
       const v = GW.Forge.UI.view();

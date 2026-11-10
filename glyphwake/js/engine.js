@@ -28,10 +28,21 @@
     /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 1.9, under: 0.12, edge: 0, bright: 1.15, white: 0.3, flick: 0 },
     /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.3, under: 0.1, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
+    // ---- armour glyph patterns (actors) ----
+    /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
+    /* 17 plate   */ { ramp: " .-=:=#H#@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.35, white: 0.5, flick: 0, actor: 1, jit: 0.06, pat: 2 },
+    /* 18 leather */ { ramp: " .,:;x%&%", mode: 0, gain: 2.2, under: 0.15, edge: 0, bright: 1.15, white: 0.15, flick: 0, actor: 1, jit: 0.18, pat: 0 },
+    /* 19 scale   */ { ramp: " .vvVwWWM", mode: 0, gain: 2.1, under: 0.12, edge: 0, bright: 1.2, white: 0.3, flick: 0, actor: 1, jit: 0.08, pat: 3 },
+    /* 20 silk    */ { ramp: " .'~^*\"&", mode: 0, gain: 2.2, under: 0.18, edge: 0, bright: 1.2, white: 0.1, flick: 0, actor: 1, jit: 0.12, pat: 0 },
+    /* 21 boneplt */ { ramp: " .,!|IXX$", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.45, flick: 0, actor: 1, jit: 0.1, pat: 2 },
+    /* 22 tabard  */ { ramp: " .:;=+x#%", mode: 0, gain: 2.3, under: 0.2, edge: 0, bright: 1.25, white: 0.05, flick: 0, actor: 1, jit: 0.1, pat: 0 },
   ];
-  const ID = E.ID = { VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
+  // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
+  [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.12; });
+  while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
+  const ID = E.ID = { MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
   E.SETS = SETS;
-  const COLS = 16, ROWS = 17; // row 16: edge glyphs
+  const COLS = 16, ROWS = 33; // row 32: edge glyphs
 
   function buildAtlas() {
     const cw = 32, ch = 48;
@@ -49,7 +60,7 @@
         draw(r[Math.min(k, r.length - 1)], i, row);
       }
     });
-    '|\\-/+'.split('').forEach((chr, i) => draw(chr, i, 16));
+    '|\\-/+'.split('').forEach((chr, i) => draw(chr, i, 32));
     const t = new THREE.CanvasTexture(c);
     t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
     return t;
@@ -116,7 +127,7 @@
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
       col *= fogAt(vW);
-      gl_FragColor = vec4(col, (uId + 0.5) / 16.0);
+      gl_FragColor = vec4(col, (uId + 0.5) / 32.0);
     }`;
 
   // material factory
@@ -142,25 +153,31 @@
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
     uniform vec2 uRes; uniform vec2 uCell; uniform float uTime;
-    uniform vec4 uSet[16]; uniform vec4 uSet2[16];
+    uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
     float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float lum(vec3 c) { return max(max(c.r, c.g), c.b) * 0.55 + dot(c, vec3(0.299, 0.587, 0.114)) * 0.45; }
-    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 16.0); }
+    int idAt(vec2 cell) { return int(texture2D(tScene, (cell + 0.5) * uCell / uRes).a * 32.0); }
+    float actorAt(vec2 cell) { return uSet2[idAt(cell)].w; }
     void main() {
       vec2 fc = gl_FragCoord.xy;
       vec2 cell = floor(fc / uCell);
       vec2 cuv = fract(fc / uCell);
       vec2 cc = (cell + 0.5) * uCell / uRes;
       vec4 cs = texture2D(tScene, cc);
-      int id = int(cs.a * 16.0);
+      int id = int(cs.a * 32.0);
+      bool actor = uSet2[id].w > 0.5;
       vec4 px = texture2D(tScene, fc / uRes);
-      int pid = int(px.a * 16.0);
+      int pid = int(px.a * 32.0);
       vec3 raw = px.rgb;
-      // raw sets (grass strokes) are decided per pixel so blades stay crisp lines
-      if (uSet[pid].x > 0.5 && uSet[pid].x < 1.5) { gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return; }
+      // raw sets (grass strokes) are decided per pixel so blades stay crisp lines;
+      // around characters the grass is darkened into a halo so silhouettes read
+      if (!actor && uSet[pid].x > 0.5 && uSet[pid].x < 1.5) {
+        float halo = max(max(actorAt(cell + vec2(1.0, 0.0)), actorAt(cell - vec2(1.0, 0.0))), max(actorAt(cell + vec2(0.0, 1.0)), actorAt(cell - vec2(0.0, 1.0))));
+        gl_FragColor = vec4(raw * uSet[pid].y * (1.0 - 0.8 * halo), 1.0); return;
+      }
       if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
-      vec4 S = uSet[id]; vec4 S2 = uSet2[id];
+      vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
       vec2 q = uCell / uRes * 0.3;
       vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
@@ -168,33 +185,48 @@
       float v = clamp(lum(c) * S.y, 0.0, 1.0);
       v = pow(v, 0.8);
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
-      v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * 0.16 * smoothstep(0.03, 0.2, v);
+      float jit = actor ? S3.x : 0.16;
+      v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
+      if (actor) v = max(v, 0.28);
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
+      // woven patterns: mail checker, plate bands, scale rows
+      if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
+      if (S3.y > 1.5 && S3.y < 2.5) idx -= mod(cell.y, 3.0) < 0.5 ? 3.0 : 0.0;
+      if (S3.y > 2.5) idx -= mod(cell.x + floor(cell.y * 0.5) * 1.0, 2.0) * 2.0;
+      idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
       float row = float(id);
-      if (S.w > 0.5 && idx > 0.5) {
+      float edgeBoost = 0.0;
+      if (actor) {
+        float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));
+        float mU = actorAt(cell + vec2(0.0, 1.0)), mD = actorAt(cell + vec2(0.0, -1.0));
+        if (mL + mR + mU + mD < 3.5) {
+          vec2 g = vec2(mR - mL, mU - mD);
+          row = 32.0;
+          if (dot(g, g) < 0.1) idx = 4.0;
+          else idx = mod(floor(atan(g.y, g.x) / 3.14159265 * 4.0 + 0.5), 4.0);
+          edgeBoost = 1.0;
+        }
+      } else if (S.w > 0.5 && idx > 0.5) {
         float mL = idAt(cell + vec2(-1.0, 0.0)) == id ? 1.0 : 0.0;
         float mR = idAt(cell + vec2(1.0, 0.0)) == id ? 1.0 : 0.0;
         float mU = idAt(cell + vec2(0.0, 1.0)) == id ? 1.0 : 0.0;
         float mD = idAt(cell + vec2(0.0, -1.0)) == id ? 1.0 : 0.0;
-        float s = mL + mR + mU + mD;
-        if (s < 3.5) {
+        if (mL + mR + mU + mD < 3.5) {
           vec2 g = vec2(mR - mL, mU - mD);
-          row = 16.0;
+          row = 32.0;
           if (dot(g, g) < 0.1) idx = 4.0;
-          else {
-            float a = atan(g.y, g.x);
-            idx = mod(floor(a / 3.14159265 * 4.0 + 0.5), 4.0);
-          }
+          else idx = mod(floor(atan(g.y, g.x) / 3.14159265 * 4.0 + 0.5), 4.0);
           v = max(v, 0.55);
         }
       }
-      float gm = texture2D(tAtlas, vec2((idx + cuv.x) / 16.0, (16.0 - row + cuv.y) / 17.0)).r;
+      float gm = texture2D(tAtlas, vec2((idx + cuv.x) / 16.0, (32.0 - row + cuv.y) / 33.0)).r;
       float mx = max(max(c.r, c.g), c.b);
       vec3 hue = c / max(mx, 0.03);
-      vec3 tint = mix(hue, vec3(1.0), S2.y * v);
-      vec3 gcol = tint * (0.18 + v * 1.05) * S2.x;
-      gl_FragColor = vec4(c * S.z + gm * gcol, 1.0);
+      vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
+      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.45) * S2.x;
+      vec3 under = actor ? c * S.z : c * S.z;
+      gl_FragColor = vec4(under + gm * gcol, 1.0);
     }`;
   const QUAD_V = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
   const BRIGHT_F = `uniform sampler2D tIn; varying vec2 vUv; uniform vec2 uTexel;
@@ -236,11 +268,12 @@
     this.quadScene = new THREE.Scene(); this.quadScene.add(quad); this.quad = quad;
     this.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const setA = SETS.map(s => new THREE.Vector4(s.mode, s.gain, s.under, s.edge));
-    const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, 0));
+    const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, s.actor || 0));
+    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() },
-        uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB } },
+        uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
     this.brightMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BRIGHT_F, depthTest: false, depthWrite: false });

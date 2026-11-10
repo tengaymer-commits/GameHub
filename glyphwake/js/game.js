@@ -43,6 +43,11 @@
   function give(kind, key, n) {
     const P = G.player; n = n || 1;
     if (kind === 'rune') { P.inv.runes[key] = (P.inv.runes[key] || 0) + n; const R = GW.Forge.RUNES[key]; UI.toast(`<span style="color:#${R.color.toString(16).padStart(6, '0')}">${R.g}</span> ${R.name} rune${n > 1 ? ' ×' + n : ''}`, 3); }
+    else if (kind === 'armor') {
+      const slot = GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key]), it = GW.Knight.GEAR[slot][key];
+      const isNew = !P.inv.armor[key]; P.inv.armor[key] = 1;
+      UI.toast(`<span style="color:#${it.color.toString(16).padStart(6, '0')}">${GW.Knight.pattern(it.set)}</span> ${it.name}${isNew ? ' · <span style="color:#ffcf6a">open Gear to wear it</span>' : ''}`, 4);
+    }
     else { P.inv.ingots[key] = (P.inv.ingots[key] || 0) + n; const M = GW.Forge.METALS[key]; UI.toast(`<span style="color:#${M.color.toString(16).padStart(6, '0')}">${M.glyph}</span> ${M.name} ingot${n > 1 ? ' ×' + n : ''}`, 3); }
     GWAudio.sfx('pickup');
   }
@@ -53,9 +58,9 @@
     refreshQuest();
     if (G.counters[key] >= q.need[key]) {
       if (q.id === 'wake') { advance(); setTimeout(() => UI.hint('Follow the <span style="color:#ffcf6a">▲ marker</span> north to Emberhold.', 5), 1500); }
-      else if (q.id === 'wolves') { give('rune', 'frost'); give('rune', 'swift'); gainXP(120); advance(); whisper('The wolves are thinned. West, the ruins still mutter. Break what walks there.'); }
-      else if (q.id === 'hollows') { give('ingot', 'silver'); give('rune', 'keen'); give('rune', 'ward'); gainXP(200); advance(); whisper('East, in Wispwood, lanterns drift that no hand carries. Snuff three.'); }
-      else if (q.id === 'wisps') { give('ingot', 'duskglass'); give('rune', 'storm'); give('rune', 'vigor'); gainXP(240); advance(); whisper('Come back to the fire, wanderer. The stones have spoken.'); }
+      else if (q.id === 'wolves') { give('rune', 'frost'); give('rune', 'swift'); give('armor', 'hood'); gainXP(120); advance(); whisper('The wolves are thinned. West, the ruins still mutter. Break what walks there.'); }
+      else if (q.id === 'hollows') { give('ingot', 'silver'); give('armor', 'sallet'); give('rune', 'keen'); give('rune', 'ward'); gainXP(200); advance(); whisper('East, in Wispwood, lanterns drift that no hand carries. Snuff three.'); }
+      else if (q.id === 'wisps') { give('ingot', 'duskglass'); give('armor', 'night'); give('rune', 'storm'); give('rune', 'vigor'); gainXP(240); advance(); whisper('Come back to the fire, wanderer. The stones have spoken.'); }
     }
   }
   function whisper(text) { setTimeout(() => UI.toast('<span style="color:#ffcf6a">Mara (whisper):</span> ' + text, 6), 2200); }
@@ -107,7 +112,8 @@
     spawnAll();
     G.player.place(Lw.start.x, Lw.start.z + 5);
     UI.initInput(G); UI.buildHotbar(); UI.initMinimap();
-    GW.Forge.UI.init();
+    GW.Forge.UI.init(); GW.Knight.UI.init(G);
+    $('p-gear').onclick = () => openGear(); $('gear-btn').onclick = () => openGear();
     UI.initSettings(applySettings);
     $('logo').textContent = UI.makeLogo('GLYPHWAKE');
     // menus
@@ -165,6 +171,8 @@
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks });
           P.weapon = d.weapon; P.inv = d.inv;
+          P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
+          P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
         }
@@ -196,6 +204,9 @@
     const ingots = Object.entries(P.inv.ingots).filter(([, n]) => n > 0).map(([k, n]) => F.METALS[k].name + '×' + n).join(', ') || '·';
     $('char-sheet').textContent = `Level ${P.level}   HP ${Math.ceil(P.hp)}/${P.maxHp}\nBlade: ${F.weaponName(P.weapon)}\nDamage ${s.dmg.toFixed(1)} · Crit ${Math.round(s.crit * 100)}% · Speed ${Math.round(s.speed * 100)}%\nRunes in pack: ${runes}\nIngots: ${ingots}\nFlasks: ${P.flasks}/${P.maxFlasks}`;
   }
+  function openGear() { if (G.state !== 'play' && G.state !== 'paused') return; $('pause').classList.add('hidden'); G.state = 'gear'; $('hud').classList.add('hidden'); GW.Knight.UI.toggle(G, true); }
+  G.closeGear = function () { GW.Knight.UI.toggle(G, false); G.state = 'play'; $('hud').classList.remove('hidden'); G.camera.clearViewOffset(); G.snapCam = true; save(); };
+  G.openGear = openGear;
   function openForge() { if (G.state !== 'play') return; G.state = 'forge'; $('hud').classList.add('hidden'); GW.Forge.UI.open(G); }
   G.closeForge = function () { G.state = 'play'; $('hud').classList.remove('hidden'); save(); };
   G.onSocket = function () { if (QUESTS[G.stage].id === 'smith') { give('ingot', 'bronze'); give('ingot', 'steel'); setTimeout(() => { advance(); UI.toast('Hesk: "Take these ingots, too. Try a new metal."', 4); }, 400); } };
@@ -321,6 +332,8 @@
     const drops = { wolf: [['rune', ['ember', 'frost', 'venom', 'swift'], 0.12], ['ingot', ['bronze'], 0.12]],
       hollow: [['rune', ['keen', 'ward', 'storm', 'vigor'], 0.16], ['ingot', ['steel', 'silver'], 0.2]],
       wisp: [['rune', ['storm', 'frost', 'thirst'], 0.16], ['ingot', ['duskglass', 'gold'], 0.14]] }[e.type] || [];
+    const armorDrops = { wolf: [['armor', ['leather', 'coif'], 0.05]], hollow: [['armor', ['hauberk', 'coif', 'sallet'], 0.08]], wisp: [['armor', ['scale', 'night'], 0.07]] }[e.type] || [];
+    drops.push(...armorDrops.filter(([, pool]) => pool.some(k => !P.inv.armor[k])).map(([k, pool, ch]) => [k, pool.filter(x => !P.inv.armor[x]), ch]));
     for (const [kind, pool, ch] of drops) if (Math.random() < ch * luck) spawnPickup(kind, pool[Math.floor(Math.random() * pool.length)], e.pos);
     if (e.T.boss) bossDefeated(e);
   }
@@ -335,7 +348,7 @@
     }
   }
   function spawnPickup(kind, key, at) {
-    const col = kind === 'rune' ? GW.Forge.RUNES[key].color : GW.Forge.METALS[key].color;
+    const col = kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
     const m = new THREE.Mesh(kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
     const p = at.clone(); p.x += (Math.random() - 0.5) * 1.2; p.z += (Math.random() - 0.5) * 1.2;
     m.position.copy(p); G.scene.add(m);
@@ -350,7 +363,7 @@
       if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
     }
-    dmg = Math.round(dmg * (1 - P.ws.ward));
+    dmg = Math.round(dmg * (1 - P.ws.ward) * (1 - (P.gs ? P.gs.reduce : 0)));
     P.hp -= dmg; P.hurtT = 0.35; G.hurtFx = Math.min(1, G.hurtFx + 0.6);
     UI.float(String(dmg), P.pos, { color: '#ff5050', size: 15, y: 2.4 });
     GWAudio.sfx('hurt'); G.shake(o.heavy ? 0.6 : 0.3); G.hitstop = 0.06;
@@ -391,7 +404,7 @@
     G.flashWhite = 1; G.shake(1.2); GWAudio.sfx('boom'); GWAudio.sfx('quest');
     for (let k = 0; k < 80; k++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 9; G.parts.spark.emit(e.pos.x, e.pos.y + 3, e.pos.z, Math.cos(a) * s, 3 + Math.random() * 8, Math.sin(a) * s, 2, 1.4, Math.random() < 0.5 ? 0x60d0ff : 0xffd060, -6); }
     GW.World.arenaStones.forEach(s => { s.band.material.uniforms.uEmissive.value.setRGB(0.3, 0.8, 1.0); });
-    spawnPickup('ingot', 'starfall', e.pos); spawnPickup('rune', 'thirst', e.pos); spawnPickup('rune', 'venom', e.pos);
+    spawnPickup('ingot', 'starfall', e.pos); spawnPickup('armor', 'horned', e.pos); spawnPickup('armor', 'ember', e.pos); spawnPickup('rune', 'thirst', e.pos); spawnPickup('rune', 'venom', e.pos);
     setTimeout(() => { UI.banner('VERTICAL SLICE COMPLETE', 'THE WARDEN FALLS', 6); }, 1200);
     setTimeout(() => { if (QUESTS[G.stage].id === 'boss') advance(); }, 7000);
     save();
@@ -413,7 +426,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
+    const d = { v: 1, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
   function loadData() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
@@ -463,10 +476,26 @@
     const pressed = I.consume();
     if (pressed.menu) {
       if (G.state === 'forge') GW.Forge.UI.close();
+      else if (G.state === 'gear') G.closeGear();
       else if (G.state === 'play' && !UI.inDialog()) togglePause(true);
       else if (G.state === 'paused') togglePause(false);
     }
     UI.tick(dt);
+    if (pressed.gear) { if (G.state === 'gear') G.closeGear(); else if (G.state === 'play' && !UI.inDialog()) openGear(); }
+    if (G.state === 'gear') {
+      const U = GW.Knight.UI, C = G.camera;
+      if (!U.drag) U.ang += dt * 0.25;
+      G.player.animate(0.016);
+      const p = G.player.pos, r = window.innerWidth < 640 ? 6.4 : 3.8;
+      C.aspect = G.R.aspect; C.fov = 40; C.updateProjectionMatrix();
+      C.position.set(p.x + Math.sin(U.ang) * r, p.y + 1.6, p.z + Math.cos(U.ang) * r);
+      C.lookAt(p.x, p.y + 1.0, p.z);
+      const fr = U.freeRect(); C.setViewOffset(window.innerWidth, window.innerHeight, window.innerWidth / 2 - fr.cx, window.innerHeight / 2 - fr.cy, window.innerWidth, window.innerHeight);
+      for (const u of GW.World.grass.push) u.z = 0; GW.World.grass.push[0].set(p.x, p.z, 3.2);
+      GW.World.update(0, G.t, p.x, p.z); GW.World.lights.update(p.x, p.z, G.t);
+      G.R.render(G.scene, C, { hurt: 0, white: 0 });
+      return;
+    }
     if (G.state === 'forge') {
       if (pressed.interact) GW.Forge.UI.close();
       const v = GW.Forge.UI.view();

@@ -33,6 +33,7 @@
     <div id="hotbar"></div>
   </div>
   <button id="menu-btn" aria-label="Menu">≡</button>
+  <button id="gear-btn" aria-label="Gear">⛨</button>
   <!-- touch controls -->
   <div id="touch" class="hidden">
     <div id="stick"><div id="stick-knob"></div></div>
@@ -72,6 +73,16 @@
   <div id="f-tip" class="hidden"></div>
 </div>
 
+<!-- ================= GEAR ================= -->
+<div id="gear" class="hidden">
+  <div class="f-head"><span>GEAR · <b>knight of the vale</b></span><button id="g-close">close (C)</button></div>
+  <div id="g-side">
+    <div id="g-lists"></div>
+    <div id="g-stats"></div>
+  </div>
+  <div class="f-foot">drag to turn · tap a piece to wear it</div>
+</div>
+
 <!-- ================= TITLE ================= -->
 <div id="title">
   <pre id="logo"></pre>
@@ -89,6 +100,7 @@
   <h2>PAUSED</h2>
   <div id="char-sheet"></div>
   <button class="btn" id="p-resume">Resume</button>
+  <button class="btn" id="p-gear">Gear (C)</button>
   <button class="btn ghost" id="p-settings">Settings</button>
   <button class="btn ghost" id="p-quit">Save &amp; quit to title</button>
 </div>
@@ -113,6 +125,7 @@
 <script src="../js/vendor/three.min.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/knight.js"></script>
 <script src="js/world.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/forge.js"></script>

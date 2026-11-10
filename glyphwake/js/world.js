@@ -530,7 +530,7 @@
           vec3 deep = vec3(0.02, 0.05, 0.11);
           vec3 col = deep + L * vec3(0.12, 0.2, 0.35) + vec3(0.45, 0.62, 0.9) * (foam * 0.8 + streak * 0.55) * (0.5 + L * 1.5);
           col *= fogAt(vW);
-          gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 16.0);
+          gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
     });
     const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
@@ -584,7 +584,7 @@
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.17, 0.27, 0.19), vec3(0.25, 0.31, 0.27), tone), t);
+          vCol = mix(vec3(0.02, 0.045, 0.025), mix(vec3(0.16, 0.29, 0.17), vec3(0.24, 0.33, 0.24), tone), t);
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}
@@ -592,7 +592,7 @@
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 col = vCol * (L * 2.8 + 0.22);
           col *= fogAt(vW);
-          gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 16.0);
+          gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
     });
     const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; scene.add(mesh);
