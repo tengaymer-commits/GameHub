@@ -114,7 +114,11 @@
     const has = !!loadData();
     $('t-continue').style.display = has ? '' : 'none';
     $('t-continue').onclick = () => startGame(true);
-    $('t-new').onclick = () => { if (has && !confirm('Start a new journey? Your saved progress will be lost.')) return; startGame(false); };
+    let armed = false;
+    $('t-new').onclick = () => {
+      if (has && !armed) { armed = true; $('t-new').textContent = 'Tap again: erase save'; setTimeout(() => { armed = false; $('t-new').textContent = 'New journey'; }, 3000); return; }
+      startGame(false);
+    };
     $('t-settings').onclick = () => openSettings('title');
     $('p-resume').onclick = () => togglePause(false);
     $('p-settings').onclick = () => openSettings('pause');
