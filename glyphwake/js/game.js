@@ -106,7 +106,7 @@
   }
   function build() {
     $('t-menu').style.visibility = '';
-    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -460,13 +460,15 @@
     const gu = GW.World.grass.mat.uniforms;
     gu.uSize.value = 50 * Math.max(1, D / 22);
     gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);
-    const pitch = 0.98;
+    const pitch = UI.settings.camPitch || 0.98, yaw = UI.settings.camYaw || 0;
+    const sy = Math.sin(yaw), cy = Math.cos(yaw);
     const fwd = P.fwd();
     const ahead = P.state === 'move' ? 1.2 : 0.6;
-    camT.set(P.pos.x + fwd.x * ahead, P.pos.y, P.pos.z + fwd.z * ahead + (portrait ? 2.6 : 0));
+    const po = portrait ? 2.6 : 0;
+    camT.set(P.pos.x + fwd.x * ahead + sy * po, P.pos.y, P.pos.z + fwd.z * ahead + cy * po);
     camLook.lerp(camT, Math.min(1, dt * 6));
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
-    C.position.set(camLook.x, camLook.y + Math.sin(pitch) * D, camLook.z + Math.cos(pitch) * D);
+    C.position.set(camLook.x + sy * Math.cos(pitch) * D, camLook.y + Math.sin(pitch) * D, camLook.z + cy * Math.cos(pitch) * D);
     const s = G.shakeAmt * G.shakeAmt * 0.6;
     C.position.x += (Math.random() - 0.5) * s; C.position.y += (Math.random() - 0.5) * s; C.position.z += (Math.random() - 0.5) * s;
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
@@ -533,7 +535,8 @@
       if (UI.inDialog()) {
         if (pressed.interact || pressed.click || pressed.attack) UI.dialogAdvance();
       } else if (G.state === 'play') {
-        const mv = I.move();
+        const mv0 = I.move(), cyaw = UI.settings.camYaw || 0, cs = Math.cos(cyaw), sn = Math.sin(cyaw);
+        const mv = { x: mv0.x * cs + mv0.z * sn, z: -mv0.x * sn + mv0.z * cs };
         const aim = aimPoint();
         input = { mx: mv.x, mz: mv.z, aim, aimHeld: I.mouse.down,
           attack: pressed.attack || pressed.click || I.mouse.down || I.holdAttack, roll: pressed.roll,

@@ -25,6 +25,25 @@
     window.addEventListener('keyup', e => { I.keys[e.code] = false; });
     const cv = $('gl');
     cv.addEventListener('mousemove', e => { I.mouse.x = e.clientX; I.mouse.y = e.clientY; I.mouse.used = true; });
+    // hold the middle button and drag: orbit (left/right) and tilt (up/down) the camera
+    let orbit = null, lastMid = 0;
+    cv.addEventListener('mousedown', e => {
+      if (e.button !== 1 || game.state !== 'play') return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - lastMid < 320) { UI.settings.camYaw = 0; UI.settings.camPitch = 0.98; UI.saveSettings(); UI.toast('Camera reset', 0.8); }
+      lastMid = now;
+      orbit = { x: e.clientX, y: e.clientY }; cv.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', e => {
+      if (!orbit) return;
+      const S = UI.settings;
+      S.camYaw = ((S.camYaw || 0) - (e.clientX - orbit.x) * 0.006) % (Math.PI * 2);
+      S.camPitch = GW.clamp((S.camPitch || 0.98) + (e.clientY - orbit.y) * 0.004, 0.32, 1.45);
+      orbit = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('mouseup', e => { if (e.button === 1 && orbit) { orbit = null; cv.style.cursor = ''; UI.saveSettings(); } });
+    cv.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
     cv.addEventListener('mousedown', e => {
       GWAudio.init();
       if (e.button === 0) { I.mouse.down = true; I.press('click'); }
