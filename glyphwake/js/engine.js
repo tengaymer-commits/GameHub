@@ -37,10 +37,15 @@
     /* 21 boneplt */ { ramp: " .,!|IXX$", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.45, flick: 0, actor: 1, jit: 0.1, pat: 2 },
     /* 22 tabard  */ { ramp: " .:;=+x#%", mode: 0, gain: 2.3, under: 0.2, edge: 0, bright: 1.25, white: 0.05, flick: 0, actor: 1, jit: 0.1, pat: 0 },
   ];
+  SETS.push(
+    /* 23 sky     */ { ramp: "    ..'`", mode: 0, gain: 2.6, under: 0.9, edge: 0, bright: 0.6, white: 0.2, flick: 0 },
+    /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
+    /* 25 moon    */ { ramp: " .:oO0@", mode: 0, gain: 1.0, under: 0.55, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
+  );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.12; });
   while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
-  const ID = E.ID = { MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
+  const ID = E.ID = { SKY: 23, STAR: 24, MOON: 25, MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
   E.SETS = SETS;
   const COLS = 16, ROWS = 33; // row 32: edge glyphs
 
@@ -160,7 +165,7 @@
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass;
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
@@ -171,8 +176,20 @@
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 col = vC * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash;
       if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
-      col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
-      gl_FragColor = vec4(col, (uId + 0.5) / 32.0);
+      float outId = uId;
+      if (uFarGrass > 0.0) {
+        // beyond the live grass patch the ground turns into a meadow-coloured field that blends with the blades
+        float dd = length(vW.xz - uCam.xz);
+        float h = fract(sin(dot(floor(vW.xz * 3.0), vec2(12.9898, 78.233))) * 43758.5453);
+        float k = smoothstep(uFarGrass * 0.75, uFarGrass * 1.1, dd + (h - 0.5) * 6.0);
+        if (k > 0.5) {
+          float meadow = smoothstep(0.02, 0.06, vC.g - vC.r);
+          col = mix(col, vec3(0.15, 0.27, 0.17) * (L * 2.6 + 0.16), meadow * k);
+          outId = mix(uId, 2.0, step(0.5, meadow));
+        }
+      }
+      if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
+      gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
     }`;
 
   const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.12, 13: 0.1, 6: 0.15, 22: 0.06 };
@@ -187,6 +204,8 @@
         uFlash: { value: 0 },
         uRim: { value: o.rim !== undefined ? o.rim : 0.0 },
         uUnlit: { value: o.unlit ? 1 : 0 },
+        uNoFog: { value: o.noFog ? 1 : 0 },
+        uFarGrass: { value: o.farGrass || 0 },
         uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,

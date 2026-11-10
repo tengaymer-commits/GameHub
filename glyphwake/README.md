@@ -25,6 +25,11 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 - Armor is bolted to bones in code: helms on `Head`, cloaks on `Chest`, sword and shield in the fists. The helm, cloak and sword are built from lathed geometry in `js/knight.js`.
 - Loader: Three.js r158 `GLTFLoader` and `SkeletonUtils` (MIT), converted to plain scripts in `js/vendor/`.
 
+## World art
+- Night sky dome with stars, a low moon with glow, and a ring of distant mountains that the haze turns into silhouettes.
+- Kenney Nature Kit models (CC0, via the same asset pack): tall pines, dark firs, oaks, autumn birches, logs, stumps, boulders, bushes and glowing Wispwood mushrooms. They're instanced per material and mixed with the procedural trees.
+- Beyond the live grass patch the ground renders as a meadow-colored field, so low camera angles show grass out to the treeline. Embers rise from every campfire.
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|
@@ -35,7 +40,8 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 | Flask | Q | ♥ |
 | Talk / rest / anvil | E | E |
 | Camera zoom | mouse wheel | ≡ → Settings → Camera distance |
-| Camera angle | hold middle mouse + drag (double-click middle to reset) | |
+| Camera angle | hold middle mouse + drag (double-click middle to reset) | ≡ → Settings → Camera tilt |
+| Follow camera | ≡ → Settings → Camera follows movement (on by default) | same |
 | Menu | Esc / Tab | ≡ |
 
 ## How the glyph rendering works (`js/engine.js`)

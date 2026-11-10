@@ -33,16 +33,16 @@
       const now = performance.now();
       if (now - lastMid < 320) { UI.settings.camYaw = 0; UI.settings.camPitch = 0.98; UI.saveSettings(); UI.toast('Camera reset', 0.8); }
       lastMid = now;
-      orbit = { x: e.clientX, y: e.clientY }; cv.style.cursor = 'grabbing';
+      orbit = { x: e.clientX, y: e.clientY }; UI.orbiting = true; cv.style.cursor = 'grabbing';
     });
     window.addEventListener('mousemove', e => {
       if (!orbit) return;
       const S = UI.settings;
       S.camYaw = ((S.camYaw || 0) - (e.clientX - orbit.x) * 0.006) % (Math.PI * 2);
-      S.camPitch = GW.clamp((S.camPitch || 0.98) + (e.clientY - orbit.y) * 0.004, 0.32, 1.45);
+      S.camPitch = GW.clamp((S.camPitch || 0.98) + (e.clientY - orbit.y) * 0.004, 0.16, 1.45);
       orbit = { x: e.clientX, y: e.clientY };
     });
-    window.addEventListener('mouseup', e => { if (e.button === 1 && orbit) { orbit = null; cv.style.cursor = ''; UI.saveSettings(); } });
+    window.addEventListener('mouseup', e => { if (e.button === 1 && orbit) { orbit = null; UI.orbiting = false; cv.style.cursor = ''; UI.saveSettings(); } });
     cv.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
     cv.addEventListener('mousedown', e => {
       GWAudio.init();
@@ -294,6 +294,7 @@
   if (matchMedia('(pointer: coarse)').matches && !localStorage.getItem('glyphwake.settings')) { UI.settings.quality = 1; UI.settings.glyph = 8; }
   if (!UI.settings.v2) { UI.settings.v2 = true; UI.settings.glyph = matchMedia('(pointer: coarse)').matches ? 7 : 8; }
   if (!UI.settings.zoom) UI.settings.zoom = 1.3;
+  if (UI.settings.follow === undefined) { UI.settings.follow = true; UI.settings.camPitch = 0.74; }
   let zoomSaveT = null;
   UI.setZoom = function (z) {
     UI.settings.zoom = GW.clamp(z, 0.6, 2.2);
@@ -304,6 +305,10 @@
   UI.initSettings = function (apply) {
     const S = UI.settings;
     const gl = $('o-glyph'), q = $('o-quality'), v = $('o-vol'), m = $('o-mus'), sh = $('o-shake'), pu = $('o-pure');
+    const fo = $('o-follow'), ti = $('o-tilt');
+    fo.checked = !!S.follow; fo.onchange = () => { S.follow = fo.checked; UI.saveSettings(); };
+    const tiltTxt = () => { $('o-tilt-v').textContent = Math.round((S.camPitch || 0.98) * 57.3) + '°'; };
+    ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
     gl.value = S.glyph; $('o-glyph-v').textContent = S.glyph + 'px'; q.value = S.quality; v.value = S.vol; m.value = S.mus; sh.checked = S.shake; pu.checked = S.pure;

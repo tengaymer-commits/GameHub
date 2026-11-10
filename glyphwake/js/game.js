@@ -101,7 +101,7 @@
   function init() {
     $('t-menu').style.visibility = 'hidden';
     $('t-foot').textContent = 'loading models…';
-    GW.Assets.load(['monarch', 'wolf'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
+    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
       .then(build).catch(err => { $('t-foot').textContent = 'Could not load the 3D models: ' + err.message; console.error(err); });
   }
   function build() {
@@ -458,9 +458,16 @@
     if (G.bossActive) D *= 1.2;
     GW.LU.uFogStart.value = D + 10;
     const gu = GW.World.grass.mat.uniforms;
-    gu.uSize.value = 50 * Math.max(1, D / 22);
+    gu.uSize.value = 50 * Math.max(1, D / 22) * ((UI.settings.camPitch || 0.98) < 0.75 ? 1.35 : 1);
     gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);
-    const pitch = UI.settings.camPitch || 0.98, yaw = UI.settings.camYaw || 0;
+    const S = UI.settings;
+    // follow mode: swing gently behind the hero while he runs forward-ish (strafing/backpedal don't spin it)
+    if (S.follow && P._mv && G.state === 'play' && !UI.orbiting) {
+      const h = P.yaw, camFwd = (S.camYaw || 0) + Math.PI;
+      const a = GW.angDiff(camFwd, h), w = Math.pow(Math.max(0, Math.cos(a)), 1.5);
+      S.camYaw = (S.camYaw || 0) + a * w * Math.min(1, dt * 1.7);
+    }
+    const pitch = S.camPitch || 0.98, yaw = S.camYaw || 0;
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
     const fwd = P.fwd();
     const ahead = P.state === 'move' ? 1.2 : 0.6;
@@ -472,6 +479,11 @@
     const s = G.shakeAmt * G.shakeAmt * 0.6;
     C.position.x += (Math.random() - 0.5) * s; C.position.y += (Math.random() - 0.5) * s; C.position.z += (Math.random() - 0.5) * s;
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
+    // keep the grass patch centred a little ahead of the view, not on the hero
+    const ahead2 = gu.uSize.value * (pitch < 0.75 ? 0.28 : 0.12);
+    GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.42 + ahead2 * 0.6;
+    G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
+    GW.World.updateSky(C);
   }
   const ray = new THREE.Raycaster(), plane = new THREE.Plane(new V3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new V3();
   function aimPoint() {
@@ -572,13 +584,21 @@
       }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       if (G.bossActive && G.boss.alive) UI.boss(true, GW.ETYPES.warden.name, G.boss.hp, G.boss.maxHp);
-      G.saveT += dt; if (G.saveT > 20) { G.saveT = 0; save(); }
+      G.saveT += dt; if (G.saveT > 20) { G.saveT = 0; save(); UI.saveSettings(); }
     } else if (G.state === 'title') {
       for (const n of G.npcs) n.update(dt, G);
     }
     G.parts.spark.update(sdt); G.parts.dust.update(sdt); G.parts.blood.update(sdt);
     const focus = G.state === 'title' ? GW.World.L.village : P.pos;
     GW.World.update(sdt || 0, G.t, focus.x, focus.z);
+    if (G.grassCenter && G.state !== 'title') GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z);
+    if (G.state === 'title') GW.World.updateSky(G.camera);
+    // embers rising from campfires near the view
+    if (sdt > 0 && frame % 2 === 0) for (const it of GW.World.interact) {
+      if (it.type !== 'rest' || Math.hypot(it.x - focus.x, it.z - focus.z) > 40) continue;
+      const y = GW.World.heightAt(it.x, it.z);
+      G.parts.spark.emit(it.x + (Math.random() - 0.5) * 0.6, y + 0.7, it.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 1.4 + Math.random() * 1.6, (Math.random() - 0.5) * 0.6, 1.4 + Math.random(), 0.45, Math.random() < 0.5 ? 0xffa040 : 0xff6a20, 0.5, 0.6);
+    }
     GW.World.lights.update(focus.x, focus.z, G.t);
     updateCamera(dt, G.state === 'title');
     UI.updateFloaters(dt, G.camera);

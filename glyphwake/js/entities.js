@@ -87,6 +87,7 @@
       }
     }
     const g = this.mesh.geometry; g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true;
+    this.mesh.visible = this.pts.some(p => p.on && p.age < 0.2);
   };
 
   // ---------------- telegraphs ----------------

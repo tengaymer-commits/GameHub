@@ -220,7 +220,8 @@
     }
     tg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     tg.computeVertexNormals();
-    const terrain = new THREE.Mesh(tg, GW.mat({ id: ID.GROUND, vertexColors: true, color: 0xffffff }));
+    const terrain = new THREE.Mesh(tg, GW.mat({ id: ID.GROUND, vertexColors: true, color: 0xffffff, farGrass: 30 }));
+    W.terrainMat = terrain.material;
     terrain.frustumCulled = false; terrain.layers.set(1); scene.add(terrain);
 
     // ---- water ----
@@ -401,10 +402,130 @@
       W.arenaStones.push(buildShrine(scene, x, z, 0.8 + (k % 3) * 0.2, false));
     }
 
+    natureScatter(batch, place, rnd, free);
     batch.build(scene);
     buildFireflies(scene);
+    buildSky(scene);
     W.zonesDone = {};
   };
+
+  // ----- CC0 nature models (Kenney Nature Kit via the asset pack), instanced per material -----
+  const NAT_MAT = {
+    leafsDark: { id: ID.LEAF, color: 0x24503e, rim: 0.15 }, leafsGreen: { id: ID.LEAF, color: 0x355f34, rim: 0.15 },
+    leafsFall: { id: ID.LEAF, color: 0xc06a28, rim: 0.2 }, grass: { id: ID.LEAF, color: 0x2c5a2e, rim: 0.1 },
+    woodBark: { id: ID.WOOD, color: 0x5a3e26 }, woodBarkDark: { id: ID.WOOD, color: 0x3c2a1c }, woodBirch: { id: ID.WOOD, color: 0xd6d0c2, rim: 0.2 },
+    woodInner: { id: ID.WOOD, color: 0xb88e5c }, dirt: { id: ID.STONE, color: 0x7a7e88, rim: 0.2 }, stone: { id: ID.STONE, color: 0x8a8e98, rim: 0.2 },
+    colorRed: { id: ID.FLOWER, color: 0xc02424, emissive: 0x200404 }, _defaultMat: { id: ID.STONE, color: 0xd0c8b8 },
+  };
+  const natCache = {}, natMats = {};
+  function natParts(name) {
+    if (natCache[name]) return natCache[name];
+    const g = GW.Assets.gltf['nat_' + name]; if (!g) return (natCache[name] = []);
+    g.scene.updateMatrixWorld(true);
+    const parts = [];
+    g.scene.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); if (!geo.attributes.normal) geo.computeVertexNormals(); parts.push({ geo, mn: o.material.name }); } });
+    return (natCache[name] = parts);
+  }
+  function natMat(mn, glow) {
+    const k = mn + (glow ? '+glow' : '');
+    if (!natMats[k]) natMats[k] = GW.mat(Object.assign({}, NAT_MAT[mn] || { id: ID.STONE, color: 0x888888 }, glow ? { emissive: 0x0a3a40 } : {}));
+    return natMats[k];
+  }
+  function natureScatter(batch, place, rnd, free) {
+    const put = (name, x, z, s, opts) => {
+      opts = opts || {};
+      const y = W.heightAt(x, z) - 0.05 * s, ry = rnd() * 6.28;
+      natParts(name).forEach((p, i) => {
+        const tint = new THREE.Color(1, 1, 1).multiplyScalar(0.85 + rnd() * 0.3);
+        batch.add('nat_' + name + i + (opts.glow ? 'g' : ''), p.geo, natMat(p.mn, opts.glow), place(x, y, z, ry, s * (opts.sx || 1), s, s * (opts.sx || 1)), tint);
+      });
+      if (opts.col) W.addCollider(x, z, opts.col, opts.tag || 'tree');
+    };
+    // conifers thicken the forest ring
+    for (let k = 0; k < 260; k++) {
+      const a = rnd() * Math.PI * 2, r = 92 + rnd() * 30, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 3.2 + rnd() * 2.2;
+      if (free(x, z, 1)) put(rnd() < 0.55 ? 'tree_pine_tall' : 'tree_dark', x, z, s, { col: 0.12 * s });
+    }
+    // broadleaf trees: oaks in the open, birches with autumn leaves around the village and the ruins
+    for (let k = 0; k < 120; k++) {
+      const x = (rnd() - 0.5) * 190, z = (rnd() - 0.5) * 190, s = 3 + rnd() * 2;
+      if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 24) continue;
+      const nearVillage = Math.hypot(x - L.village.x, z - L.village.z) < 45 || Math.hypot(x - L.ruins.x, z - L.ruins.z) < 40;
+      if (free(x, z, 1.2)) put(nearVillage && rnd() < 0.7 ? 'tree_autumn' : rnd() < 0.6 ? 'tree_oak' : 'tree_fat', x, z, s, { col: 0.12 * s });
+    }
+    // Wispwood: dark trees and faintly glowing mushrooms
+    for (let k = 0; k < 40; k++) {
+      const a = rnd() * 6.28, r = 5 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
+      if (free(x, z, 1)) put('tree_dark', x, z, 3.4 + rnd() * 2, { col: 0.45 });
+    }
+    for (let k = 0; k < 90; k++) {
+      const a = rnd() * 6.28, r = rnd() * 30, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
+      if (free(x, z, 0.2)) for (let m = 0; m < 3; m++) put('mushroom_red', x + (rnd() - 0.5) * 0.8, z + (rnd() - 0.5) * 0.8, 2 + rnd() * 2, { glow: true });
+    }
+    // logs, stumps, boulders, bushes
+    for (let k = 0; k < 70; k++) {
+      const x = (rnd() - 0.5) * 200, z = (rnd() - 0.5) * 200;
+      if (!free(x, z, 1.5)) continue;
+      const r = rnd();
+      if (r < 0.3) put('log', x, z, 2.6 + rnd(), { col: 0.9, tag: 'log' });
+      else if (r < 0.55) put('stump', x, z, 3 + rnd() * 1.5, { col: 0.45, tag: 'stump' });
+      else if (r < 0.8) put('rock_tall', x, z, 2.2 + rnd() * 2.5, { col: 1.1, tag: 'rock' });
+      else put('rock_large', x, z, 3 + rnd() * 3, { col: 1.4, tag: 'rock' });
+    }
+    for (let k = 0; k < 260; k++) {
+      const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210;
+      if (Math.hypot(x, z) < 108 && free(x, z, 0.4)) put('bush_large', x, z, 3 + rnd() * 3);
+    }
+  }
+
+  // ----- night sky: gradient dome, stars, a low moon, distant mountains (follows the camera) -----
+  function buildSky(scene) {
+    const g = W.sky = new THREE.Group(); scene.add(g);
+    const moonVis = new THREE.Vector3(-0.62, 0.3, 0.72).normalize();
+    W.moonVis = moonVis;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(330, 32, 16), new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false,
+      uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime },
+      vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `varying vec3 vDir; uniform vec3 uMoon;
+        void main(){
+          float y = vDir.y;
+          vec3 hor = vec3(0.07, 0.09, 0.15), zen = vec3(0.006, 0.01, 0.025);
+          vec3 col = mix(hor, zen, smoothstep(-0.02, 0.55, y));
+          float m = max(dot(vDir, uMoon), 0.0);
+          col += vec3(0.45, 0.52, 0.7) * (pow(m, 90.0) * 0.5 + pow(m, 12.0) * 0.08);
+          if (y < 0.0) col = mix(col, vec3(0.022, 0.032, 0.058), smoothstep(0.0, -0.08, y));
+          gl_FragColor = vec4(col, (${ID.SKY}.0 + 0.5) / 32.0);
+        }`,
+    }));
+    dome.frustumCulled = false; dome.layers.set(1); dome.renderOrder = -10; g.add(dome);
+    // stars
+    const n = 900, r = GW.rand(42);
+    const stars = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), GW.mat({ id: ID.STAR, color: 0xffffff, unlit: true, noFog: true }), n);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const u = r() * 2 - 1, a = r() * Math.PI * 2, y = 0.04 + Math.pow(r(), 0.7) * 0.96, rr = Math.sqrt(1 - y * y);
+      v.set(Math.cos(a) * rr, y, Math.sin(a) * rr).multiplyScalar(300);
+      const big = r(); m4.compose(v, q, sc.setScalar(big < 0.92 ? 0.7 + r() * 0.8 : 1.8 + r() * 1.2));
+      stars.setMatrixAt(i, m4); stars.setColorAt(i, c.setHSL(0.58 + (r() - 0.5) * 0.15, 0.3, 0.55 + r() * 0.4));
+    }
+    stars.frustumCulled = false; stars.layers.set(1); g.add(stars);
+    // the moon, low on the horizon
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(13, 20, 14), GW.mat({ id: ID.MOON, color: 0, emissive: 0xd8e0f0, unlit: true, noFog: true }));
+    moon.position.copy(moonVis).multiplyScalar(290); moon.layers.set(1); g.add(moon);
+    // distant mountains: a jagged ring that the night haze turns into silhouettes
+    const N = 160, pos = [], idx = [], rm = GW.rand(7);
+    for (let i = 0; i <= N; i++) {
+      const a = i / N * Math.PI * 2, R = 250 + rm() * 20;
+      const h = 14 + 26 * Math.pow(Math.abs(Math.sin(a * 3.1) * Math.cos(a * 1.7 + 1)), 0.7) + rm() * 8;
+      pos.push(Math.cos(a) * R, -8, Math.sin(a) * R, Math.cos(a) * R, h, Math.sin(a) * R);
+      if (i < N) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    }
+    const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); mg.setIndex(idx); mg.computeVertexNormals();
+    const mtn = new THREE.Mesh(mg, GW.mat({ id: ID.STONE, color: 0x1a2030, side: THREE.DoubleSide }));
+    mtn.frustumCulled = false; mtn.layers.set(1); g.add(mtn);
+  }
+  W.updateSky = function (cam) { if (W.sky) W.sky.position.set(cam.position.x, 0, cam.position.z); };
 
   // ----- pieces -----
   function campfire(scene, x, z, label) {
