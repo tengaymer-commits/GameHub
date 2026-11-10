@@ -32,6 +32,11 @@
     });
     window.addEventListener('mouseup', e => { if (e.button === 0) I.mouse.down = false; if (e.button === 2) I.mouse.right = false; });
     cv.addEventListener('contextmenu', e => e.preventDefault());
+    cv.addEventListener('wheel', e => {
+      if (game.state !== 'play') return;
+      e.preventDefault();
+      UI.setZoom((UI.settings.zoom || 1.3) * Math.exp(e.deltaY * 0.0012));
+    }, { passive: false });
     // touch stick
     const stick = $('stick'), knob = $('stick-knob');
     const setKnob = () => { knob.style.transform = `translate(${I.stick.x * 40}px, ${I.stick.y * 40}px)`; };
@@ -269,10 +274,19 @@
   try { Object.assign(UI.settings, JSON.parse(localStorage.getItem('glyphwake.settings') || '{}')); } catch (e) { /* storage blocked */ }
   if (matchMedia('(pointer: coarse)').matches && !localStorage.getItem('glyphwake.settings')) { UI.settings.quality = 1; UI.settings.glyph = 8; }
   if (!UI.settings.v2) { UI.settings.v2 = true; UI.settings.glyph = matchMedia('(pointer: coarse)').matches ? 7 : 8; }
+  if (!UI.settings.zoom) UI.settings.zoom = 1.3;
+  let zoomSaveT = null;
+  UI.setZoom = function (z) {
+    UI.settings.zoom = GW.clamp(z, 0.6, 2.6);
+    const el = document.getElementById('o-zoom'); if (el) { el.value = UI.settings.zoom; document.getElementById('o-zoom-v').textContent = Math.round(UI.settings.zoom * 100) + '%'; }
+    clearTimeout(zoomSaveT); zoomSaveT = setTimeout(UI.saveSettings, 400);
+  };
   UI.saveSettings = function () { try { localStorage.setItem('glyphwake.settings', JSON.stringify(UI.settings)); } catch (e) { /* ignore */ } };
   UI.initSettings = function (apply) {
     const S = UI.settings;
     const gl = $('o-glyph'), q = $('o-quality'), v = $('o-vol'), m = $('o-mus'), sh = $('o-shake'), pu = $('o-pure');
+    const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
+    zm.oninput = () => UI.setZoom(+zm.value);
     gl.value = S.glyph; $('o-glyph-v').textContent = S.glyph + 'px'; q.value = S.quality; v.value = S.vol; m.value = S.mus; sh.checked = S.shake; pu.checked = S.pure;
     gl.oninput = () => { S.glyph = +gl.value; $('o-glyph-v').textContent = S.glyph + 'px'; apply(); UI.saveSettings(); };
     q.onchange = () => { S.quality = +q.value; apply(); UI.saveSettings(); };

@@ -561,7 +561,7 @@
         varying vec3 vW; varying vec3 vCol; varying float vT;
         void main(){
           vec2 base = uCenter - uSize * 0.5;
-          vec2 wp = base + mod(aOff.xy - base, uSize);
+          vec2 wp = base + mod(aOff.xy * (uSize / 50.0) - base, uSize);
           vec4 m = texture2D(tMap, wp / uWorld + 0.5);
           float sd = aOff.z;
           float ed = max(abs(wp.x - uCenter.x), abs(wp.y - uCenter.y)) / uSize;

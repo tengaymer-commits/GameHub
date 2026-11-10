@@ -106,7 +106,7 @@
   }
   function build() {
     $('t-menu').style.visibility = '';
-    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -453,8 +453,10 @@
       return;
     }
     const portrait = G.R.aspect < 0.8;
-    let D = portrait ? 16.5 : 16;
-    if (G.bossActive) D *= 1.25;
+    let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
+    if (G.bossActive) D *= 1.2;
+    GW.LU.uFogStart.value = D + 10;
+    GW.World.grass.mat.uniforms.uSize.value = 50 * Math.max(1, D / 20);
     const pitch = 0.98;
     const fwd = P.fwd();
     const ahead = P.state === 'move' ? 1.2 : 0.6;

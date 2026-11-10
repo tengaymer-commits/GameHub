@@ -34,6 +34,7 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 | Skills | 2 · 3 · 4 | ◎ » ✶ |
 | Flask | Q | ♥ |
 | Talk / rest / anvil | E | E |
+| Camera zoom | mouse wheel | ≡ → Settings → Camera distance |
 | Menu | Esc / Tab | ≡ |
 
 ## How the glyph rendering works (`js/engine.js`)

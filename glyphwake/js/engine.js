@@ -77,12 +77,13 @@
     uTime: { value: 0 },
     uCam: { value: new THREE.Vector3() },
     uFog: { value: 0.012 },
+    uFogStart: { value: 18 },
   };
 
   const LIGHT_GLSL = `
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
-    uniform vec3 uCam; uniform float uFog; uniform float uTime;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime;
     vec3 lightAt(vec3 W, vec3 n) {
       vec3 L = uAmb * (0.55 + 0.45 * n.y) + uMoonCol * max(dot(n, uMoonDir), 0.0);
       for (int i = 0; i < ${MAXL}; i++) {
@@ -93,7 +94,7 @@
       }
       return L;
     }
-    float fogAt(vec3 W) { return exp(-max(length(W - uCam) - 18.0, 0.0) * uFog); }
+    float fogAt(vec3 W) { return exp(-max(length(W - uCam) - uFogStart, 0.0) * uFog); }
   `;
   E.LIGHT_GLSL = LIGHT_GLSL;
 
