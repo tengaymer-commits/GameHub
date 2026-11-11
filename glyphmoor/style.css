@@ -65,3 +65,4 @@ button:active { background:#3b2150; }
 .rule { color:var(--line); }
 #title input { font:inherit; color:var(--ink); background:#0b0716; border:1px solid var(--line); padding:8px 10px; text-align:center; width:200px; user-select:text; -webkit-user-select:text; }
 #t-go { border-color:var(--gold); color:var(--gold); padding:12px 18px; } .ghost { border-color:transparent; color:var(--dim); background:none; }
+.back { color:var(--dim); text-decoration:none; font-size:11px; }

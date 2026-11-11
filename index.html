@@ -1,121 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#141a2e" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>GameHub – The Games From The Ads</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="css/style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f1117" />
+<title>GameHub</title>
+<link rel="icon" href="kingdom/assets/icon.svg" type="image/svg+xml" />
+<style>
+  :root { --bg:#0f1117; --panel:#181b25; --line:#2a2f3f; --ink:#eef0f6; --dim:#8b91a5; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:980px; margin:0 auto; padding:max(28px,env(safe-area-inset-top)) 16px 40px; }
+  header { margin-bottom:22px; }
+  h1 { margin:0; font-size:28px; letter-spacing:-.01em; }
+  header p { margin:4px 0 0; color:var(--dim); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:16px; }
+  a.card { display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; color:inherit; text-decoration:none; transition:transform .12s,border-color .12s; }
+  a.card:hover, a.card:focus-visible { transform:translateY(-3px); border-color:var(--accent); outline:none; }
+  a.card:active { transform:scale(.985); }
+  .art { height:150px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .body { padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .body h2 { margin:0; font-size:19px; }
+  .body p { margin:0; color:var(--dim); font-size:14px; flex:1; }
+  .tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .tags span { font-size:11px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
+  .play { margin-top:10px; align-self:flex-start; font-weight:700; font-size:14px; color:var(--accent); }
+  footer { margin-top:28px; color:var(--dim); font-size:13px; }
+
+  /* Kingdom: bright toy town */
+  .k { --accent:#ffc542; }
+  .k .art { background:linear-gradient(#5db7ff,#bfe6ff 62%,#6cc24a 62%,#4e9e36); }
+  .k .art i { position:absolute; bottom:38%; background:#f2e3c4; border-radius:4px 4px 0 0; box-shadow:inset 0 -6px 0 rgba(0,0,0,.12); }
+  .k .art i::before { content:""; position:absolute; left:-6px; right:-6px; top:-16px; height:18px; background:#d9534f; clip-path:polygon(50% 0,100% 100%,0 100%); }
+  .k .art i:nth-child(1) { left:22%; width:44px; height:44px; }
+  .k .art i:nth-child(2) { left:44%; width:60px; height:70px; background:#e9d3a6; }
+  .k .art i:nth-child(3) { left:68%; width:38px; height:36px; }
+  /* Glyphmoor: letters on a night field */
+  .g { --accent:#e0a94a; }
+  .g .art { background:linear-gradient(#150d2e,#3a2250 55%,#2a1608 55%,#5a3410); font:bold 11px/11px "Courier New",monospace; color:#e0a94a; }
+  .g .art pre { margin:0; text-align:center; text-shadow:0 0 8px rgba(224,169,74,.5); }
+  .g .art pre b { color:#dfe6f4; }
+  /* Meander: calm planner */
+  .m { --accent:#b993ea; }
+  .m .art { background:linear-gradient(135deg,#5b2e91,#8b5fc7 60%,#e7b7d5); }
+  .m .art svg { width:70%; height:60%; }
+</style>
 </head>
 <body>
-  <div id="app">
-    <div id="screens">
-      <!-- ============ HUB ============ -->
-      <section id="hub" class="screen active">
-        <header class="topbar">
-          <div class="wallet">
-            <button class="pill" data-open="shop" aria-label="Gold"><span>🪙</span><b id="res-coins">0</b></button>
-            <div class="pill" aria-label="Food"><span>🥩</span><b id="res-food">0</b></div>
-            <div class="pill" aria-label="Troops"><span>🪖</span><b id="res-troops">0</b></div>
-            <button class="pill gem" data-open="shop" aria-label="Gems"><span>💎</span><b id="res-gems">0</b><i>+</i></button>
-          </div>
-        </header>
+<main>
+  <header>
+    <h1>GameHub</h1>
+    <p>Pick something to play. Each one runs in the browser and saves on this device.</p>
+  </header>
 
-        <main class="hub-main" id="hub-main">
-          <!-- Town tab -->
-          <div class="tab active" data-tab="home">
-            <div class="town-card">
-              <div id="town-view"></div>
-              <div class="town-bar">
-                <div><b>Your town</b><small>Tap a building to upgrade it</small></div>
-                <button class="btn small gold" id="daily-btn">🎁 Daily</button>
-              </div>
-            </div>
+  <div class="grid">
+    <a class="card k" href="kingdom/">
+      <div class="art"><i></i><i></i><i></i></div>
+      <div class="body">
+        <h2>Ad Games Kingdom</h2>
+        <p>The games from the ads, made playable. Seven mini-games feed a 3D town you build up: Kingdom Defense, Frost Survival, Merge Army, Hero Tower, Gate Rush, Pin Rescue and Doge Rescue.</p>
+        <div class="tags"><span>7 mini-games</span><span>town builder</span><span>mobile first</span></div>
+        <span class="play">Play →</span>
+      </div>
+    </a>
 
-            <div class="section-title">Chests</div>
-            <div id="chest-slots" class="chest-slots"></div>
+    <a class="card g" href="glyphmoor/">
+      <div class="art"><pre>   .  *       .    (@@)
+ .       <b>.-.</b>     .
+ ~ ~ ~  <b>/|#|\</b>  ~ ~ ~ ~
+ ||/|\|| <b>/ \</b> |\||/|\||
+ |/||\|/||\|/||\|/||\|/</pre></div>
+      <div class="body">
+        <h2>Glyphmoor</h2>
+        <p>A night-moor action RPG drawn entirely in letters. Fish the lake, fight husks, collect rune-marked gear and relight the beacon on the ridge.</p>
+        <div class="tags"><span>action RPG</span><span>fishing</span><span>loot</span></div>
+        <span class="play">Play →</span>
+      </div>
+    </a>
 
-            <div class="section-title">Play for resources</div>
-            <div id="game-list" class="game-list"></div>
-
-            <div class="section-title">Standalone worlds</div>
-            <div class="game-list">
-              <a class="game-card" href="glyphmoor/" style="text-decoration:none;color:inherit"><div class="art" style="--c1:#1a1242;--c2:#b8782a">⚔️</div><div class="info"><h3>Glyphmoor</h3><p>A night-moor action RPG drawn entirely in letters</p></div></a>
-            </div>
-
-            <div class="section-title">Power-ups</div>
-            <div id="item-list" class="item-list"></div>
-
-            <div class="section-title">Coming soon</div>
-            <div class="game-list soon">
-              <div class="game-card locked"><div class="art" style="--c1:#2d3a4a;--c2:#4b5d73">🏝️</div><div class="info"><h3>Island Raid</h3><p>Sail out and raid rival kingdoms</p></div><span class="lock">🔒</span></div>
-            </div>
-          </div>
-
-          <!-- Shop tab -->
-          <div class="tab" data-tab="shop">
-            <div class="section-title">Shop</div>
-            <div id="shop-list" class="shop-list"></div>
-            <p class="muted tiny">Test build: purchases and ads are simulated. See README for wiring real AdMob / in-app purchases.</p>
-          </div>
-
-          <!-- Settings tab -->
-          <div class="tab" data-tab="settings">
-            <div class="section-title">Settings</div>
-            <div class="settings">
-              <label class="row"><span>Sound</span><input type="checkbox" id="opt-sound" /></label>
-              <label class="row"><span>Vibration</span><input type="checkbox" id="opt-vibe" /></label>
-              <button class="btn danger" id="reset-btn">Reset progress</button>
-            </div>
-            <p class="muted tiny">GameHub prototype · v0.3</p>
-          </div>
-        </main>
-
-        <nav class="bottom-nav">
-          <button class="active" data-nav="home"><span>🏰</span>Town</button>
-          <button data-nav="shop"><span>🛒</span>Shop</button>
-          <button data-nav="settings"><span>⚙️</span>Settings</button>
-        </nav>
-      </section>
-
-      <!-- ============ GAME ============ -->
-      <section id="game-screen" class="screen">
-        <div class="game-hud">
-          <button class="icon-btn" id="game-back" aria-label="Back">←</button>
-          <div class="hud-title"><b id="hud-title">Game</b><small id="hud-level">Level 1</small></div>
-          <div class="hud-actions" id="hud-actions"></div>
-        </div>
-        <div class="canvas-wrap" id="canvas-wrap">
-          <canvas id="game-canvas"></canvas>
-        </div>
-      </section>
-    </div>
-
-    <!-- Banner ad slot (320x50). Hidden when "Remove Ads" is owned. -->
-    <div id="ad-banner" class="ad-banner"><span>AD</span> Banner placeholder · 320×50</div>
+    <a class="card m" href="meander/">
+      <div class="art"><svg viewBox="0 0 200 80" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M8 50 C40 8, 60 8, 80 40 S120 72, 140 40 S180 20, 192 34" opacity=".9"/><circle cx="192" cy="34" r="5" fill="#fff"/></svg></div>
+      <div class="body">
+        <h2>Meander</h2>
+        <p>Not a game: a gentle wellbeing planner for your day, with colour moods and no pressure.</p>
+        <div class="tags"><span>planner</span><span>works offline</span></div>
+        <span class="play">Open →</span>
+      </div>
+    </a>
   </div>
 
-  <div id="modal-root"></div>
-  <div id="toast"></div>
-
-  <script src="js/core.js"></script>
-  <script src="js/monetization.js"></script>
-  <script src="js/vendor/three.min.js"></script>
-  <script src="js/town.js"></script>
-  <script src="js/kit3d.js"></script>
-  <script src="js/games/pinrescue.js"></script>
-  <script src="js/games/gaterush.js"></script>
-  <script src="js/games/frostsurvival.js"></script>
-  <script src="js/games/kingdefense.js"></script>
-  <script src="js/games/herotower.js"></script>
-  <script src="js/games/mergearmy.js"></script>
-  <script src="js/vendor/planck.min.js"></script>
-  <script src="js/games/dogerescue.js"></script>
-  <script src="js/main.js"></script>
+  <footer>Progress is stored in this browser only.</footer>
+</main>
 </body>
 </html>
