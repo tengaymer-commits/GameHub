@@ -149,3 +149,14 @@ Before launch:
 - More Pin Rescue levels in a JSON level editor (the level format is already data-only).
 - An energy/lives system and a battle pass: common in these genres, but tune carefully.
 - Remote config (Firebase) to adjust ad frequency and difficulty without shipping an update.
+
+## Glyphmoor (standalone, `glyphmoor/`)
+
+A small action RPG whose 3D world is redrawn every frame out of text glyphs. Open `glyphmoor/` from the hub card or directly.
+
+- **Look**: the scene is rendered small, then rebuilt on screen from a glyph atlas (denser letters for brighter cells). Grass and fireflies are drawn at full resolution on top and depth-tested against the scene. The lake shows a real mirrored render of the world.
+- **Knight**: built by hand in code from lathed and primitive parts (helm, cuirass, pauldrons, tassets, greaves, shield, cape, sword) and animated procedurally. No generated or downloaded art.
+- **Slice**: talk to Maren, catch a fish in Stillmere (cast, hook, tension reel), put down four husks, climb Cairn Ridge, light the beacon and beat the Barrow Warden.
+- **Loot**: weapons and armour roll a material (Iron to Voidiron) and runes (burn, leech, speed, crit, life). The equipped blade's material changes the sword on the model.
+- **Controls**: stick or WASD to move, Space to strike, E for the context action (talk, cast, hook, hold to reel, rest, light), I for the bag. Progress saves to `localStorage`.
+- Files: `world.js` (renderer, terrain, sky, water, grass, models), `game.js` (rules, fishing, loot, interface), `style.css`, `index.html`.
