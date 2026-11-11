@@ -20,7 +20,7 @@
       scale: { name: 'Wyrmscale Coat', set: ID.SCALE, color: 0x4a8a72, armor: 5, focus: 0.2, desc: 'Overlapping green scales. +20% focus regen.' },
     },
     cloak: {
-      crimson: { name: 'Crimson Cloak', set: ID.CLOTH, color: 0xa81616, armor: 0, desc: 'A knight\'s cloak, wool-heavy.' },
+      crimson: { name: 'Shadow Cloak', set: ID.CLOTH, color: 0x23262e, armor: 0, desc: 'A knight\'s cloak, wool-heavy, dark as the vale.' },
       night: { name: 'Nightweave Mantle', set: ID.SILK, color: 0x30307a, armor: 0, focus: 0.25, desc: 'Woven at dusk. +25% focus regen.' },
       ember: { name: 'Emberlined Cloak', set: ID.SILK, color: 0xd0601e, armor: 1, hp: 15, desc: 'Lined with warm ash-silk. +15 health.' },
       none: { name: 'No cloak', set: ID.CLOTH, color: 0, armor: 0, desc: 'Nothing on your back.' },
@@ -89,7 +89,7 @@
     const H = K.GEAR.helm[gear.helm], C = K.GEAR.chest[gear.chest], CL = K.GEAR.cloak[gear.cloak];
     const closed = gear.helm === 'greathelm' || gear.helm === 'sallet' || gear.helm === 'horned';
     const spec = {
-      knightplate: [{ id: ID.PLATE, color: 0xb0b6c2, rim: 0.9 }, { id: ID.MAIL, color: 0x7a808c, rim: 0.5 }],
+      knightplate: [{ id: ID.PLATE, color: 0xe6eaf2, rim: 1.1, spec: 1.4, fill: 0.36 }, { id: ID.MAIL, color: 0x9aa0ac, rim: 0.6, fill: 0.3 }],
       hauberk: [{ id: ID.MAIL, color: 0xb4b8c4, rim: 0.6 }, { id: ID.MAIL, color: 0x868a96, rim: 0.5 }],
       leather: [{ id: ID.LEATHER, color: 0x7a5434, rim: 0.4 }, { id: ID.LEATHER, color: 0x4a3220, rim: 0.3 }],
       scale: [{ id: ID.SCALE, color: 0x4a8a72, rim: 0.6 }, { id: ID.SCALE, color: 0x2e5a4a, rim: 0.5 }],
@@ -100,7 +100,7 @@
       switch (mn) {
         case 'Metal': return spec[0];
         case 'Metal_Dark': return spec[1];
-        case 'Blue': return { id: ID.TABARD, color: 0x9c1515, rim: 0.35 };
+        case 'Blue': return { id: ID.TABARD, color: 0x2c3240, rim: 0.4 };
         case 'DarkBrown': return { id: ID.LEATHER, color: 0x4a3020, rim: 0.3 };
         case 'Beige': return { id: ID.CLOTH, color: 0x6a5a48, rim: 0.3 };
         case 'Skin': return { id: ID.BODY, color: 0xd0b8a0, rim: 0.4 };
@@ -128,7 +128,7 @@
       mesh(head, box(0.03, 0.27, 0.03), brass, 0, 0.02, 0.145);
       mesh(head, box(0.2, 0.03, 0.025), brass, 0, 0.09, 0.14);
       for (let k = 0; k < 4; k++) mesh(head, box(0.012, 0.012, 0.02), slit, 0.05 + (k % 2) * 0.025, -0.04 - Math.floor(k / 2) * 0.025, 0.142);
-      const plume = M({ id: ID.SILK, color: 0xc01818, rim: 0.3 });
+      const plume = M({ id: ID.SILK, color: 0x8a8e98, rim: 0.4 });
       P.plume = new THREE.Group(); P.plume.position.set(0, 0.21, -0.01); head.add(P.plume);
       for (let k = 0; k < 6; k++) mesh(P.plume, new THREE.ConeGeometry(0.028, 0.3, 5), plume, (k - 2.5) * 0.008, 0.08 + k * 0.012, -0.06 - k * 0.04, -1.0 - k * 0.12);
     } else {

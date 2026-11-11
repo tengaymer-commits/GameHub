@@ -694,10 +694,10 @@
             // dark mirror: the mirrored scene, wobbling with the ripples
             vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.9, 1.0);
             vec3 refl = texture2D(uRefl, rq.xy / rq.w).rgb;
-            col = body + refl * (0.7 + 0.3 * fres);
+            col = body + refl * (0.32 + 0.2 * fres);
           } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
           col += specAt(vW, wn, V, 60.0) * 1.1;
-          col += vec3(0.42, 0.56, 0.8) * (streak * 0.2 + foam * 0.45) * (0.35 + L * 1.2);
+          col += vec3(0.42, 0.56, 0.8) * (streak * 0.08 + foam * 0.25) * (0.35 + L * 1.2);
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
@@ -727,7 +727,7 @@
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
         uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth;
-        varying vec3 vW; varying vec3 vCol; varying float vT;
+        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -738,41 +738,44 @@
           float sd = aOff.z;
           float ed = max(abs(wp.x - uCenter.x), abs(wp.y - uCenter.y)) / uSize;
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
-          float vis = step(fract(sd * 7.31), m.g);
+          float vis = step(fract(sd * 7.31), min(1.0, m.g * 1.35));
           float fA = vn(wp * 0.035), fB = vn(wp * 0.11 + 7.0);
           // mostly short turf; tall grass only in scattered patches
           float tall = smoothstep(0.66, 0.82, vn(wp * 0.04 + 11.3)) * smoothstep(0.3, 0.6, vn(wp * 0.13 + 2.7));
-          float h = (0.2 + 0.28 * fract(sd * 3.7)) * mix(1.0, 3.4, tall) * uScale * vis * edgeF * (0.8 + 0.4 * fB);
+          float h = (0.42 + 0.3 * fract(sd * 3.7)) * mix(1.0, 2.2, tall) * uScale * vis * edgeF * (0.8 + 0.4 * fB);
+          if (fract(sd * 97.13) < 0.03) h = 0.1 * vis * edgeF;
           float ang = sd * 6.2831 * 13.0;
           vec2 dir = vec2(cos(ang), sin(ang));
           float t = aV.y;
-          vec2 bend = vec2(cos(ang * 1.7), sin(ang * 1.7)) * (0.15 + 0.35 * fract(sd * 11.0));
-          float wind = sin(uTime * 1.4 + wp.x * 0.25 + wp.y * 0.18) * 0.28 + sin(uTime * 3.3 + wp.x * 1.1 + wp.y) * 0.07;
+          vec2 bend = vec2(cos(ang * 1.7), sin(ang * 1.7)) * (0.04 + 0.16 * fract(sd * 11.0));
+          float wind = sin(uTime * 1.4 + wp.x * 0.25 + wp.y * 0.18) * 0.16 + sin(uTime * 3.3 + wp.x * 1.1 + wp.y) * 0.05;
           bend += vec2(wind, wind * 0.35);
           // gusts: broad waves rolling across the meadow
           float gust = smoothstep(0.55, 1.0, sin(dot(wp, vec2(0.8, 0.6)) * 0.085 - uTime * 1.15 + fA * 2.5) * 0.5 + 0.5);
-          bend += vec2(0.8, 0.6) * gust * 0.85;
+          bend += vec2(0.8, 0.6) * gust * 0.35;
           for (int i = 0; i < 6; i++) {
             vec2 d = wp - uPush[i].xy; float dd = length(d);
             float f = clamp(1.0 - dd / max(uPush[i].z, 0.001), 0.0, 1.0);
             bend += d / max(dd, 0.05) * f * 1.3;
           }
           vec3 p = vec3(wp.x, m.r, wp.y);
-          p.xz += dir * aV.x * 0.032 * uWidth * (1.0 - t * 0.9) + bend * t * t * h;
+          p.xz += dir * aV.x * 0.046 * uWidth * (1.0 - t * 0.9) + bend * t * t * h;
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
-          vec3 lush = mix(vec3(0.13, 0.3, 0.18), vec3(0.19, 0.36, 0.23), tone);
+          vec3 lush = mix(vec3(0.09, 0.32, 0.17), vec3(0.15, 0.42, 0.24), tone);
           vec3 dry = vec3(0.26, 0.31, 0.17), cool = vec3(0.12, 0.28, 0.22);
-          vec3 tip = mix(mix(lush, dry, smoothstep(0.55, 0.85, fA) * 0.75), cool, smoothstep(0.6, 0.9, fB) * 0.6);
-          tip *= 1.0 + gust * 0.35 * t;
-          vCol = mix(vec3(0.02, 0.045, 0.025), tip, t);
+          vec3 tip = mix(mix(lush, dry, smoothstep(0.55, 0.85, fA) * 0.2), cool, smoothstep(0.6, 0.9, fB) * 0.25);
+          tip *= 1.0 + gust * 0.1 * t;
+          vCol = mix(vec3(0.01, 0.03, 0.02), tip, 0.15 + 0.85 * t);
+          vSpeck = 0.0;
+          if (fract(sd * 97.13) < 0.03) { vSpeck = 1.0; vCol = vec3(0.62, 0.68, 0.64) * (0.7 + 0.3 * fract(sd * 51.0)); }
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
-      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; ${GW.LIGHT_GLSL}
+      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; ${GW.LIGHT_GLSL}
         void main(){
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
-          vec3 col = vCol * (L * 2.8 + 0.22 * (0.7 + 0.3 * gShadow));
+          vec3 col = vSpeck > 0.5 ? vCol * (0.55 + L * 0.8) : vCol * (L * vec3(0.6, 0.8, 0.65) + 0.5 * (0.55 + 0.45 * gShadow));
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,

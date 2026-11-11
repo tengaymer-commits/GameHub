@@ -112,7 +112,7 @@
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
     applySettings();
     const q = UI.settings.quality;
-    GW.World.build(scene, { grassCount: [22000, 44000, 90000][q] });
+    GW.World.build(scene, { grassCount: [40000, 80000, 150000][q] });
     G.parts = { spark: new GW.Particles(scene, 500, ID.FIRE), dust: new GW.Particles(scene, 300, ID.STONE), blood: new GW.Particles(scene, 200, ID.BODY) };
     G.player = new GW.Player(scene);
     const Lw = GW.World.L;

@@ -14,9 +14,9 @@
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 2.5, under: 0.42, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.95, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.6, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
-    /* 4 water  */ { ramp: " -~~~~≈≈≈*o@", mode: 0, gain: 2.3, under: 0.4, edge: 0, bright: 1.25, white: 0.4, flick: 4 },
+    /* 4 water  */ { ramp: " -~~~~≈≈≈*o@", mode: 0, gain: 1.7, under: 0.3, edge: 0, bright: 1.25, white: 0.4, flick: 4 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
@@ -199,7 +199,7 @@
         float k = smoothstep(uFarGrass * 0.75, uFarGrass * 1.1, dd + (h - 0.5) * 6.0);
         if (k > 0.5) {
           float meadow = smoothstep(0.02, 0.06, vC.g - vC.r);
-          col = mix(col, vec3(0.15, 0.27, 0.17) * (L * 2.6 + 0.16), meadow * k);
+          col = mix(col, vec3(0.06, 0.17, 0.1) * (L * 0.8 + 0.35), meadow * k);
           outId = mix(uId, 2.0, step(0.5, meadow));
         }
       }
@@ -370,12 +370,12 @@
     });
     this.brightMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BRIGHT_F, depthTest: false, depthWrite: false });
     this.blurMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BLUR_F, depthTest: false, depthWrite: false });
-    this.compMat = new THREE.ShaderMaterial({ uniforms: { tA: { value: null }, tB: { value: null }, uBloom: { value: 1.1 }, uHurt: { value: 0 }, uTime: LU.uTime, uRes: { value: new THREE.Vector2() }, uFadeW: { value: 0 } },
+    this.compMat = new THREE.ShaderMaterial({ uniforms: { tA: { value: null }, tB: { value: null }, uBloom: { value: 0.55 }, uHurt: { value: 0 }, uTime: LU.uTime, uRes: { value: new THREE.Vector2() }, uFadeW: { value: 0 } },
       vertexShader: QUAD_V, fragmentShader: COMP_F, depthTest: false, depthWrite: false });
     this.rts = null;
     this.resize();
   };
-  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.95; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.6; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
     const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][this.quality]);
     const w = window.innerWidth, h = window.innerHeight;
