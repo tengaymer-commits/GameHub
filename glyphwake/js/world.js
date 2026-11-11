@@ -740,7 +740,9 @@
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
           float vis = step(fract(sd * 7.31), m.g);
           float fA = vn(wp * 0.035), fB = vn(wp * 0.11 + 7.0);
-          float h = (0.55 + 0.9 * fract(sd * 3.7)) * uScale * vis * edgeF * (0.7 + 0.6 * fB);
+          // mostly short turf; tall grass only in scattered patches
+          float tall = smoothstep(0.66, 0.82, vn(wp * 0.04 + 11.3)) * smoothstep(0.3, 0.6, vn(wp * 0.13 + 2.7));
+          float h = (0.2 + 0.28 * fract(sd * 3.7)) * mix(1.0, 3.4, tall) * uScale * vis * edgeF * (0.8 + 0.4 * fB);
           float ang = sd * 6.2831 * 13.0;
           vec2 dir = vec2(cos(ang), sin(ang));
           float t = aV.y;

@@ -298,9 +298,9 @@ body.touch #hotbar { display: none; }
   <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
   <label>Screen shake <input type="checkbox" id="o-shake" /></label>
   <div class="s-sec">Glyph density (smaller = denser)</div>
-  <label>Characters <input type="range" id="o-glyphA" min="3" max="14" step="1" /><span id="o-glyphA-v"></span></label>
-  <label>Environment <input type="range" id="o-glyph" min="3" max="14" step="1" /><span id="o-glyph-v"></span></label>
-  <label>Water &amp; sky <input type="range" id="o-glyphS" min="3" max="14" step="1" /><span id="o-glyphS-v"></span></label>
+  <label>Characters <input type="range" id="o-glyphA" min="2" max="12" step="0.5" /><span id="o-glyphA-v"></span></label>
+  <label>Environment <input type="range" id="o-glyph" min="2" max="12" step="0.5" /><span id="o-glyph-v"></span></label>
+  <label>Water &amp; sky <input type="range" id="o-glyphS" min="2" max="12" step="0.5" /><span id="o-glyphS-v"></span></label>
   <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
   <div class="s-sec">Graphics &amp; audio</div>
   <label>Quality
@@ -7151,7 +7151,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
           float vis = step(fract(sd * 7.31), m.g);
           float fA = vn(wp * 0.035), fB = vn(wp * 0.11 + 7.0);
-          float h = (0.55 + 0.9 * fract(sd * 3.7)) * uScale * vis * edgeF * (0.7 + 0.6 * fB);
+          // mostly short turf; tall grass only in scattered patches
+          float tall = smoothstep(0.66, 0.82, vn(wp * 0.04 + 11.3)) * smoothstep(0.3, 0.6, vn(wp * 0.13 + 2.7));
+          float h = (0.2 + 0.28 * fract(sd * 3.7)) * mix(1.0, 3.4, tall) * uScale * vis * edgeF * (0.8 + 0.4 * fB);
           float ang = sd * 6.2831 * 13.0;
           vec2 dir = vec2(cos(ang), sin(ang));
           float t = aV.y;
@@ -8697,6 +8699,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   if (!UI.settings.v3) {
     Object.assign(UI.settings, { v3: true, glyph: 5, glyphA: 6, glyphS: 5, control: 'free', follow: false, camYaw: 0, camPitch: 0.95, zoom: 1.1 });
   }
+  if (!UI.settings.v4) Object.assign(UI.settings, { v4: true, glyph: 3.5, glyphA: 4, glyphS: 3.5 });
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {

@@ -299,6 +299,7 @@
   if (!UI.settings.v3) {
     Object.assign(UI.settings, { v3: true, glyph: 5, glyphA: 6, glyphS: 5, control: 'free', follow: false, camYaw: 0, camPitch: 0.95, zoom: 1.1 });
   }
+  if (!UI.settings.v4) Object.assign(UI.settings, { v4: true, glyph: 3.5, glyphA: 4, glyphS: 3.5 });
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
