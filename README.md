@@ -1,4 +1,16 @@
-# GameHub: the games from the ads
+# GameHub
+
+One site, several things to play. The root `index.html` is a launcher page; each entry lives in its own folder.
+
+| Entry | Folder | What it is |
+|---|---|---|
+| **Ad Games Kingdom** | `kingdom/` | The games from the ads, made playable: seven mini-games feeding a 3D town |
+| **Glyphmoor** | `glyphmoor/` | A night-moor action RPG drawn entirely in letters |
+| **Meander** | `meander/` | A gentle wellbeing planner |
+
+To add another, create a folder with its own `index.html` and add a card to the root `index.html`.
+
+# Ad Games Kingdom: the games from the ads (`kingdom/`)
 
 A mobile-first game built around the "fake ad" game formats people keep seeing in ads, made actually playable.
 The hub is a **3D town** you build up. Every mini-game feeds it with resources, and the town powers up the mini-games in return.
@@ -45,12 +57,12 @@ Every run is saved as you play (every few seconds, when you leave, and when the 
 | 🧱 Walls | Frost Survival: +25 max health · Kingdom Defense: +40 Town Hall HP per level |
 
 ### Chests and power-ups
-Winning a Pin Rescue, Doge Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
+Winning a Pin Rescue, Doge Rescue, Hero Tower or Merge Army level, beating a boss in Gate Rush, holding 3+ waves in Kingdom Defense, or expanding the camp drops a chest into one of 4 slots, Clash Royale style. One chest unlocks at a time (Wooden 30s, Silver 2m, Golden 5m in this test build; tune `CHESTS` in `kingdom/js/town.js` to hours for release). Chests give gold, food, troops, sometimes gems, and power-up cards:
 💡 **Hint** (Pin Rescue, Doge Rescue), 🛡️ **Reinforcements** +10 soldiers (Gate Rush), 🔥 **Hot Grill** ×2 cash for 90s (Frost Survival).
 
 ## Test it
 
-The game is plain HTML/CSS/JS with no build step. Frost Survival uses Three.js (WebGL), which is included in `js/vendor/`.
+The game is plain HTML/CSS/JS with no build step. Frost Survival uses Three.js (WebGL), which is included in `kingdom/js/vendor/`.
 
 ```bash
 # from the repo root
@@ -149,3 +161,14 @@ Before launch:
 - More Pin Rescue levels in a JSON level editor (the level format is already data-only).
 - An energy/lives system and a battle pass: common in these genres, but tune carefully.
 - Remote config (Firebase) to adjust ad frequency and difficulty without shipping an update.
+
+## Glyphmoor (standalone, `glyphmoor/`)
+
+A small action RPG whose 3D world is redrawn every frame out of text glyphs. Open it from the launcher or go to `glyphmoor/` directly.
+
+- **Look**: the scene is rendered small, then rebuilt on screen from a glyph atlas (denser letters for brighter cells). Grass and fireflies are drawn at full resolution on top and depth-tested against the scene. The lake shows a real mirrored render of the world.
+- **Knight**: built by hand in code from lathed and primitive parts (helm, cuirass, pauldrons, tassets, greaves, shield, cape, sword) and animated procedurally. No generated or downloaded art.
+- **Slice**: talk to Maren, catch a fish in Stillmere (cast, hook, tension reel), put down four husks, climb Cairn Ridge, light the beacon and beat the Barrow Warden.
+- **Loot**: weapons and armour roll a material (Iron to Voidiron) and runes (burn, leech, speed, crit, life). The equipped blade's material changes the sword on the model.
+- **Controls**: stick or WASD to move, Space to strike, E for the context action (talk, cast, hook, hold to reel, rest, light), I for the bag. Progress saves to `localStorage`.
+- Files: `world.js` (renderer, terrain, sky, water, grass, models), `game.js` (rules, fishing, loot, interface), `style.css`, `index.html`.

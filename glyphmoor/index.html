@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0d0820" />
+<title>Glyphmoor</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+
+<div id="hud" class="hidden">
+  <div class="plate">
+    <div class="who"><b id="h-name">Wayfarer</b><span id="h-lvl">lv 1</span><span id="h-gold">0 g</span></div>
+    <div class="bar hp"><i id="h-hp"></i><em id="h-hpt"></em></div>
+    <div class="bar xp"><i id="h-xp"></i></div>
+  </div>
+  <div class="quest"><small>— errand —</small><div id="q-text"></div></div>
+</div>
+<div id="arrow" class="hidden"><span>▲</span><em></em></div>
+
+<div id="controls" class="hidden">
+  <div id="stick"><i></i></div>
+  <button id="b-bag" class="cb">[ bag ]</button>
+  <button id="b-act" class="cb act hidden"></button>
+  <button id="b-atk" class="cb atk">/ strike</button>
+</div>
+
+<div id="fishui" class="hidden">
+  <div class="ftitle" id="f-title">something pulls…</div>
+  <div class="tension"><div id="f-zone"></div><div id="f-mark"></div></div>
+  <div class="bar reel"><i id="f-prog"></i></div>
+  <small>hold to reel · keep the mark in the band</small>
+</div>
+
+<div id="dialog" class="hidden"><b id="d-who"></b><p id="d-text"></p><small>tap to continue</small></div>
+
+<div id="bag" class="hidden">
+  <div class="bhead"><b id="bg-title"></b><button id="bg-close">[ close ]</button></div>
+  <div class="bbody">
+    <div class="worn" id="bg-worn"></div>
+    <div class="side">
+      <pre id="bg-stats"></pre>
+      <div id="bg-card" class="card"></div>
+    </div>
+  </div>
+  <div class="bcap"><span id="bg-count"></span><span>tap an item to inspect</span></div>
+  <div class="grid" id="bg-grid"></div>
+</div>
+
+<div id="toast"></div>
+<div id="banner" class="hidden"><h2></h2><p></p></div>
+
+<div id="title">
+  <h1 class="logo">GLYPHMOOR</h1>
+  <div class="rule">+------- * -------+</div>
+  <p>a night moor drawn in letters</p>
+  <input id="t-name" maxlength="12" placeholder="your name" autocomplete="off" />
+  <button id="t-go">[ step onto the moor ]</button>
+  <button id="t-new" class="ghost hidden">[ begin again ]</button>
+  <a class="back" href="../">← all games</a>
+  <small>move: stick / WASD · strike: Space · act: E · bag: I</small>
+</div>
+
+<script src="../kingdom/js/vendor/three.min.js"></script>
+<script src="world.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
