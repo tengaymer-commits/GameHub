@@ -13,20 +13,20 @@
   // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 1.8, under: 0.5, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 1 ground */ { ramp: " .", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
-    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
-    /* 4 water  */ { ramp: "   .:-=+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
-    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
-    /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
-    /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
+    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.5, edge: 0, bright: 1.1, white: 0.25, flick: 0 },
+    /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
+    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.5, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
+    /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
+    /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
     /* 8 fire   */ { ramp: " .'^*+#%@", mode: 0, gain: 0.9, under: 0.45, edge: 0, bright: 1.5, white: 0.2, flick: 9 },
-    /* 9 flower */ { ramp: " .o*o*O@", mode: 0, gain: 1.6, under: 0.1, edge: 0, bright: 1.4, white: 0.6, flick: 0 },
-    /* 10 wood  */ { ramp: " .-=|[#H", mode: 0, gain: 1.9, under: 0.25, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
-    /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.35, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
-    /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
-    /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 1.9, under: 0.12, edge: 0, bright: 1.15, white: 0.3, flick: 0 },
-    /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.3, under: 0.1, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
+    /* 9 flower */ { ramp: " .o*o*O@", mode: 0, gain: 1.6, under: 0.4, edge: 0, bright: 1.4, white: 0.6, flick: 0 },
+    /* 10 wood  */ { ramp: " .-=|[#H", mode: 0, gain: 1.9, under: 0.5, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
+    /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.4, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
+    /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
+    /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 1.9, under: 0.45, edge: 0, bright: 1.15, white: 0.3, flick: 0 },
+    /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.3, under: 0.45, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
     // ---- armour glyph patterns (actors) ----
     /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
@@ -43,7 +43,8 @@
     /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
-  [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.12; });
+  [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.3; });
+  [3, 5, 10, 13].forEach(i => { SETS[i].scen = 1; });   // scenery: soft dark outline against the ground
   while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
   const ID = E.ID = { SKY: 23, STAR: 24, MOON: 25, MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
   E.SETS = SETS;
@@ -57,7 +58,10 @@
     g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = 'bold 38px ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
-    const draw = (chr, col, row) => { if (chr !== ' ') g.fillText(chr, col * cw + cw / 2, row * ch + ch / 2 + 2); };
+    const draw = (chr, col, row) => {
+      if (chr === ' ') return;
+      g.save(); g.translate(col * cw + cw / 2, row * ch + ch / 2); g.scale(1.0, 1.32); g.fillText(chr, 0, 1); g.restore();
+    };
     SETS.forEach((s, row) => {
       const r = s.ramp;
       for (let i = 0; i < COLS; i++) {
@@ -252,12 +256,16 @@
       int pid = int(px.a * 32.0);
       // thin black outline around characters, measured in pixels (not glyph cells)
       if (uSet2[pid].w < 0.5) {
-        float ol = 0.0;
+        float ol = 0.0, os = 0.0;
+        bool groundPx = pid == 1 || pid == 2;
         for (int k = 0; k < 8; k++) {
           float a = float(k) * 0.785398;
-          ol = max(ol, uSet2[int(texture2D(tScene, (fc + vec2(cos(a), sin(a)) * uOl) / uRes).a * 32.0)].w);
+          int nid = int(texture2D(tScene, (fc + vec2(cos(a), sin(a)) * uOl) / uRes).a * 32.0);
+          ol = max(ol, uSet2[nid].w);
+          if (groundPx) os = max(os, uSet3[nid].z);
         }
         if (ol > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+        if (os > 0.5) { gl_FragColor = vec4(px.rgb * 0.12, 1.0); return; }
       }
       // separate glyph densities: characters, water & sky, everything else
       CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : uCell);
@@ -291,8 +299,6 @@
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
       if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
-      if (S3.y > 1.5 && S3.y < 2.5) idx -= mod(cell.y, 3.0) < 0.5 ? 3.0 : 0.0;
-      if (S3.y > 2.5) idx -= mod(cell.x + floor(cell.y * 0.5) * 1.0, 2.0) * 2.0;
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
       if (!actor && id != 4 && idx > 0.5 && idx < 3.5 && h21(cell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
@@ -370,7 +376,7 @@
     this.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const setA = SETS.map(s => new THREE.Vector4(s.mode, s.gain, s.under, s.edge));
     const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, s.actor || 0));
-    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, 0, 0));
+    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
       uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 },
