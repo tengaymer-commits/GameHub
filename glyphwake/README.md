@@ -33,7 +33,7 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 - Beyond the live grass patch the ground renders as a meadow-colored field, so low camera angles show grass out to the treeline. Embers rise from every campfire.
 
 ## Style notes from the reference clips
-- **Grass is single thin straws**, about 1 px on screen at any zoom (drawn with a constant screen-space width), mostly upright, deep green on near-black, with pale specks. It's not ASCII; the strokes themselves are the texture.
+- **Grass, measured from the reference.** Straight dashes of flat color, about 1 px wide and 6–15 px long, the same size on screen near or far. Mostly upright, leaning up to about ±30°, with neighbors leaning together. Clumpy: about a third of the ground is covered, with small dark gaps. Sea green (`#2a7a5e`) on blue-black (`#0f191c`), with clusters of small grey-white specks. Drawn as screen-space line quads anchored to world roots; shadows only dim them slightly.
 - **Characters and objects are glyphs.** Glyph cells scale with the camera: far out they're a dense texture that reads as shape, and close up they grow (up to 3.2×) until the letters (`@ # H o = /`) are readable.
 - **Bright silver figures** against dark green, with soft shadows and little bloom.
 - **Water is a still black mirror.** Characters, moon and clouds reflect in it, and empty water stays nearly black.

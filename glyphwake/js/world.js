@@ -75,10 +75,10 @@
       + 0.12 * Math.sin(x * 0.4 + z * 0.3);
     const r = Math.hypot(x, z);
     h += ss(98, 128, r) * 5;
-    const flat = (cx, cz, r0, r1, to) => { const d = Math.hypot(x - cx, z - cz); h = GW.lerp(to, h, ss(r0, r1, d)); };
-    flat(L.village.x, L.village.z, 12, 20, 0.15);
-    flat(L.arena.x, L.arena.z, 16, 24, 0.0);
-    flat(L.start.x, L.start.z, 6, 12, 0.3);
+    const flatK = (cx, cz, r0, r1, to) => { const d = Math.hypot(x - cx, z - cz); h = GW.lerp(to, h, ss(r0, r1, d)); };
+    flatK(L.village.x, L.village.z, 12, 20, 0.15);
+    flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
+    flatK(L.start.x, L.start.z, 6, 12, 0.3);
     return h;
   }
 
@@ -289,9 +289,9 @@
     const discG = new THREE.SphereGeometry(1, 8, 4);
     const flowerG = new THREE.OctahedronGeometry(0.11, 0);
 
-    const rock = (x, z, s, flat) => {
+    const rock = (x, z, s, flatK) => {
       const y = W.heightAt(x, z);
-      batch.add('rock' + (Math.floor(rnd() * 3)), rockGeos[Math.floor(rnd() * 3)], stoneM, place(x, y + s * 0.15, z, rnd() * 6.28, s, s * (flat || (0.55 + rnd() * 0.35)), s * (0.8 + rnd() * 0.4)), new THREE.Color().setHSL(0.62, 0.08, 0.45 + rnd() * 0.2));
+      batch.add('rock' + (Math.floor(rnd() * 3)), rockGeos[Math.floor(rnd() * 3)], stoneM, place(x, y + s * 0.15, z, rnd() * 6.28, s, s * (flatK || (0.55 + rnd() * 0.35)), s * (0.8 + rnd() * 0.4)), new THREE.Color().setHSL(0.62, 0.08, 0.45 + rnd() * 0.2));
       W.addCollider(x, z, s * 0.85, 'rock');
     };
     const tree = (x, z, s, dark) => {
@@ -386,7 +386,7 @@
     }
     for (let k = 0; k < 900; k++) {
       const x = (rnd() - 0.5) * 220, z = (rnd() - 0.5) * 220;
-      if (Math.hypot(x, z) < 105 && W.riverAt(x, z) > RIVER_W + 0.5) { if (rnd() < 0.55) moss(x, z, 0.8 + rnd() * 1.6); else flower(x, z); }
+      if (Math.hypot(x, z) < 105 && W.riverAt(x, z) > RIVER_W + 0.5) { if (rnd() < 0.08) moss(x, z, 0.6 + rnd() * 0.8); else flower(x, z); }
     }
     campfire(scene, L.meadowFire.x, L.meadowFire.z, 'Meadow watchfire');
 
@@ -472,9 +472,9 @@
       else if (r < 0.8) put('rock_tall', x, z, 2.2 + rnd() * 2.5, { col: 1.1, tag: 'rock' });
       else put('rock_large', x, z, 3 + rnd() * 3, { col: 1.4, tag: 'rock' });
     }
-    for (let k = 0; k < 260; k++) {
+    for (let k = 0; k < 60; k++) {
       const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210;
-      if (Math.hypot(x, z) < 108 && free(x, z, 0.4)) put('bush_large', x, z, 3 + rnd() * 3);
+      if (Math.hypot(x, z) < 108 && Math.hypot(x, z) > 70 && free(x, z, 0.4)) put('bush_large', x, z, 2 + rnd() * 2);
     }
   }
 
@@ -723,10 +723,10 @@
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -744,47 +744,52 @@
           float tall = smoothstep(0.66, 0.82, vn(wp * 0.04 + 11.3)) * smoothstep(0.3, 0.6, vn(wp * 0.13 + 2.7));
           float h = (0.42 + 0.3 * fract(sd * 3.7)) * mix(1.0, 2.2, tall) * uScale * vis * edgeF * (0.8 + 0.4 * fB);
           if (fract(sd * 97.13) < 0.03) h = 0.1 * vis * edgeF;
-          float ang = sd * 6.2831 * 13.0;
-          vec2 dir = vec2(cos(ang), sin(ang));
-          float t = aV.y;
-          vec2 bend = vec2(cos(ang * 1.7), sin(ang * 1.7)) * (0.04 + 0.16 * fract(sd * 11.0));
-          float wind = sin(uTime * 1.4 + wp.x * 0.25 + wp.y * 0.18) * 0.16 + sin(uTime * 3.3 + wp.x * 1.1 + wp.y) * 0.05;
-          bend += vec2(wind, wind * 0.35);
-          // gusts: broad waves rolling across the meadow
-          float gust = smoothstep(0.55, 1.0, sin(dot(wp, vec2(0.8, 0.6)) * 0.085 - uTime * 1.15 + fA * 2.5) * 0.5 + 0.5);
-          bend += vec2(0.8, 0.6) * gust * 0.35;
+          // ---- reference-style straws: flatK-coloured straight dashes of constant on-screen size ----
+          vec3 root = vec3(wp.x, m.r, wp.y);
+          // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
+          float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
+          float keep = step(0.34, clump) * vis * edgeF;
+          // lean is shared by neighbours (/ and \ groups), plus a little per-straw jitter and wind
+          float lean = (vn(wp * 0.7 + 1.3) - 0.5) * 0.55 + (fract(sd * 5.3) - 0.5) * 0.6
+                     + sin(uTime * 1.3 + wp.x * 0.3 + wp.y * 0.2) * 0.06;
+          float lenPx = uLen * (0.6 + 0.8 * fract(sd * 3.7)) * mix(1.0, 1.5, tall) * keep;
+          // the player and enemies flatten what they walk through
+          float flatK = 0.0; vec2 pushW = vec2(0.0);
           for (int i = 0; i < 6; i++) {
             vec2 d = wp - uPush[i].xy; float dd = length(d);
             float f = clamp(1.0 - dd / max(uPush[i].z, 0.001), 0.0, 1.0);
-            bend += d / max(dd, 0.05) * f * 1.3;
+            flatK = max(flatK, f); pushW += d / max(dd, 0.05) * f;
           }
-          vec3 p = vec3(wp.x, m.r, wp.y);
-          vec3 root = vec3(wp.x, m.r, wp.y);
-          vec3 tipP = root + vec3(bend.x * h, h * (1.0 - 0.25 * min(length(bend), 1.5)), bend.y * h);
-          p.xz += bend * t * t * h;
-          p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
-          vW = p; vT = t;
-          float tone = fract(sd * 17.0);
-          vec3 lush = mix(vec3(0.09, 0.32, 0.17), vec3(0.15, 0.42, 0.24), tone);
-          vec3 dry = vec3(0.26, 0.31, 0.17), cool = vec3(0.12, 0.28, 0.22);
-          vec3 tip = mix(mix(lush, dry, smoothstep(0.55, 0.85, fA) * 0.2), cool, smoothstep(0.6, 0.9, fB) * 0.25);
-          tip *= 1.0 + gust * 0.1 * t;
-          vCol = mix(vec3(0.01, 0.03, 0.02), tip, 0.15 + 0.85 * t);
-          vSpeck = 0.0;
-          if (fract(sd * 97.13) < 0.03) { vSpeck = 1.0; vCol = vec3(0.62, 0.68, 0.64) * (0.7 + 0.3 * fract(sd * 51.0)); }
-          // a straw is a line of constant on-screen width, so it stays a crisp single stroke at any zoom
           mat4 VP = projectionMatrix * viewMatrix;
-          vec4 cp = VP * vec4(p, 1.0), cr = VP * vec4(root, 1.0), ct = VP * vec4(tipP, 1.0);
-          vec2 sd2 = (ct.xy / ct.w - cr.xy / cr.w) / uPx;
-          vec2 nrm = length(sd2) > 0.001 ? normalize(vec2(-sd2.y, sd2.x)) : vec2(1.0, 0.0);
-          float wpx = (vSpeck > 0.5 ? 1.6 : 1.0) * uLineW * (1.0 - 0.55 * t);
-          cp.xy += nrm * aV.x * wpx * uPx * cp.w;
+          vec4 cr = VP * vec4(root, 1.0);
+          vec4 cu = VP * vec4(root + vec3(0.0, 0.5, 0.0), 1.0);
+          vec4 cpw = VP * vec4(root + vec3(pushW.x, 0.0, pushW.y), 1.0);
+          vec2 up = (cu.xy / cu.w - cr.xy / cr.w) / uPx; up = length(up) > 0.001 ? normalize(up) : vec2(0.0, 1.0);
+          float pushSide = ((cpw.x / cpw.w - cr.x / cr.w) / uPx.x) * 0.02;
+          lean += clamp(pushSide, -1.0, 1.0) * flatK * 1.2;
+          float cl = cos(lean), sl = sin(lean);
+          vec2 dir = vec2(up.x * cl - up.y * sl, up.x * sl + up.y * cl);
+          vec2 nrm = vec2(-dir.y, dir.x);
+          float t = aV.y;
+          bool speck = fract(sd * 97.13) < 0.025 + 0.07 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
+          float L2 = speck ? uLineW * 1.6 : lenPx * (1.0 - 0.6 * flatK);
+          float wpx = speck ? uLineW * 1.7 : uLineW;
+          vec4 cp = cr;
+          cp.xy += (dir * t * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
+          vW = root; vT = t;
+          float tone = fract(sd * 17.0);
+          vec3 sea = mix(vec3(0.1, 0.33, 0.25), vec3(0.17, 0.46, 0.35), tone);
+          sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
+          vCol = sea * (0.85 + 0.15 * t);
+          vSpeck = 0.0;
+          if (speck) { vSpeck = 1.0; vCol = vec3(0.6, 0.66, 0.66) * (0.7 + 0.3 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           gl_Position = cp;
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; ${GW.LIGHT_GLSL}
         void main(){
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
-          vec3 col = vSpeck > 0.5 ? vCol * (0.55 + L * 0.8) : vCol * (L * vec3(0.6, 0.8, 0.65) + 0.5 * (0.55 + 0.45 * gShadow));
+          vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
+          vec3 col = vSpeck > 0.5 ? vCol * (0.75 + 0.25 * gShadow) : vCol * (0.78 + 0.22 * gShadow) + vCol * warm * 1.2;
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
@@ -811,7 +816,7 @@
   W.update = function (dt, t, px, pz) {
     for (const f of W.flames) {
       const k = 0.8 + 0.3 * Math.sin(t * 11 + f.s) + 0.15 * Math.sin(t * 23 + f.s * 2);
-      if (f.flat) f.m.material.uniforms.uEmissive.value.setRGB(1.0 * k, 0.35 * k, 0.1 * k);
+      if (f.flatK) f.m.material.uniforms.uEmissive.value.setRGB(1.0 * k, 0.35 * k, 0.1 * k);
       else { f.m.scale.set(1, f.base * k, 1); f.m.rotation.y = t * 2 + f.s; }
     }
     const ff = W.fireflies;

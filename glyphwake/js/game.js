@@ -461,7 +461,7 @@
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
     const gu0 = GW.World.grass.mat.uniforms;
-    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.55 * G.R.dpr * Math.min(1.6, Math.max(1, gz * 0.7));
+    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.6 * G.R.dpr * Math.min(1.6, Math.max(1, gz * 0.7)); gu0.uLen.value = 10 * G.R.dpr * Math.min(2.2, gz);
     const gu = GW.World.grass.mat.uniforms;
     gu.uSize.value = 50 * Math.max(1, D / 22) * ((UI.settings.camPitch || 0.98) < 0.75 ? 1.35 : 1);
     gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);

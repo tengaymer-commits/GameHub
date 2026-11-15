@@ -13,8 +13,8 @@
   // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 2.5, under: 0.42, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 2.2, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 1.8, under: 0.5, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
     /* 4 water  */ { ramp: "   .:-=+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
@@ -183,8 +183,8 @@
       if (uFarGrass > 0.0) {
         // earth between the grass: brown soil, mossy patches, leaf litter and pebbles
         float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1), sp = th(floor(vW.xz * 5.0));
-        vec3 soil = mix(vec3(0.17, 0.135, 0.09), vec3(0.1, 0.16, 0.09), smoothstep(0.35, 0.7, n1));
-        soil = mix(soil, vec3(0.2, 0.12, 0.06), smoothstep(0.7, 0.9, n2) * 0.6);
+        vec3 soil = mix(vec3(0.075, 0.09, 0.095), vec3(0.06, 0.1, 0.09), smoothstep(0.35, 0.7, n1));
+        soil = mix(soil, vec3(0.1, 0.085, 0.07), smoothstep(0.7, 0.9, n2) * 0.5);
         soil *= 0.75 + 0.5 * n2;
         if (sp > 0.94) soil += vec3(0.16, 0.16, 0.17) * (sp - 0.94) * 16.0;
         float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
@@ -380,7 +380,7 @@
     this.rts = null;
     this.resize();
   };
-  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 2.2; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.0; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
     // Supersampling: the scene and the glyph pass run at `dpr` (internal pixels per CSS px), which can be
     // well above the screen's own ratio, so each glyph cell gets enough pixels to read like on a phone.
