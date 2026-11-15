@@ -757,11 +757,11 @@
           vec3 root = vec3(wp.x, m.r, wp.y);
           // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
-          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(1.0, m.g * 2.5 + 0.35)) * step(4.4, m.b) : step(0.22, clump) * vis * edgeF;
+          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(1.0, m.g * 3.0 + 0.45)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           // lean is shared by neighbours (/ and \ groups), plus a little per-straw jitter and wind
           float lean = (vn(wp * 0.7 + 1.3) - 0.5) * 0.55 + (fract(sd * 5.3) - 0.5) * 0.6
                      + sin(uTime * 1.3 + wp.x * 0.3 + wp.y * 0.2) * 0.06;
-          float lenPx = uLen * (0.6 + 0.8 * fract(sd * 3.7)) * (uTurf > 0.5 ? 0.45 : mix(1.0, 1.5, tall)) * keep;
+          float lenPx = uLen * (0.6 + 0.8 * fract(sd * 3.7)) * (uTurf > 0.5 ? 0.8 : mix(1.0, 1.5, tall)) * keep;
           // the player and enemies flatten what they walk through
           float flatK = 0.0; vec2 pushW = vec2(0.0);
           for (int i = 0; i < 6; i++) {
@@ -791,7 +791,7 @@
           float tone = fract(sd * 17.0);
           vec3 sea = mix(vec3(0.12, 0.4, 0.3), vec3(0.2, 0.55, 0.42), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
-          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.5 : 1.0);
+          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.78 : 1.0);
           vSpeck = 0.0;
           if (speck) { vSpeck = 1.0; vCol = vec3(0.82, 0.86, 0.85) * (0.75 + 0.25 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
