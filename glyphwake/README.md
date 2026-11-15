@@ -43,7 +43,7 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 - **Flat lens** (Settings → Lens, default): a 17° telephoto camera that backs off to keep the same framing, so characters and straws are the same size across the screen. "Normal perspective" is still available.
 - Grass straws point every way (mostly a bit upright), are brighter, and are drawn under every object, so characters stand on them. Pale specks are small rings.
 - Light comes from the upper left, so moon shadows and each character's soft dithered contact shadow fall down-right.
-- A stylized cratered moon with cloud wisps is painted into the water nearest the view, since the physical reflection lands on grass from a top-down camera.
+- The moon only appears in the water through the real reflection, when the camera's angle and position line up with it.
 - Silver plate with strong highlights over dark under-clothes. The riverbank is crisp. **Minimal HUD** (default) shows the bars, hotbar, minimap and quest only while fighting, hurt, after a quest update, or while Alt is held.
 
 ### Characters: shading over borders

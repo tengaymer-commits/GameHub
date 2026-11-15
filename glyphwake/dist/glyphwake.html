@@ -7155,17 +7155,6 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
           col += specAt(vW, wn, V, 60.0) * 1.1;
           col += vec3(0.42, 0.56, 0.8) * (streak * 0.08 + foam * 0.25) * (0.35 + L * 1.2);
-          // stylised moon in the water nearest the view, with wisps of cloud around it
-          vec2 md = vW.xz - uMoonSpot; float mdl = length(md); float MR = 3.1;
-          float cloud = n2(md * 0.32 + vec2(uTime * 0.015, 0.0)) * 0.65 + n2(md * 0.9 + 5.0) * 0.35;
-          cloud = smoothstep(0.55, 0.78, cloud) * (1.0 - smoothstep(MR * 1.3, MR * 3.0, mdl));
-          col = mix(col, vec3(0.42, 0.44, 0.48), cloud * 0.75);
-          if (mdl < MR) {
-            vec2 q = md / MR; float lim = sqrt(max(0.0, 1.0 - dot(q, q)));
-            float maria = smoothstep(0.45, 0.7, n2(q * 3.0 + 3.0)) * 0.42;
-            float crat = smoothstep(0.62, 0.82, n2(q * 9.0 + 1.0)) * 0.22;
-            col = vec3(0.82, 0.84, 0.9) * (1.0 - maria - crat) * (0.55 + 0.45 * lim);
-          }
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
@@ -9330,7 +9319,6 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
     G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
     GW.World.updateSky(C);
-    if (frame % 4 === 0 && GW.World.waterMat) { const nr = GW.World.nearestRiver(camLook.x, camLook.z); GW.World.waterMat.uniforms.uMoonSpot.value.set(nr[0], nr[1]); }
   }
   const ray = new THREE.Raycaster(), plane = new THREE.Plane(new V3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new V3();
   function aimPoint() {

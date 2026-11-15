@@ -493,7 +493,6 @@
     GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
     G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
     GW.World.updateSky(C);
-    if (frame % 4 === 0 && GW.World.waterMat) { const nr = GW.World.nearestRiver(camLook.x, camLook.z); GW.World.waterMat.uniforms.uMoonSpot.value.set(nr[0], nr[1]); }
   }
   const ray = new THREE.Raycaster(), plane = new THREE.Plane(new V3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new V3();
   function aimPoint() {
