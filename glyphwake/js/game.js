@@ -27,7 +27,7 @@
   ];
   G.quest = () => QUESTS[G.stage];
   G.objective = function () { const q = QUESTS[G.stage]; return q && q.target ? q.target() : null; };
-  function refreshQuest() { const q = QUESTS[G.stage]; UI.quest(q.title, q.text(G.counters)); }
+  function refreshQuest() { const q = QUESTS[G.stage]; UI.quest(q.title, q.text(G.counters)); G.questShownT = G.t; }
   function advance() {
     const prev = QUESTS[G.stage];
     G.stage = Math.min(QUESTS.length - 1, G.stage + 1); G.counters = {};
@@ -446,7 +446,11 @@
   const camT = new V3(), camLook = new V3();
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
-    C.aspect = G.R.aspect; C.fov = G.R.aspect < 0.8 ? 50 : 42; C.updateProjectionMatrix();
+    const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
+    const fovF = G.R.aspect < 0.8 ? 21 : 17;
+    C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
+    const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
+    C.far = 400 * lensK;
     if (title) {
       const a = G.t * 0.05, c = GW.World.L.village;
       C.position.set(c.x + Math.sin(a) * 30, 16, c.z + Math.cos(a) * 30);
@@ -456,7 +460,7 @@
     const portrait = G.R.aspect < 0.8;
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
-    GW.LU.uFogStart.value = D + 10;
+    GW.LU.uFogStart.value = D * lensK + 10;
     // close up the glyphs grow so the letters read; far out they shrink into a dense texture
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
@@ -479,7 +483,8 @@
     camT.set(P.pos.x + mvv.x * 0.16 + sy * po, P.pos.y, P.pos.z + mvv.z * 0.16 + cy * po);
     camLook.lerp(camT, Math.min(1, dt * (S.follow ? 7 : 11)));
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
-    C.position.set(camLook.x + sy * Math.cos(pitch) * D, camLook.y + Math.sin(pitch) * D, camLook.z + cy * Math.cos(pitch) * D);
+    const Dc = D * lensK;
+    C.position.set(camLook.x + sy * Math.cos(pitch) * Dc, camLook.y + Math.sin(pitch) * Dc, camLook.z + cy * Math.cos(pitch) * Dc);
     const s = G.shakeAmt * G.shakeAmt * 0.6;
     C.position.x += (Math.random() - 0.5) * s; C.position.y += (Math.random() - 0.5) * s; C.position.z += (Math.random() - 0.5) * s;
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
@@ -488,6 +493,7 @@
     GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
     G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
     GW.World.updateSky(C);
+    if (frame % 4 === 0 && GW.World.waterMat) { const nr = GW.World.nearestRiver(camLook.x, camLook.z); GW.World.waterMat.uniforms.uMoonSpot.value.set(nr[0], nr[1]); }
   }
   const ray = new THREE.Raycaster(), plane = new THREE.Plane(new V3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new V3();
   function aimPoint() {
@@ -575,6 +581,13 @@
         for (const e of G.enemies) if (!e.alive && e.type === 'husk' && G.t - e.diedAt > 5) revive(e);
       }
       UI.updateHUD(P);
+      // minimal HUD: show while fighting, hurt, low on stamina/focus, just after a quest update, or while Alt is held
+      if (frame % 6 === 0) {
+        const fighting = G.enemies.some(e => e.alive && e.aggro && e.type !== 'husk') || G.bossActive;
+        const show = fighting || P.hp < P.maxHp * 0.98 || P.st < 99 || G.t - (G.questShownT || -99) < 6 || I.keys.AltLeft;
+        document.body.classList.toggle('minhud', UI.settings.hud !== 'full');
+        document.body.classList.toggle('hudshow', !!show);
+      }
       if (frame % 3 === 0) UI.drawMinimap(G);
       objectiveArrow();
       // labels
@@ -612,8 +625,8 @@
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70),
-      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * 1.6 + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95 / (G.camera.fov < 30 ? 2.4 : 1), 16, 70),
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * (G.camera.fov < 30 ? 0.7 : 1.6) + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
     if (GWAudio.ctx) {

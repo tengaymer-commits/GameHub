@@ -300,6 +300,7 @@
     Object.assign(UI.settings, { v3: true, glyph: 5, glyphA: 6, glyphS: 5, control: 'free', follow: false, camYaw: 0, camPitch: 0.95, zoom: 1.1 });
   }
   if (!UI.settings.v4) Object.assign(UI.settings, { v4: true, glyph: 3.5, glyphA: 4, glyphS: 3.5 });
+  if (!UI.settings.v5) Object.assign(UI.settings, { v5: true, lens: 'flat', hud: 'min' });
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
@@ -322,6 +323,9 @@
     ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
+    const ln = $('o-lens'), hd = $('o-hud');
+    ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };
+    hd.value = S.hud || 'min'; hd.onchange = () => { S.hud = hd.value; UI.saveSettings(); };
     const ga = $('o-glyphA'), gs = $('o-glyphS');
     ga.value = S.glyphA; $('o-glyphA-v').textContent = S.glyphA + 'px'; gs.value = S.glyphS; $('o-glyphS-v').textContent = S.glyphS + 'px';
     ga.oninput = () => { S.glyphA = +ga.value; $('o-glyphA-v').textContent = S.glyphA + 'px'; apply(); UI.saveSettings(); };

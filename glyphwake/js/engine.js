@@ -74,7 +74,7 @@
   // ---------- shared lighting uniforms ----------
   const LU = E.LU = {
     uAmb: { value: new THREE.Color(0.1, 0.12, 0.17) },
-    uMoonDir: { value: new THREE.Vector3(-0.5, 0.78, 0.38).normalize() },
+    uMoonDir: { value: new THREE.Vector3(-0.45, 0.72, -0.62).normalize() },
     uMoonCol: { value: new THREE.Color(0.36, 0.42, 0.58) },
     uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },

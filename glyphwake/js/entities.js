@@ -11,8 +11,20 @@
     parent.add(m); return m;
   }
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  const shadowGeo = new THREE.CircleGeometry(1, 16).rotateX(-Math.PI / 2);
-  const shadowMat = GW.mat({ id: ID.GROUND, color: 0x000000, unlit: true });
+  // soft shadow stretched away from the light (light from the upper left, so it falls down-right)
+  const shadowGeo = new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2).scale(0.85, 1, 2.1).translate(0, 0, 1.05)
+    .rotateY(Math.atan2(0.59, 0.81));
+  const shadowMat = new THREE.ShaderMaterial({
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `varying vec2 vUv;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec2 d = (vUv - 0.5) * 2.0; d.y = (d.y + 1.0) * 0.5;   // darker near the feet
+        float a = (1.0 - smoothstep(0.15, 1.0, length(vec2(d.x, d.y * 1.3)))) * 0.85;
+        if (h(floor(gl_FragCoord.xy)) > a) discard;              // dithered soft edge
+        gl_FragColor = vec4(0.004, 0.008, 0.01, (${ID.GROUND}.0 + 0.5) / 32.0);
+      }`,
+  });
   function shadow(scene, r) { const s = new THREE.Mesh(shadowGeo, shadowMat); s.scale.setScalar(r); s.layers.set(1); scene.add(s); return s; }
 
   // ---------------- particles ----------------

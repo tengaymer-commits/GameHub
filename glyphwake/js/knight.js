@@ -89,7 +89,7 @@
     const H = K.GEAR.helm[gear.helm], C = K.GEAR.chest[gear.chest], CL = K.GEAR.cloak[gear.cloak];
     const closed = gear.helm === 'greathelm' || gear.helm === 'sallet' || gear.helm === 'horned';
     const spec = {
-      knightplate: [{ id: ID.PLATE, color: 0xe6eaf2, rim: 1.1, spec: 1.4, fill: 0.36 }, { id: ID.MAIL, color: 0x9aa0ac, rim: 0.6, fill: 0.3 }],
+      knightplate: [{ id: ID.PLATE, color: 0xf2f4f8, rim: 1.3, spec: 2.4, fill: 0.4 }, { id: ID.MAIL, color: 0x4a4e58, rim: 0.5, fill: 0.18 }],
       hauberk: [{ id: ID.MAIL, color: 0xb4b8c4, rim: 0.6 }, { id: ID.MAIL, color: 0x868a96, rim: 0.5 }],
       leather: [{ id: ID.LEATHER, color: 0x7a5434, rim: 0.4 }, { id: ID.LEATHER, color: 0x4a3220, rim: 0.3 }],
       scale: [{ id: ID.SCALE, color: 0x4a8a72, rim: 0.6 }, { id: ID.SCALE, color: 0x2e5a4a, rim: 0.5 }],
@@ -102,7 +102,7 @@
         case 'Metal_Dark': return spec[1];
         case 'Blue': return { id: ID.TABARD, color: 0x2c3240, rim: 0.4 };
         case 'DarkBrown': return { id: ID.LEATHER, color: 0x4a3020, rim: 0.3 };
-        case 'Beige': return { id: ID.CLOTH, color: 0x6a5a48, rim: 0.3 };
+        case 'Beige': return { id: ID.CLOTH, color: 0x2e2a28, rim: 0.3 };
         case 'Skin': return { id: ID.BODY, color: 0xd0b8a0, rim: 0.4 };
         case 'Hair_White': return { id: ID.BODY, color: 0x9a9a9a };
         case 'Eye': return { id: ID.BODY, color: 0x151515 };

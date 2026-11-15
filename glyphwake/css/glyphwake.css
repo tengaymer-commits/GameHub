@@ -124,6 +124,10 @@ button { font-family: var(--mono); color: var(--fg); }
   #f-stats { padding: 4px 10px; }
 }
 
+/* minimal HUD: bars, hotbar, minimap and quest fade out until there's fighting or you're hurt */
+#bars, #bottom, #minimap-wrap, #quest { transition: opacity .6s; }
+body.minhud #bars, body.minhud #bottom, body.minhud #minimap-wrap, body.minhud #quest { opacity: 0; }
+body.minhud.hudshow #bars, body.minhud.hudshow #bottom, body.minhud.hudshow #minimap-wrap, body.minhud.hudshow #quest { opacity: 1; }
 /* ---------- gear ---------- */
 #gear { position: fixed; inset: 0; z-index: 6; font-size: 11px; pointer-events: none; }
 #gear > * { pointer-events: auto; }

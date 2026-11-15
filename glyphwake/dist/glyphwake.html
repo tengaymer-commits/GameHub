@@ -135,6 +135,10 @@ button { font-family: var(--mono); color: var(--fg); }
   #f-stats { padding: 4px 10px; }
 }
 
+/* minimal HUD: bars, hotbar, minimap and quest fade out until there's fighting or you're hurt */
+#bars, #bottom, #minimap-wrap, #quest { transition: opacity .6s; }
+body.minhud #bars, body.minhud #bottom, body.minhud #minimap-wrap, body.minhud #quest { opacity: 0; }
+body.minhud.hudshow #bars, body.minhud.hudshow #bottom, body.minhud.hudshow #minimap-wrap, body.minhud.hudshow #quest { opacity: 1; }
 /* ---------- gear ---------- */
 #gear { position: fixed; inset: 0; z-index: 6; font-size: 11px; pointer-events: none; }
 #gear > * { pointer-events: auto; }
@@ -294,6 +298,12 @@ body.touch #hotbar { display: none; }
   </label>
   <div class="s-note" id="o-control-note"></div>
   <div class="s-sec">Camera</div>
+  <label>Lens
+    <select id="o-lens"><option value="flat">Flat (telephoto, like the reference)</option><option value="normal">Normal perspective</option></select>
+  </label>
+  <label>HUD
+    <select id="o-hud"><option value="min">Minimal: bars show in combat</option><option value="full">Full: always visible</option></select>
+  </label>
   <label>Camera distance <input type="range" id="o-zoom" min="0.35" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
   <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
   <label>Screen shake <input type="checkbox" id="o-shake" /></label>
@@ -5633,7 +5643,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------- shared lighting uniforms ----------
   const LU = E.LU = {
     uAmb: { value: new THREE.Color(0.1, 0.12, 0.17) },
-    uMoonDir: { value: new THREE.Vector3(-0.5, 0.78, 0.38).normalize() },
+    uMoonDir: { value: new THREE.Vector3(-0.45, 0.72, -0.62).normalize() },
     uMoonCol: { value: new THREE.Color(0.36, 0.42, 0.58) },
     uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
@@ -6290,7 +6300,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const H = K.GEAR.helm[gear.helm], C = K.GEAR.chest[gear.chest], CL = K.GEAR.cloak[gear.cloak];
     const closed = gear.helm === 'greathelm' || gear.helm === 'sallet' || gear.helm === 'horned';
     const spec = {
-      knightplate: [{ id: ID.PLATE, color: 0xe6eaf2, rim: 1.1, spec: 1.4, fill: 0.36 }, { id: ID.MAIL, color: 0x9aa0ac, rim: 0.6, fill: 0.3 }],
+      knightplate: [{ id: ID.PLATE, color: 0xf2f4f8, rim: 1.3, spec: 2.4, fill: 0.4 }, { id: ID.MAIL, color: 0x4a4e58, rim: 0.5, fill: 0.18 }],
       hauberk: [{ id: ID.MAIL, color: 0xb4b8c4, rim: 0.6 }, { id: ID.MAIL, color: 0x868a96, rim: 0.5 }],
       leather: [{ id: ID.LEATHER, color: 0x7a5434, rim: 0.4 }, { id: ID.LEATHER, color: 0x4a3220, rim: 0.3 }],
       scale: [{ id: ID.SCALE, color: 0x4a8a72, rim: 0.6 }, { id: ID.SCALE, color: 0x2e5a4a, rim: 0.5 }],
@@ -6303,7 +6313,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         case 'Metal_Dark': return spec[1];
         case 'Blue': return { id: ID.TABARD, color: 0x2c3240, rim: 0.4 };
         case 'DarkBrown': return { id: ID.LEATHER, color: 0x4a3020, rim: 0.3 };
-        case 'Beige': return { id: ID.CLOTH, color: 0x6a5a48, rim: 0.3 };
+        case 'Beige': return { id: ID.CLOTH, color: 0x2e2a28, rim: 0.3 };
         case 'Skin': return { id: ID.BODY, color: 0xd0b8a0, rim: 0.4 };
         case 'Hair_White': return { id: ID.BODY, color: 0x9a9a9a };
         case 'Eye': return { id: ID.BODY, color: 0x151515 };
@@ -6527,7 +6537,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       h -= 1.9 * Math.pow(carve, 0.8);
       if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
       let g = 0.95;
-      g *= ss(RIVER_W - 0.3, RIVER_W + 1.2, rd);
+      g *= ss(RIVER_W - 0.15, RIVER_W + 0.25, rd);
       g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
       const vd = Math.hypot(x - L.village.x, z - L.village.z);
       g *= GW.lerp(0.25, 1, ss(6, 14, vd));
@@ -6577,6 +6587,15 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   };
   W.groundY = (x, z) => W.onBridge(x, z) ? Math.max(W.heightAt(x, z), 0.35) : W.heightAt(x, z);
   W.riverDist = (x, z) => polyDist(RIVER, x, z).d;
+  W.nearestRiver = function (x, z) {
+    let best = null, bd = 1e9;
+    for (let i = 0; i < RIVER.length - 1; i++) {
+      const a = RIVER[i], b = RIVER[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
+      const t = GW.clamp(((x - a[0]) * dx + (z - a[1]) * dz) / l2, 0, 1), px = a[0] + dx * t, pz = a[1] + dz * t, d = (px - x) ** 2 + (pz - z) ** 2;
+      if (d < bd) { bd = d; best = [px, pz]; }
+    }
+    return best;
+  };
 
   const CELL = 8;
   W.addCollider = function (x, z, r, tag) {
@@ -6952,7 +6971,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     stars.frustumCulled = false; g.add(stars);
     // the moon, low on the horizon
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(34, 32, 20), new THREE.ShaderMaterial({
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(46, 32, 20), new THREE.ShaderMaterial({
       uniforms: { uMoon: { value: moonVis } },
       vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normal); vP = position; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
       fragmentShader: `varying vec3 vN; varying vec3 vP; uniform vec3 uMoon;
@@ -6961,7 +6980,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           return mix(mix(mix(mh(i), mh(i + vec3(1,0,0)), f.x), mix(mh(i + vec3(0,1,0)), mh(i + vec3(1,1,0)), f.x), f.y),
                      mix(mix(mh(i + vec3(0,0,1)), mh(i + vec3(1,0,1)), f.x), mix(mh(i + vec3(0,1,1)), mh(i + vec3(1,1,1)), f.x), f.y), f.z); }
         void main(){
-          vec3 q = vP / 34.0;
+          vec3 q = vP / 46.0;
           float maria = smoothstep(0.45, 0.7, mn(q * 2.2 + 3.0)) * 0.45;
           float craters = smoothstep(0.62, 0.8, mn(q * 7.0)) * 0.25 + smoothstep(0.7, 0.85, mn(q * 15.0 + 2.0)) * 0.15;
           float limb = 0.55 + 0.45 * pow(max(dot(normalize(vN), -uMoon), 0.0), 0.4);
@@ -7095,14 +7114,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(posA, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvA, 2)); g.setIndex(idx);
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() } }, GW.LU),
+      uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() }, uMoonSpot: { value: new THREE.Vector2(0, 999) } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: `varying vec2 vUv; varying vec3 vW; ${GW.LIGHT_GLSL}
         float h(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
           return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-        uniform vec3 uMoonVis; uniform sampler2D uRefl; uniform mat4 uReflMat; uniform float uReflOn;
+        uniform vec3 uMoonVis; uniform vec2 uMoonSpot; uniform sampler2D uRefl; uniform mat4 uReflMat; uniform float uReflOn;
         void main(){
           float e = min(vUv.x, 1.0 - vUv.x);
           // current: long streaks running downstream, faster in the middle of the channel
@@ -7131,6 +7150,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
           col += specAt(vW, wn, V, 60.0) * 1.1;
           col += vec3(0.42, 0.56, 0.8) * (streak * 0.08 + foam * 0.25) * (0.35 + L * 1.2);
+          // stylised moon in the water nearest the view, with wisps of cloud around it
+          vec2 md = vW.xz - uMoonSpot; float mdl = length(md); float MR = 3.1;
+          float cloud = n2(md * 0.32 + vec2(uTime * 0.015, 0.0)) * 0.65 + n2(md * 0.9 + 5.0) * 0.35;
+          cloud = smoothstep(0.55, 0.78, cloud) * (1.0 - smoothstep(MR * 1.3, MR * 3.0, mdl));
+          col = mix(col, vec3(0.42, 0.44, 0.48), cloud * 0.75);
+          if (mdl < MR) {
+            vec2 q = md / MR; float lim = sqrt(max(0.0, 1.0 - dot(q, q)));
+            float maria = smoothstep(0.45, 0.7, n2(q * 3.0 + 3.0)) * 0.42;
+            float crat = smoothstep(0.62, 0.82, n2(q * 9.0 + 1.0)) * 0.22;
+            col = vec3(0.82, 0.84, 0.9) * (1.0 - maria - crat) * (0.55 + 0.45 * lim);
+          }
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
@@ -7160,7 +7190,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
         uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen;
-        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck;
+        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -7198,32 +7228,34 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vec4 cu = VP * vec4(root + vec3(0.0, 0.5, 0.0), 1.0);
           vec4 cpw = VP * vec4(root + vec3(pushW.x, 0.0, pushW.y), 1.0);
           // lying flat: angle from the screen's horizontal, mostly within about ±45 degrees
-          float ang2 = (vn(wp * 0.7 + 1.3) - 0.5) * 1.6 + (fract(sd * 5.3) - 0.5) * 1.1 + sin(uTime * 1.1 + wp.x * 0.3 + wp.y * 0.2) * 0.04;
+          float ang2 = 1.5708 + (vn(wp * 0.7 + 1.3) - 0.5) * 1.3 + (fract(sd * 5.3) - 0.5) * 1.9 + sin(uTime * 1.1 + wp.x * 0.3 + wp.y * 0.2) * 0.04;
           vec2 dir = vec2(cos(ang2), sin(ang2));
           // footsteps: straws splay outward from the walker
           vec2 pd = (cpw.xy / cpw.w - cr.xy / cr.w) / uPx;
           if (flatK > 0.01 && length(pd) > 0.001) dir = normalize(mix(dir, normalize(pd), flatK * 0.85));
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
-          bool speck = fract(sd * 97.13) < 0.025 + 0.07 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 1.6 : lenPx;
-          float wpx = speck ? uLineW * 1.7 : uLineW;
+          bool speck = fract(sd * 97.13) < 0.035 + 0.08 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
+          float L2 = speck ? uLineW * 7.0 : lenPx;
+          float wpx = speck ? uLineW * 3.5 : uLineW;
+          if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
-          cp.xy += (dir * t * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
-          vW = root; vT = t;
+          cp.xy += (dir * (speck ? t - 0.5 : t) * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
+          vW = root; vT = t; vAc = aV.x;
           float tone = fract(sd * 17.0);
-          vec3 sea = mix(vec3(0.1, 0.33, 0.25), vec3(0.17, 0.46, 0.35), tone);
+          vec3 sea = mix(vec3(0.12, 0.4, 0.3), vec3(0.2, 0.55, 0.42), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK);
           vSpeck = 0.0;
-          if (speck) { vSpeck = 1.0; vCol = vec3(0.6, 0.66, 0.66) * (0.7 + 0.3 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
+          if (speck) { vSpeck = 1.0; vCol = vec3(0.82, 0.86, 0.85) * (0.75 + 0.25 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           gl_Position = cp;
         }`,
-      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; ${GW.LIGHT_GLSL}
+      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; ${GW.LIGHT_GLSL}
         void main(){
+          if (vSpeck > 0.5) { float rr = length(vec2(vAc, vT * 2.0 - 1.0)); if (rr > 1.0 || rr < 0.42) discard; }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
-          vec3 col = vSpeck > 0.5 ? vCol * (0.75 + 0.25 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
+          vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
@@ -7306,8 +7338,20 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     parent.add(m); return m;
   }
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  const shadowGeo = new THREE.CircleGeometry(1, 16).rotateX(-Math.PI / 2);
-  const shadowMat = GW.mat({ id: ID.GROUND, color: 0x000000, unlit: true });
+  // soft shadow stretched away from the light (light from the upper left, so it falls down-right)
+  const shadowGeo = new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2).scale(0.85, 1, 2.1).translate(0, 0, 1.05)
+    .rotateY(Math.atan2(0.59, 0.81));
+  const shadowMat = new THREE.ShaderMaterial({
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `varying vec2 vUv;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec2 d = (vUv - 0.5) * 2.0; d.y = (d.y + 1.0) * 0.5;   // darker near the feet
+        float a = (1.0 - smoothstep(0.15, 1.0, length(vec2(d.x, d.y * 1.3)))) * 0.85;
+        if (h(floor(gl_FragCoord.xy)) > a) discard;              // dithered soft edge
+        gl_FragColor = vec4(0.004, 0.008, 0.01, (${ID.GROUND}.0 + 0.5) / 32.0);
+      }`,
+  });
   function shadow(scene, r) { const s = new THREE.Mesh(shadowGeo, shadowMat); s.scale.setScalar(r); s.layers.set(1); scene.add(s); return s; }
 
   // ---------------- particles ----------------
@@ -8741,6 +8785,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     Object.assign(UI.settings, { v3: true, glyph: 5, glyphA: 6, glyphS: 5, control: 'free', follow: false, camYaw: 0, camPitch: 0.95, zoom: 1.1 });
   }
   if (!UI.settings.v4) Object.assign(UI.settings, { v4: true, glyph: 3.5, glyphA: 4, glyphS: 3.5 });
+  if (!UI.settings.v5) Object.assign(UI.settings, { v5: true, lens: 'flat', hud: 'min' });
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
@@ -8763,6 +8808,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
+    const ln = $('o-lens'), hd = $('o-hud');
+    ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };
+    hd.value = S.hud || 'min'; hd.onchange = () => { S.hud = hd.value; UI.saveSettings(); };
     const ga = $('o-glyphA'), gs = $('o-glyphS');
     ga.value = S.glyphA; $('o-glyphA-v').textContent = S.glyphA + 'px'; gs.value = S.glyphS; $('o-glyphS-v').textContent = S.glyphS + 'px';
     ga.oninput = () => { S.glyphA = +ga.value; $('o-glyphA-v').textContent = S.glyphA + 'px'; apply(); UI.saveSettings(); };
@@ -8811,7 +8859,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   ];
   G.quest = () => QUESTS[G.stage];
   G.objective = function () { const q = QUESTS[G.stage]; return q && q.target ? q.target() : null; };
-  function refreshQuest() { const q = QUESTS[G.stage]; UI.quest(q.title, q.text(G.counters)); }
+  function refreshQuest() { const q = QUESTS[G.stage]; UI.quest(q.title, q.text(G.counters)); G.questShownT = G.t; }
   function advance() {
     const prev = QUESTS[G.stage];
     G.stage = Math.min(QUESTS.length - 1, G.stage + 1); G.counters = {};
@@ -9230,7 +9278,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const camT = new V3(), camLook = new V3();
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
-    C.aspect = G.R.aspect; C.fov = G.R.aspect < 0.8 ? 50 : 42; C.updateProjectionMatrix();
+    const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
+    const fovF = G.R.aspect < 0.8 ? 21 : 17;
+    C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
+    const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
+    C.far = 400 * lensK;
     if (title) {
       const a = G.t * 0.05, c = GW.World.L.village;
       C.position.set(c.x + Math.sin(a) * 30, 16, c.z + Math.cos(a) * 30);
@@ -9240,7 +9292,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const portrait = G.R.aspect < 0.8;
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
-    GW.LU.uFogStart.value = D + 10;
+    GW.LU.uFogStart.value = D * lensK + 10;
     // close up the glyphs grow so the letters read; far out they shrink into a dense texture
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
@@ -9263,7 +9315,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     camT.set(P.pos.x + mvv.x * 0.16 + sy * po, P.pos.y, P.pos.z + mvv.z * 0.16 + cy * po);
     camLook.lerp(camT, Math.min(1, dt * (S.follow ? 7 : 11)));
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
-    C.position.set(camLook.x + sy * Math.cos(pitch) * D, camLook.y + Math.sin(pitch) * D, camLook.z + cy * Math.cos(pitch) * D);
+    const Dc = D * lensK;
+    C.position.set(camLook.x + sy * Math.cos(pitch) * Dc, camLook.y + Math.sin(pitch) * Dc, camLook.z + cy * Math.cos(pitch) * Dc);
     const s = G.shakeAmt * G.shakeAmt * 0.6;
     C.position.x += (Math.random() - 0.5) * s; C.position.y += (Math.random() - 0.5) * s; C.position.z += (Math.random() - 0.5) * s;
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
@@ -9272,6 +9325,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
     G.grassCenter = { x: camLook.x - sy * ahead2, z: camLook.z - cy * ahead2 };
     GW.World.updateSky(C);
+    if (frame % 4 === 0 && GW.World.waterMat) { const nr = GW.World.nearestRiver(camLook.x, camLook.z); GW.World.waterMat.uniforms.uMoonSpot.value.set(nr[0], nr[1]); }
   }
   const ray = new THREE.Raycaster(), plane = new THREE.Plane(new V3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new V3();
   function aimPoint() {
@@ -9359,6 +9413,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         for (const e of G.enemies) if (!e.alive && e.type === 'husk' && G.t - e.diedAt > 5) revive(e);
       }
       UI.updateHUD(P);
+      // minimal HUD: show while fighting, hurt, low on stamina/focus, just after a quest update, or while Alt is held
+      if (frame % 6 === 0) {
+        const fighting = G.enemies.some(e => e.alive && e.aggro && e.type !== 'husk') || G.bossActive;
+        const show = fighting || P.hp < P.maxHp * 0.98 || P.st < 99 || G.t - (G.questShownT || -99) < 6 || I.keys.AltLeft;
+        document.body.classList.toggle('minhud', UI.settings.hud !== 'full');
+        document.body.classList.toggle('hudshow', !!show);
+      }
       if (frame % 3 === 0) UI.drawMinimap(G);
       objectiveArrow();
       // labels
@@ -9396,8 +9457,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95, 16, 70),
-      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * 1.6 + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95 / (G.camera.fov < 30 ? 2.4 : 1), 16, 70),
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * (G.camera.fov < 30 ? 0.7 : 1.6) + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
     if (GWAudio.ctx) {

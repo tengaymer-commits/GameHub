@@ -94,7 +94,7 @@
       h -= 1.9 * Math.pow(carve, 0.8);
       if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
       let g = 0.95;
-      g *= ss(RIVER_W - 0.3, RIVER_W + 1.2, rd);
+      g *= ss(RIVER_W - 0.15, RIVER_W + 0.25, rd);
       g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
       const vd = Math.hypot(x - L.village.x, z - L.village.z);
       g *= GW.lerp(0.25, 1, ss(6, 14, vd));
@@ -144,6 +144,15 @@
   };
   W.groundY = (x, z) => W.onBridge(x, z) ? Math.max(W.heightAt(x, z), 0.35) : W.heightAt(x, z);
   W.riverDist = (x, z) => polyDist(RIVER, x, z).d;
+  W.nearestRiver = function (x, z) {
+    let best = null, bd = 1e9;
+    for (let i = 0; i < RIVER.length - 1; i++) {
+      const a = RIVER[i], b = RIVER[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
+      const t = GW.clamp(((x - a[0]) * dx + (z - a[1]) * dz) / l2, 0, 1), px = a[0] + dx * t, pz = a[1] + dz * t, d = (px - x) ** 2 + (pz - z) ** 2;
+      if (d < bd) { bd = d; best = [px, pz]; }
+    }
+    return best;
+  };
 
   const CELL = 8;
   W.addCollider = function (x, z, r, tag) {
@@ -519,7 +528,7 @@
     }
     stars.frustumCulled = false; g.add(stars);
     // the moon, low on the horizon
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(34, 32, 20), new THREE.ShaderMaterial({
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(46, 32, 20), new THREE.ShaderMaterial({
       uniforms: { uMoon: { value: moonVis } },
       vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normal); vP = position; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
       fragmentShader: `varying vec3 vN; varying vec3 vP; uniform vec3 uMoon;
@@ -528,7 +537,7 @@
           return mix(mix(mix(mh(i), mh(i + vec3(1,0,0)), f.x), mix(mh(i + vec3(0,1,0)), mh(i + vec3(1,1,0)), f.x), f.y),
                      mix(mix(mh(i + vec3(0,0,1)), mh(i + vec3(1,0,1)), f.x), mix(mh(i + vec3(0,1,1)), mh(i + vec3(1,1,1)), f.x), f.y), f.z); }
         void main(){
-          vec3 q = vP / 34.0;
+          vec3 q = vP / 46.0;
           float maria = smoothstep(0.45, 0.7, mn(q * 2.2 + 3.0)) * 0.45;
           float craters = smoothstep(0.62, 0.8, mn(q * 7.0)) * 0.25 + smoothstep(0.7, 0.85, mn(q * 15.0 + 2.0)) * 0.15;
           float limb = 0.55 + 0.45 * pow(max(dot(normalize(vN), -uMoon), 0.0), 0.4);
@@ -662,14 +671,14 @@
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(posA, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvA, 2)); g.setIndex(idx);
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() } }, GW.LU),
+      uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() }, uMoonSpot: { value: new THREE.Vector2(0, 999) } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: `varying vec2 vUv; varying vec3 vW; ${GW.LIGHT_GLSL}
         float h(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
           return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-        uniform vec3 uMoonVis; uniform sampler2D uRefl; uniform mat4 uReflMat; uniform float uReflOn;
+        uniform vec3 uMoonVis; uniform vec2 uMoonSpot; uniform sampler2D uRefl; uniform mat4 uReflMat; uniform float uReflOn;
         void main(){
           float e = min(vUv.x, 1.0 - vUv.x);
           // current: long streaks running downstream, faster in the middle of the channel
@@ -698,6 +707,17 @@
           } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
           col += specAt(vW, wn, V, 60.0) * 1.1;
           col += vec3(0.42, 0.56, 0.8) * (streak * 0.08 + foam * 0.25) * (0.35 + L * 1.2);
+          // stylised moon in the water nearest the view, with wisps of cloud around it
+          vec2 md = vW.xz - uMoonSpot; float mdl = length(md); float MR = 3.1;
+          float cloud = n2(md * 0.32 + vec2(uTime * 0.015, 0.0)) * 0.65 + n2(md * 0.9 + 5.0) * 0.35;
+          cloud = smoothstep(0.55, 0.78, cloud) * (1.0 - smoothstep(MR * 1.3, MR * 3.0, mdl));
+          col = mix(col, vec3(0.42, 0.44, 0.48), cloud * 0.75);
+          if (mdl < MR) {
+            vec2 q = md / MR; float lim = sqrt(max(0.0, 1.0 - dot(q, q)));
+            float maria = smoothstep(0.45, 0.7, n2(q * 3.0 + 3.0)) * 0.42;
+            float crat = smoothstep(0.62, 0.82, n2(q * 9.0 + 1.0)) * 0.22;
+            col = vec3(0.82, 0.84, 0.9) * (1.0 - maria - crat) * (0.55 + 0.45 * lim);
+          }
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.WATER}.0 + 0.5) / 32.0);
         }`,
@@ -727,7 +747,7 @@
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
         uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen;
-        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck;
+        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -765,32 +785,34 @@
           vec4 cu = VP * vec4(root + vec3(0.0, 0.5, 0.0), 1.0);
           vec4 cpw = VP * vec4(root + vec3(pushW.x, 0.0, pushW.y), 1.0);
           // lying flat: angle from the screen's horizontal, mostly within about ±45 degrees
-          float ang2 = (vn(wp * 0.7 + 1.3) - 0.5) * 1.6 + (fract(sd * 5.3) - 0.5) * 1.1 + sin(uTime * 1.1 + wp.x * 0.3 + wp.y * 0.2) * 0.04;
+          float ang2 = 1.5708 + (vn(wp * 0.7 + 1.3) - 0.5) * 1.3 + (fract(sd * 5.3) - 0.5) * 1.9 + sin(uTime * 1.1 + wp.x * 0.3 + wp.y * 0.2) * 0.04;
           vec2 dir = vec2(cos(ang2), sin(ang2));
           // footsteps: straws splay outward from the walker
           vec2 pd = (cpw.xy / cpw.w - cr.xy / cr.w) / uPx;
           if (flatK > 0.01 && length(pd) > 0.001) dir = normalize(mix(dir, normalize(pd), flatK * 0.85));
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
-          bool speck = fract(sd * 97.13) < 0.025 + 0.07 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 1.6 : lenPx;
-          float wpx = speck ? uLineW * 1.7 : uLineW;
+          bool speck = fract(sd * 97.13) < 0.035 + 0.08 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
+          float L2 = speck ? uLineW * 7.0 : lenPx;
+          float wpx = speck ? uLineW * 3.5 : uLineW;
+          if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
-          cp.xy += (dir * t * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
-          vW = root; vT = t;
+          cp.xy += (dir * (speck ? t - 0.5 : t) * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
+          vW = root; vT = t; vAc = aV.x;
           float tone = fract(sd * 17.0);
-          vec3 sea = mix(vec3(0.1, 0.33, 0.25), vec3(0.17, 0.46, 0.35), tone);
+          vec3 sea = mix(vec3(0.12, 0.4, 0.3), vec3(0.2, 0.55, 0.42), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK);
           vSpeck = 0.0;
-          if (speck) { vSpeck = 1.0; vCol = vec3(0.6, 0.66, 0.66) * (0.7 + 0.3 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
+          if (speck) { vSpeck = 1.0; vCol = vec3(0.82, 0.86, 0.85) * (0.75 + 0.25 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           gl_Position = cp;
         }`,
-      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; ${GW.LIGHT_GLSL}
+      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; ${GW.LIGHT_GLSL}
         void main(){
+          if (vSpeck > 0.5) { float rr = length(vec2(vAc, vT * 2.0 - 1.0)); if (rr > 1.0 || rr < 0.42) discard; }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
-          vec3 col = vSpeck > 0.5 ? vCol * (0.75 + 0.25 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
+          vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
