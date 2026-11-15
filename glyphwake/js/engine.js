@@ -210,7 +210,7 @@
 
   const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.12, 13: 0.1, 6: 0.15, 22: 0.06 };
   // characters get a soft self-fill so they never sink into the night
-  const FILL = { 6: 0.3, 7: 0.22, 11: 0.3, 12: 0.28, 16: 0.24, 17: 0.22, 18: 0.28, 19: 0.26, 20: 0.3, 21: 0.26, 22: 0.34 };
+  const FILL = { 6: 0.12, 7: 0.09, 11: 0.12, 12: 0.11, 16: 0.1, 17: 0.09, 18: 0.11, 19: 0.1, 20: 0.12, 21: 0.1, 22: 0.13 };
   // material factory
   E.mat = function (o) {
     o = o || {};
@@ -238,7 +238,7 @@
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl;
     vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
@@ -250,6 +250,15 @@
       vec2 fc = gl_FragCoord.xy;
       vec4 px = texture2D(tScene, fc / uRes);
       int pid = int(px.a * 32.0);
+      // thin black outline around characters, measured in pixels (not glyph cells)
+      if (uSet2[pid].w < 0.5) {
+        float ol = 0.0;
+        for (int k = 0; k < 8; k++) {
+          float a = float(k) * 0.785398;
+          ol = max(ol, uSet2[int(texture2D(tScene, (fc + vec2(cos(a), sin(a)) * uOl) / uRes).a * 32.0)].w);
+        }
+        if (ol > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+      }
       // separate glyph densities: characters, water & sky, everything else
       CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : uCell);
       vec2 cell = floor(fc / CS);
@@ -263,10 +272,11 @@
       // around characters the grass is darkened into a halo so silhouettes read
       if (!actor && uSet[pid].x > 0.5 && uSet[pid].x < 1.5) {
         float halo = max(max(actorAt(cell + vec2(1.0, 0.0)), actorAt(cell - vec2(1.0, 0.0))), max(actorAt(cell + vec2(0.0, 1.0)), actorAt(cell - vec2(0.0, 1.0))));
-        gl_FragColor = vec4(raw * uSet[pid].y * (1.0 - 0.8 * halo), 1.0); return;
+        gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return;
       }
       if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
       vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
+
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
       vec2 q = CS / uRes * 0.3;
       vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
@@ -276,7 +286,7 @@
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
       float jit = actor ? S3.x : 0.16;
       v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
-      if (actor) v = max(v * 1.15, 0.46);
+      if (actor) v = clamp(pow(v, 1.15) * 1.35, 0.24, 0.999);
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
@@ -290,13 +300,7 @@
       if (actor) {
         float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));
         float mU = actorAt(cell + vec2(0.0, 1.0)), mD = actorAt(cell + vec2(0.0, -1.0));
-        if (mL + mR + mU + mD < 3.5) {
-          vec2 g = vec2(mR - mL, mU - mD);
-          row = 32.0;
-          if (dot(g, g) < 0.1) idx = 4.0;
-          else idx = mod(floor(atan(g.y, g.x) / 3.14159265 * 4.0 + 0.5), 4.0);
-          edgeBoost = 1.0;
-        }
+        if (mL + mR + mU + mD < 3.5) v *= 0.8;
       } else if (S.w > 0.5 && idx > 0.5) {
         float mL = idAt(cell + vec2(-1.0, 0.0)) == id ? 1.0 : 0.0;
         float mR = idAt(cell + vec2(1.0, 0.0)) == id ? 1.0 : 0.0;
@@ -369,7 +373,7 @@
     const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
@@ -416,6 +420,7 @@
     this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
     this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
     this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
+    this.asciiMat.uniforms.uOl.value = Math.max(1.5, 1.6 * dpr * Math.min(1.8, z));
   };
   E.Renderer.prototype.pass = function (mat, target) {
     this.quad.material = mat;

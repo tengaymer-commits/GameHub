@@ -46,6 +46,9 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 - A stylized cratered moon with cloud wisps is painted into the water nearest the view, since the physical reflection lands on grass from a top-down camera.
 - Silver plate with strong highlights over dark under-clothes. The riverbank is crisp. **Minimal HUD** (default) shows the bars, hotbar, minimap and quest only while fighting, hurt, after a quest update, or while Alt is held.
 
+### Characters: shading over borders
+Like the reference, characters aren't outlined in bright glyphs. A thin **black outline** (measured in pixels, so it stays thin at any zoom) separates them from the grass. Inside, they're shaded by the light: bright highlights on plate, darker cloth and the side away from the light. Rim light and self-fill are low, and dark areas keep a dim glyph so they never vanish.
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|
