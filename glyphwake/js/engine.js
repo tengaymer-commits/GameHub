@@ -327,11 +327,15 @@
       c += texture2D(tIn, vUv + uDir * 1.38).rgb * 0.316; c += texture2D(tIn, vUv - uDir * 1.38).rgb * 0.316;
       c += texture2D(tIn, vUv + uDir * 3.23).rgb * 0.07; c += texture2D(tIn, vUv - uDir * 3.23).rgb * 0.07;
       gl_FragColor = vec4(c, 1.0); }`;
-  const COMP_F = `uniform sampler2D tA; uniform sampler2D tB; uniform float uBloom; uniform float uHurt; uniform float uTime; uniform vec2 uRes; uniform float uFadeW;
+  const COMP_F = `uniform sampler2D tA; uniform sampler2D tB; uniform float uBloom; uniform float uHurt; uniform float uTime; uniform vec2 uRes; uniform float uFadeW; uniform float uSS;
     varying vec2 vUv;
     float h21(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
-      vec3 a = texture2D(tA, vUv).rgb; vec3 b = texture2D(tB, vUv).rgb;
+      // box-filter the supersampled glyph image down to screen pixels
+      vec2 px = 1.0 / uRes, o = px * 0.25 * uSS;
+      vec3 a = (texture2D(tA, vUv + vec2(-o.x, -o.y)).rgb + texture2D(tA, vUv + vec2(o.x, -o.y)).rgb
+              + texture2D(tA, vUv + vec2(-o.x, o.y)).rgb + texture2D(tA, vUv + vec2(o.x, o.y)).rgb) * 0.25;
+      vec3 b = texture2D(tB, vUv).rgb;
       vec3 c = a + b * uBloom;
       vec2 d = vUv - 0.5; d.x *= uRes.x / uRes.y;
       float vig = smoothstep(1.15, 0.25, length(d));
@@ -370,16 +374,23 @@
     });
     this.brightMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BRIGHT_F, depthTest: false, depthWrite: false });
     this.blurMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BLUR_F, depthTest: false, depthWrite: false });
-    this.compMat = new THREE.ShaderMaterial({ uniforms: { tA: { value: null }, tB: { value: null }, uBloom: { value: 0.55 }, uHurt: { value: 0 }, uTime: LU.uTime, uRes: { value: new THREE.Vector2() }, uFadeW: { value: 0 } },
+    this.compMat = new THREE.ShaderMaterial({ uniforms: { tA: { value: null }, tB: { value: null }, uBloom: { value: 0.55 }, uHurt: { value: 0 }, uTime: LU.uTime, uRes: { value: new THREE.Vector2() }, uFadeW: { value: 0 }, uSS: { value: 1 } },
       vertexShader: QUAD_V, fragmentShader: COMP_F, depthTest: false, depthWrite: false });
     this.rts = null;
     this.resize();
   };
   E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.6; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
-    const dpr = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][this.quality]);
+    // Supersampling: the scene and the glyph pass run at `dpr` (internal pixels per CSS px), which can be
+    // well above the screen's own ratio, so each glyph cell gets enough pixels to read like on a phone.
+    // The final pass box-filters it down to the canvas at the screen's native ratio.
     const w = window.innerWidth, h = window.innerHeight;
-    this.r.setPixelRatio(dpr); this.r.setSize(w, h, false);
+    const native = Math.min(window.devicePixelRatio || 1, 2);
+    const want = this.renderScale === 'auto' || !this.renderScale ? [1.5, 2.5, 3][this.quality] : +this.renderScale;
+    const cap = [2.5e6, 6e6, 11e6][this.quality];
+    const dpr = Math.max(native * 0.75, Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))));
+    this.dpr = dpr; this.ss = dpr / native;
+    this.r.setPixelRatio(native); this.r.setSize(w, h, false);
     const W = Math.floor(w * dpr), H = Math.floor(h * dpr);
     this.W = W; this.H = H; this.aspect = w / h;
     const mk = (ww, hh, nearest) => new THREE.WebGLRenderTarget(ww, hh, {
@@ -397,7 +408,7 @@
     this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
     this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
     this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
-    this.compMat.uniforms.uRes.value.set(W, H);
+    this.compMat.uniforms.uRes.value.set(W, H); this.compMat.uniforms.uSS.value = this.ss;
   };
   E.Renderer.prototype.pass = function (mat, target) {
     this.quad.material = mat;
@@ -433,7 +444,7 @@
   };
   // planar reflection for the water: render layers 0 (world, characters) and 2 (sky) from a mirrored camera
   E.Renderer.prototype.renderReflection = function (scene, camera, h) {
-    const W = Math.max(2, this.W >> 1), H = Math.max(2, this.H >> 1);
+    const W = Math.max(2, Math.floor(this.W / this.ss / 1.4)), H = Math.max(2, Math.floor(this.H / this.ss / 1.4));
     if (!this.reflRT || this.reflRT.width !== W || this.reflRT.height !== H) {
       if (this.reflRT) this.reflRT.dispose();
       this.reflRT = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });

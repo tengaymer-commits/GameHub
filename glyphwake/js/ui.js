@@ -328,7 +328,10 @@
     gs.oninput = () => { S.glyphS = +gs.value; $('o-glyphS-v').textContent = S.glyphS + 'px'; apply(); UI.saveSettings(); };
     gl.value = S.glyph; $('o-glyph-v').textContent = S.glyph + 'px'; q.value = S.quality; v.value = S.vol; m.value = S.mus; sh.checked = S.shake; pu.checked = S.pure;
     gl.oninput = () => { S.glyph = +gl.value; $('o-glyph-v').textContent = S.glyph + 'px'; apply(); UI.saveSettings(); };
-    q.onchange = () => { S.quality = +q.value; apply(); UI.saveSettings(); };
+    const rs = $('o-res'), resNote = () => { const R = GW.G && GW.G.R; $('o-res-note').textContent = R ? 'Rendering at ' + R.dpr.toFixed(2) + '× (' + R.W + '×' + R.H + ' px), then scaled to your screen.' : ''; };
+    rs.value = S.res || 'auto'; rs.onchange = () => { S.res = rs.value; apply(); UI.saveSettings(); resNote(); };
+    UI.resNote = resNote;
+    q.onchange = () => { S.quality = +q.value; apply(); UI.saveSettings(); resNote(); };
     v.oninput = () => { S.vol = +v.value; apply(); UI.saveSettings(); };
     m.oninput = () => { S.mus = +m.value; apply(); UI.saveSettings(); };
     sh.onchange = () => { S.shake = sh.checked; UI.saveSettings(); };

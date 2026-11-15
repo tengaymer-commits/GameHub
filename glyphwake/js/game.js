@@ -148,11 +148,11 @@
   }
   function applySettings() {
     const S = UI.settings, R = G.R;
-    R.glyphPx = S.glyph; R.glyphA = S.glyphA; R.glyphS = S.glyphS; R.quality = S.quality; R.resize(); R.setPureGrass(S.pure);
+    R.glyphPx = S.glyph; R.glyphA = S.glyphA; R.glyphS = S.glyphS; R.quality = S.quality; R.renderScale = S.res || 'auto'; R.resize(); R.setPureGrass(S.pure);
     R.setShadows([0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
     GWAudio.setVolume(S.vol, S.mus);
   }
-  function openSettings(from) { G.settingsFrom = from; $('settings').classList.remove('hidden'); $('pause').classList.add('hidden'); $('title').classList.add('hidden'); }
+  function openSettings(from) { if (UI.resNote) UI.resNote(); G.settingsFrom = from; $('settings').classList.remove('hidden'); $('pause').classList.add('hidden'); $('title').classList.add('hidden'); }
 
   function spawnAll() {
     const Lw = GW.World.L;
