@@ -97,7 +97,7 @@
       g *= ss(RIVER_W - 0.15, RIVER_W + 0.25, rd);
       g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
       const vd = Math.hypot(x - L.village.x, z - L.village.z);
-      g *= GW.lerp(0.25, 1, ss(6, 14, vd));
+      g *= GW.lerp(0.6, 1, ss(6, 14, vd));
       const ad = Math.hypot(x - L.arena.x, z - L.arena.z);
       g *= GW.lerp(0.35, 1, ss(10, 18, ad));
       g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
@@ -286,8 +286,8 @@
     // icosahedron vertices are duplicated per face: jitter per vertex keeps facets (stylised look)
     const stoneM = GW.mat({ id: ID.STONE, color: 0x8a90a0, rim: 0.2 });
     const ruinM = GW.mat({ id: ID.RUIN, color: 0x7c88a8, rim: 0.3 });
-    const woodM = GW.mat({ id: ID.WOOD, color: 0x5a3e26 });
-    const leafM = GW.mat({ id: ID.LEAF, color: 0x2a5a48, rim: 0.15 });
+    const woodM = GW.mat({ id: ID.WOOD, color: 0x6a4e34, fill: 0.15 });
+    const leafM = GW.mat({ id: ID.LEAF, color: 0x3e7a62, rim: 0.15, fill: 0.18 });
     const deadM = GW.mat({ id: ID.BONE, color: 0x8a8478 });
     const mossM = GW.mat({ id: ID.MOSS, color: 0x6a7aa8 });
     const flowerM = GW.mat({ id: ID.FLOWER, color: 0xffffff, emissive: 0x2a2a30 });
@@ -395,7 +395,7 @@
     }
     for (let k = 0; k < 900; k++) {
       const x = (rnd() - 0.5) * 220, z = (rnd() - 0.5) * 220;
-      if (Math.hypot(x, z) < 105 && W.riverAt(x, z) > RIVER_W + 0.5) { if (rnd() < 0.08) moss(x, z, 0.6 + rnd() * 0.8); else flower(x, z); }
+      if (Math.hypot(x, z) < 105 && W.riverAt(x, z) > RIVER_W + 0.5) { flower(x, z); }
     }
     campfire(scene, L.meadowFire.x, L.meadowFire.z, 'Meadow watchfire');
 
@@ -420,9 +420,9 @@
 
   // ----- CC0 nature models (Kenney Nature Kit via the asset pack), instanced per material -----
   const NAT_MAT = {
-    leafsDark: { id: ID.LEAF, color: 0x24503e, rim: 0.15 }, leafsGreen: { id: ID.LEAF, color: 0x355f34, rim: 0.15 },
+    leafsDark: { id: ID.LEAF, color: 0x3c7a60, rim: 0.15, fill: 0.18 }, leafsGreen: { id: ID.LEAF, color: 0x4f8a4c, rim: 0.15, fill: 0.18 },
     leafsFall: { id: ID.LEAF, color: 0xc06a28, rim: 0.2 }, grass: { id: ID.LEAF, color: 0x2c5a2e, rim: 0.1 },
-    woodBark: { id: ID.WOOD, color: 0x5a3e26 }, woodBarkDark: { id: ID.WOOD, color: 0x3c2a1c }, woodBirch: { id: ID.WOOD, color: 0xd6d0c2, rim: 0.2 },
+    woodBark: { id: ID.WOOD, color: 0x8a6646, fill: 0.12 }, woodBarkDark: { id: ID.WOOD, color: 0x6a5038, fill: 0.12 }, woodBirch: { id: ID.WOOD, color: 0xd6d0c2, rim: 0.2 },
     woodInner: { id: ID.WOOD, color: 0xb88e5c }, dirt: { id: ID.STONE, color: 0x7a7e88, rim: 0.2 }, stone: { id: ID.STONE, color: 0x8a8e98, rim: 0.2 },
     colorRed: { id: ID.FLOWER, color: 0xc02424, emissive: 0x200404 }, _defaultMat: { id: ID.STONE, color: 0xd0c8b8 },
   };
@@ -616,14 +616,14 @@
       const gapAng = [Math.PI / 2, -Math.PI / 2, 0, Math.PI];
       if (gapAng.some(g => Math.abs(GW.angDiff(a, g)) < 0.16)) continue;
       const x = vx + Math.cos(a) * 15.5, z = vz + Math.sin(a) * 15.5;
-      batch.add('post', postG, woodM, place(x, W.heightAt(x, z), z, 0, 1, 0.7 + rnd() * 0.5, 1));
+      batch.add('post', postG, woodM, place(x, W.heightAt(x, z), z, 0, 1.6, 0.7 + rnd() * 0.5, 1.6), 0xb89a78);
       W.addCollider(x, z, 0.35, 'fence');
     }
     // tents
     const tentG = new THREE.ConeGeometry(2.0, 2.6, 4); tentG.translate(0, 1.3, 0);
     const tents = [[-9, 22, 0x6a3a28], [-10, 37, 0x5a4a30], [9, 38, 0x7a3030], [-2, 42, 0x4a4a38]];
     tents.forEach(([dx, dz, c]) => {
-      const m = new THREE.Mesh(tentG, GW.mat({ id: ID.CLOTH, color: c })); const x = vx + dx, z = vz + dz - 30 + 30;
+      const m = new THREE.Mesh(tentG, GW.mat({ id: ID.WOOD, color: c, rim: 0.2 })); const x = vx + dx, z = vz + dz - 30 + 30;
       m.position.set(dx, W.heightAt(dx, dz), dz); m.rotation.y = rnd() * 3; scene.add(m);
       W.addCollider(dx, dz, 1.6, 'tent');
     });
@@ -794,6 +794,7 @@
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK);
           vSpeck = 0.0;
           if (speck) { vSpeck = 1.0; vCol = vec3(0.82, 0.86, 0.85) * (0.75 + 0.25 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
+          if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
           gl_Position = cp;
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; ${GW.LIGHT_GLSL}
