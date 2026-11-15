@@ -294,7 +294,7 @@ body.touch #hotbar { display: none; }
   </label>
   <div class="s-note" id="o-control-note"></div>
   <div class="s-sec">Camera</div>
-  <label>Camera distance <input type="range" id="o-zoom" min="0.6" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
+  <label>Camera distance <input type="range" id="o-zoom" min="0.35" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
   <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
   <label>Screen shake <input type="checkbox" id="o-shake" /></label>
   <div class="s-sec">Glyph density (smaller = denser)</div>
@@ -5573,9 +5573,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 2.5, under: 0.42, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.6, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 2.2, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
-    /* 4 water  */ { ramp: " -~~~~≈≈≈*o@", mode: 0, gain: 1.7, under: 0.3, edge: 0, bright: 1.25, white: 0.4, flick: 4 },
+    /* 4 water  */ { ramp: "   .:-=+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
@@ -5738,6 +5738,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 base = vC;
+      if (uFill < 0.01 && uUnlit < 0.5) base *= 0.78 + 0.44 * tn(vW.xz * 1.9 + vW.y * 1.3) * (0.7 + 0.3 * tn(vW.xz * 7.0 - vW.y * 5.0));
       if (uFarGrass > 0.0) {
         // earth between the grass: brown soil, mossy patches, leaf litter and pebbles
         float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1), sp = th(floor(vW.xz * 5.0));
@@ -5938,7 +5939,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     this.rts = null;
     this.resize();
   };
-  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.6; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 2.2; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
     // Supersampling: the scene and the glyph pass run at `dpr` (internal pixels per CSS px), which can be
     // well above the screen's own ratio, so each glyph cell gets enough pixels to read like on a phone.
@@ -5959,15 +5960,21 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (this.rts) Object.values(this.rts).forEach(t => t.dispose());
     const bw = Math.max(1, W >> 2), bh = Math.max(1, H >> 2);
     this.rts = { scene: mk(W, H, true), ascii: mk(W, H, false), b1: mk(bw, bh, false), b2: mk(bw, bh, false) };
-    const cellOf = px => [Math.max(2, Math.round(px * dpr * 0.62)), Math.max(3, Math.round(px * dpr))];
+    this.updateCells();
+    this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
+    this.compMat.uniforms.uRes.value.set(W, H); this.compMat.uniforms.uSS.value = this.ss;
+    return;
+  };
+  // glyph cell sizes; `glyphZoom` grows them when the camera is close so the letters become readable
+  E.Renderer.prototype.updateCells = function () {
+    const dpr = this.dpr, z = this.glyphZoom || 1;
+    const cellOf = px => [Math.max(2, Math.round(px * z * dpr * 0.62)), Math.max(3, Math.round(px * z * dpr))];
     this.cell = cellOf(this.glyphPx);
     const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
-    this.asciiMat.uniforms.uRes.value.set(W, H);
+    this.asciiMat.uniforms.uRes.value.set(this.W, this.H);
     this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
     this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
     this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
-    this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
-    this.compMat.uniforms.uRes.value.set(W, H); this.compMat.uniforms.uSS.value = this.ss;
   };
   E.Renderer.prototype.pass = function (mat, target) {
     this.quad.material = mat;
@@ -7100,12 +7107,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           float e = min(vUv.x, 1.0 - vUv.x);
           // current: long streaks running downstream, faster in the middle of the channel
           float mid = 1.0 - abs(vUv.x - 0.5) * 2.0;
-          float flow = uTime * (1.0 + 0.8 * mid);
+          float flow = 0.0;   // still water: easier to read the reflection
           float streak = smoothstep(0.55, 0.9, n2(vec2(vUv.y * 0.22 - flow * 0.55, vUv.x * 11.0)) * n2(vec2(vUv.y * 0.9 - flow * 1.1, vUv.x * 4.0 + 7.0)) * 1.9);
           float foam = smoothstep(0.22, 0.06, e) * (0.55 + 0.45 * n2(vec2(vUv.y * 1.1 - flow * 1.4, vUv.x * 14.0)));
           // ripple normal
           vec2 rp = vec2(vUv.y * 2.2 - flow * 1.6, vUv.x * 12.0);
-          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.5 + (n2(rp * 2.3 + 5.1) - 0.5) * 0.25, 1.0, (n2(rp + 13.7) - 0.5) * 0.5));
+          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.12 + (n2(rp * 2.3 + 5.1) - 0.5) * 0.06, 1.0, (n2(rp + 13.7) - 0.5) * 0.12));
           vec3 L = lightAt(vW, vec3(0.0, 1.0, 0.0));
           vec3 V = normalize(uCam - vW);
           // reflection: sky colour by Fresnel, the moon and nearby fires as shimmering streaks
@@ -7114,13 +7121,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vec3 skyR = mix(vec3(0.07, 0.09, 0.15), vec3(0.01, 0.015, 0.035), smoothstep(0.0, 0.6, R.y));
           float mr = max(dot(R, uMoonVis), 0.0);
           vec3 moonR = vec3(0.85, 0.9, 1.0) * (pow(mr, 160.0) * 2.5 + pow(mr, 18.0) * 0.18);
-          vec3 body = vec3(0.012, 0.025, 0.06) + L * vec3(0.03, 0.06, 0.11);
+          vec3 body = vec3(0.004, 0.01, 0.025) + L * vec3(0.01, 0.02, 0.04);
           vec3 col;
           if (uReflOn > 0.5) {
             // dark mirror: the mirrored scene, wobbling with the ripples
-            vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.9, 1.0);
+            vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.6, 1.0);
             vec3 refl = texture2D(uRefl, rq.xy / rq.w).rgb;
-            col = body + refl * (0.32 + 0.2 * fres);
+            col = body + refl * (0.5 + 0.2 * fres);
           } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
           col += specAt(vW, wn, V, 60.0) * 1.1;
           col += vec3(0.42, 0.56, 0.8) * (streak * 0.08 + foam * 0.25) * (0.35 + L * 1.2);
@@ -7149,10 +7156,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -7185,7 +7192,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
             bend += d / max(dd, 0.05) * f * 1.3;
           }
           vec3 p = vec3(wp.x, m.r, wp.y);
-          p.xz += dir * aV.x * 0.046 * uWidth * (1.0 - t * 0.9) + bend * t * t * h;
+          vec3 root = vec3(wp.x, m.r, wp.y);
+          vec3 tipP = root + vec3(bend.x * h, h * (1.0 - 0.25 * min(length(bend), 1.5)), bend.y * h);
+          p.xz += bend * t * t * h;
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
@@ -7196,7 +7205,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vCol = mix(vec3(0.01, 0.03, 0.02), tip, 0.15 + 0.85 * t);
           vSpeck = 0.0;
           if (fract(sd * 97.13) < 0.03) { vSpeck = 1.0; vCol = vec3(0.62, 0.68, 0.64) * (0.7 + 0.3 * fract(sd * 51.0)); }
-          gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+          // a straw is a line of constant on-screen width, so it stays a crisp single stroke at any zoom
+          mat4 VP = projectionMatrix * viewMatrix;
+          vec4 cp = VP * vec4(p, 1.0), cr = VP * vec4(root, 1.0), ct = VP * vec4(tipP, 1.0);
+          vec2 sd2 = (ct.xy / ct.w - cr.xy / cr.w) / uPx;
+          vec2 nrm = length(sd2) > 0.001 ? normalize(vec2(-sd2.y, sd2.x)) : vec2(1.0, 0.0);
+          float wpx = (vSpeck > 0.5 ? 1.6 : 1.0) * uLineW * (1.0 - 0.55 * t);
+          cp.xy += nrm * aV.x * wpx * uPx * cp.w;
+          gl_Position = cp;
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; ${GW.LIGHT_GLSL}
         void main(){
@@ -8721,7 +8737,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
-    UI.settings.zoom = GW.clamp(z, 0.6, 2.2);
+    UI.settings.zoom = GW.clamp(z, 0.35, 2.2);
     const el = document.getElementById('o-zoom'); if (el) { el.value = UI.settings.zoom; document.getElementById('o-zoom-v').textContent = Math.round(UI.settings.zoom * 100) + '%'; }
     clearTimeout(zoomSaveT); zoomSaveT = setTimeout(UI.saveSettings, 400);
   };
@@ -9218,6 +9234,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
     GW.LU.uFogStart.value = D + 10;
+    // close up the glyphs grow so the letters read; far out they shrink into a dense texture
+    const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
+    if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
+    const gu0 = GW.World.grass.mat.uniforms;
+    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.55 * G.R.dpr * Math.min(1.6, Math.max(1, gz * 0.7));
     const gu = GW.World.grass.mat.uniforms;
     gu.uSize.value = 50 * Math.max(1, D / 22) * ((UI.settings.camPitch || 0.98) < 0.75 ? 1.35 : 1);
     gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);

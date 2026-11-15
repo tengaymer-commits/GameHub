@@ -303,7 +303,7 @@
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
-    UI.settings.zoom = GW.clamp(z, 0.6, 2.2);
+    UI.settings.zoom = GW.clamp(z, 0.35, 2.2);
     const el = document.getElementById('o-zoom'); if (el) { el.value = UI.settings.zoom; document.getElementById('o-zoom-v').textContent = Math.round(UI.settings.zoom * 100) + '%'; }
     clearTimeout(zoomSaveT); zoomSaveT = setTimeout(UI.saveSettings, 400);
   };

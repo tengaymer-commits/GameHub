@@ -674,12 +674,12 @@
           float e = min(vUv.x, 1.0 - vUv.x);
           // current: long streaks running downstream, faster in the middle of the channel
           float mid = 1.0 - abs(vUv.x - 0.5) * 2.0;
-          float flow = uTime * (1.0 + 0.8 * mid);
+          float flow = 0.0;   // still water: easier to read the reflection
           float streak = smoothstep(0.55, 0.9, n2(vec2(vUv.y * 0.22 - flow * 0.55, vUv.x * 11.0)) * n2(vec2(vUv.y * 0.9 - flow * 1.1, vUv.x * 4.0 + 7.0)) * 1.9);
           float foam = smoothstep(0.22, 0.06, e) * (0.55 + 0.45 * n2(vec2(vUv.y * 1.1 - flow * 1.4, vUv.x * 14.0)));
           // ripple normal
           vec2 rp = vec2(vUv.y * 2.2 - flow * 1.6, vUv.x * 12.0);
-          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.5 + (n2(rp * 2.3 + 5.1) - 0.5) * 0.25, 1.0, (n2(rp + 13.7) - 0.5) * 0.5));
+          vec3 wn = normalize(vec3((n2(rp) - 0.5) * 0.12 + (n2(rp * 2.3 + 5.1) - 0.5) * 0.06, 1.0, (n2(rp + 13.7) - 0.5) * 0.12));
           vec3 L = lightAt(vW, vec3(0.0, 1.0, 0.0));
           vec3 V = normalize(uCam - vW);
           // reflection: sky colour by Fresnel, the moon and nearby fires as shimmering streaks
@@ -688,13 +688,13 @@
           vec3 skyR = mix(vec3(0.07, 0.09, 0.15), vec3(0.01, 0.015, 0.035), smoothstep(0.0, 0.6, R.y));
           float mr = max(dot(R, uMoonVis), 0.0);
           vec3 moonR = vec3(0.85, 0.9, 1.0) * (pow(mr, 160.0) * 2.5 + pow(mr, 18.0) * 0.18);
-          vec3 body = vec3(0.012, 0.025, 0.06) + L * vec3(0.03, 0.06, 0.11);
+          vec3 body = vec3(0.004, 0.01, 0.025) + L * vec3(0.01, 0.02, 0.04);
           vec3 col;
           if (uReflOn > 0.5) {
             // dark mirror: the mirrored scene, wobbling with the ripples
-            vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.9, 1.0);
+            vec4 rq = uReflMat * vec4(vW + vec3(wn.x, 0.0, wn.z) * 0.6, 1.0);
             vec3 refl = texture2D(uRefl, rq.xy / rq.w).rgb;
-            col = body + refl * (0.32 + 0.2 * fres);
+            col = body + refl * (0.5 + 0.2 * fres);
           } else col = mix(body, skyR * 1.2, fres) + moonR * gShadow;
           col += specAt(vW, wn, V, 60.0) * 1.1;
           col += vec3(0.42, 0.56, 0.8) * (streak * 0.08 + foam * 0.25) * (0.35 + L * 1.2);
@@ -723,10 +723,10 @@
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -759,7 +759,9 @@
             bend += d / max(dd, 0.05) * f * 1.3;
           }
           vec3 p = vec3(wp.x, m.r, wp.y);
-          p.xz += dir * aV.x * 0.046 * uWidth * (1.0 - t * 0.9) + bend * t * t * h;
+          vec3 root = vec3(wp.x, m.r, wp.y);
+          vec3 tipP = root + vec3(bend.x * h, h * (1.0 - 0.25 * min(length(bend), 1.5)), bend.y * h);
+          p.xz += bend * t * t * h;
           p.y += t * h * (1.0 - 0.25 * min(length(bend), 1.5) * t);
           vW = p; vT = t;
           float tone = fract(sd * 17.0);
@@ -770,7 +772,14 @@
           vCol = mix(vec3(0.01, 0.03, 0.02), tip, 0.15 + 0.85 * t);
           vSpeck = 0.0;
           if (fract(sd * 97.13) < 0.03) { vSpeck = 1.0; vCol = vec3(0.62, 0.68, 0.64) * (0.7 + 0.3 * fract(sd * 51.0)); }
-          gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+          // a straw is a line of constant on-screen width, so it stays a crisp single stroke at any zoom
+          mat4 VP = projectionMatrix * viewMatrix;
+          vec4 cp = VP * vec4(p, 1.0), cr = VP * vec4(root, 1.0), ct = VP * vec4(tipP, 1.0);
+          vec2 sd2 = (ct.xy / ct.w - cr.xy / cr.w) / uPx;
+          vec2 nrm = length(sd2) > 0.001 ? normalize(vec2(-sd2.y, sd2.x)) : vec2(1.0, 0.0);
+          float wpx = (vSpeck > 0.5 ? 1.6 : 1.0) * uLineW * (1.0 - 0.55 * t);
+          cp.xy += nrm * aV.x * wpx * uPx * cp.w;
+          gl_Position = cp;
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; ${GW.LIGHT_GLSL}
         void main(){

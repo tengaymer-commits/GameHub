@@ -14,9 +14,9 @@
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: "  .,'`:;~\"^*", mode: 0, gain: 2.5, under: 0.42, edge: 0, bright: 0.9, white: 0.05, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.6, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 2.2, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.18, edge: 1, bright: 1.1, white: 0.25, flick: 0 },
-    /* 4 water  */ { ramp: " -~~~~≈≈≈*o@", mode: 0, gain: 1.7, under: 0.3, edge: 0, bright: 1.25, white: 0.4, flick: 4 },
+    /* 4 water  */ { ramp: "   .:-=+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.2, edge: 1, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.25, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.2, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
@@ -179,6 +179,7 @@
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 base = vC;
+      if (uFill < 0.01 && uUnlit < 0.5) base *= 0.78 + 0.44 * tn(vW.xz * 1.9 + vW.y * 1.3) * (0.7 + 0.3 * tn(vW.xz * 7.0 - vW.y * 5.0));
       if (uFarGrass > 0.0) {
         // earth between the grass: brown soil, mossy patches, leaf litter and pebbles
         float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1), sp = th(floor(vW.xz * 5.0));
@@ -379,7 +380,7 @@
     this.rts = null;
     this.resize();
   };
-  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.6; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 2.2; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
   E.Renderer.prototype.resize = function () {
     // Supersampling: the scene and the glyph pass run at `dpr` (internal pixels per CSS px), which can be
     // well above the screen's own ratio, so each glyph cell gets enough pixels to read like on a phone.
@@ -400,15 +401,21 @@
     if (this.rts) Object.values(this.rts).forEach(t => t.dispose());
     const bw = Math.max(1, W >> 2), bh = Math.max(1, H >> 2);
     this.rts = { scene: mk(W, H, true), ascii: mk(W, H, false), b1: mk(bw, bh, false), b2: mk(bw, bh, false) };
-    const cellOf = px => [Math.max(2, Math.round(px * dpr * 0.62)), Math.max(3, Math.round(px * dpr))];
+    this.updateCells();
+    this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
+    this.compMat.uniforms.uRes.value.set(W, H); this.compMat.uniforms.uSS.value = this.ss;
+    return;
+  };
+  // glyph cell sizes; `glyphZoom` grows them when the camera is close so the letters become readable
+  E.Renderer.prototype.updateCells = function () {
+    const dpr = this.dpr, z = this.glyphZoom || 1;
+    const cellOf = px => [Math.max(2, Math.round(px * z * dpr * 0.62)), Math.max(3, Math.round(px * z * dpr))];
     this.cell = cellOf(this.glyphPx);
     const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
-    this.asciiMat.uniforms.uRes.value.set(W, H);
+    this.asciiMat.uniforms.uRes.value.set(this.W, this.H);
     this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
     this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
     this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
-    this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
-    this.compMat.uniforms.uRes.value.set(W, H); this.compMat.uniforms.uSS.value = this.ss;
   };
   E.Renderer.prototype.pass = function (mat, target) {
     this.quad.material = mat;

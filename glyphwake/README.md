@@ -32,6 +32,13 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 - Kenney Nature Kit models (CC0, via the same asset pack): tall pines, dark firs, oaks, autumn birches, logs, stumps, boulders, bushes and glowing Wispwood mushrooms. They're instanced per material and mixed with the procedural trees.
 - Beyond the live grass patch the ground renders as a meadow-colored field, so low camera angles show grass out to the treeline. Embers rise from every campfire.
 
+## Style notes from the reference clips
+- **Grass is single thin straws**, about 1 px on screen at any zoom (drawn with a constant screen-space width), mostly upright, deep green on near-black, with pale specks. It's not ASCII; the strokes themselves are the texture.
+- **Characters and objects are glyphs.** Glyph cells scale with the camera: far out they're a dense texture that reads as shape, and close up they grow (up to 3.2×) until the letters (`@ # H o = /`) are readable.
+- **Bright silver figures** against dark green, with soft shadows and little bloom.
+- **Water is a still black mirror.** Characters, moon and clouds reflect in it, and empty water stays nearly black.
+- **Sharp glyphs need pixels**, so PC renders supersampled (see Render resolution).
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|
