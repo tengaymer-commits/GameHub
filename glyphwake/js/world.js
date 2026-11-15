@@ -813,7 +813,7 @@
     // It shares every uniform with the main grass (same camera, wind, footsteps), except uTurf.
     const tu = Object.assign({}, m.uniforms, { uTurf: { value: 1 } });
     const tm = new THREE.ShaderMaterial({ uniforms: tu, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
-    const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; scene.add(turf);
+    const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; turf.visible = false; scene.add(turf);   // replaced by world-anchored ground glyphs
     return { mesh, mat: m, push, turf };
   }
 

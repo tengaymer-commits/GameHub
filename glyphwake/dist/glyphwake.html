@@ -5661,6 +5661,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
     uDepthPass: { value: 0 },
+    uAtlas: { value: null },
     uRefl: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 },
     uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
   };
@@ -5739,7 +5740,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas;
     float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
     float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -5753,30 +5754,31 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 base = vC;
       if (uFill < 0.01 && uUnlit < 0.5) base *= 0.78 + 0.44 * tn(vW.xz * 1.9 + vW.y * 1.3) * (0.7 + 0.3 * tn(vW.xz * 7.0 - vW.y * 5.0));
+      float gGlyph = 0.0; vec3 gTint = vec3(0.0);
       if (uFarGrass > 0.0) {
-        // earth between the grass: brown soil, mossy patches, leaf litter and pebbles
-        float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1), sp = th(floor(vW.xz * 5.0));
-        vec3 soil = mix(vec3(0.075, 0.09, 0.095), vec3(0.06, 0.1, 0.09), smoothstep(0.35, 0.7, n1));
-        soil = mix(soil, vec3(0.1, 0.085, 0.07), smoothstep(0.7, 0.9, n2) * 0.5);
-        soil *= 0.75 + 0.5 * n2;
-        if (sp > 0.94) soil += vec3(0.16, 0.16, 0.17) * (sp - 0.94) * 16.0;
+        // ground = near-black earth printed with ASCII characters that are fixed to the world
+        // (they move with the ground, so no screen-fixed grid / scanlines)
+        float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1);
         float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
-        base = mix(vC * 1.3, soil, 0.45 + 0.4 * grassy);
+        base = mix(vec3(0.03, 0.035, 0.04), vec3(0.025, 0.04, 0.035), grassy) * (0.8 + 0.4 * n2);
+        vec2 gp = vW.xz / vec2(0.17, 0.24);
+        vec2 gc = floor(gp), gu = fract(gp);
+        float r = th(gc * 1.37 + 7.7);
+        float dens = mix(0.5, 0.9, grassy) * (0.75 + 0.4 * n1);
+        if (r < dens) {
+          float idx = 1.0 + floor(th(gc + 3.1) * 11.0);
+          float row = grassy > 0.5 ? 2.0 : 13.0;   // grass strokes on grassland, faint letters on bare earth
+          vec2 auv = vec2((idx + gu.x) / 16.0, (32.0 - row + (1.0 - gu.y)) / 33.0);
+          float gm = texture2D(uAtlas, auv).r;
+          float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
+          gGlyph = gm * (1.0 - smoothstep(0.22, 0.55, px));
+          gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.14, 0.13, 0.11);
+        }
       }
       vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;
       if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
+      if (uFarGrass > 0.0) col += gTint * gGlyph * (0.45 + 0.55 * gShadow + max(L - uAmb - uMoonCol, vec3(0.0)) * 1.5);
       float outId = uId;
-      if (uFarGrass > 0.0) {
-        // beyond the live grass patch the ground turns into a meadow-coloured field that blends with the blades
-        float dd = length(vW.xz - uGrassC);
-        float h = fract(sin(dot(floor(vW.xz * 3.0), vec2(12.9898, 78.233))) * 43758.5453);
-        float k = smoothstep(uFarGrass * 0.75, uFarGrass * 1.1, dd + (h - 0.5) * 6.0);
-        if (k > 0.5) {
-          float meadow = smoothstep(0.02, 0.06, vC.g - vC.r);
-          col = mix(col, vec3(0.06, 0.17, 0.1) * (L * 0.8 + 0.35), meadow * k);
-          outId = mix(uId, 2.0, step(0.5, meadow));
-        }
-      }
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
     }`;
@@ -5937,7 +5939,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     r.toneMapping = THREE.NoToneMapping;
     r.autoClear = true;
     this.r = r;
-    this.atlas = buildAtlas();
+    this.atlas = buildAtlas(); LU.uAtlas.value = this.atlas;
     this.glyphPx = 9; this.quality = 2;
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
     quad.frustumCulled = false;
@@ -7267,7 +7269,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // It shares every uniform with the main grass (same camera, wind, footsteps), except uTurf.
     const tu = Object.assign({}, m.uniforms, { uTurf: { value: 1 } });
     const tm = new THREE.ShaderMaterial({ uniforms: tu, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
-    const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; scene.add(turf);
+    const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; turf.visible = false; scene.add(turf);   // replaced by world-anchored ground glyphs
     return { mesh, mat: m, push, turf };
   }
 
