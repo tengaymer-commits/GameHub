@@ -732,19 +732,19 @@
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
         void main(){
           vec2 base = uCenter - uSize * 0.5;
-          vec2 wp = base + mod(aOff.xy * (uSize / 50.0) - base, uSize);
+          vec2 wp = base + mod((aOff.xy + uShift) * (uSize / 50.0) - base, uSize);
           vec4 m = texture2D(tMap, wp / uWorld + 0.5);
-          float sd = aOff.z;
+          float sd = fract(aOff.z + uShift.x * 0.0137);
           float ed = max(abs(wp.x - uCenter.x), abs(wp.y - uCenter.y)) / uSize;
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
           float vis = step(fract(sd * 7.31), min(1.0, m.g * 1.35));
@@ -757,11 +757,11 @@
           vec3 root = vec3(wp.x, m.r, wp.y);
           // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
-          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(1.0, m.g * 3.0 + 0.45)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
+          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(1.0, m.g * 4.0 + 0.7)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           // lean is shared by neighbours (/ and \ groups), plus a little per-straw jitter and wind
           float lean = (vn(wp * 0.7 + 1.3) - 0.5) * 0.55 + (fract(sd * 5.3) - 0.5) * 0.6
                      + sin(uTime * 1.3 + wp.x * 0.3 + wp.y * 0.2) * 0.06;
-          float lenPx = uLen * (0.6 + 0.8 * fract(sd * 3.7)) * (uTurf > 0.5 ? 0.8 : mix(1.0, 1.5, tall)) * keep;
+          float lenPx = uLen * (0.6 + 0.8 * fract(sd * 3.7)) * (uTurf > 0.5 ? 1.0 : mix(1.0, 1.5, tall)) * keep;
           // the player and enemies flatten what they walk through
           float flatK = 0.0; vec2 pushW = vec2(0.0);
           for (int i = 0; i < 6; i++) {
@@ -814,6 +814,10 @@
     const tu = Object.assign({}, m.uniforms, { uTurf: { value: 1 } });
     const tm = new THREE.ShaderMaterial({ uniforms: tu, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
     const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; scene.add(turf);
+    // a second carpet at shifted positions doubles the coverage
+    const tu2 = Object.assign({}, m.uniforms, { uTurf: { value: 1 }, uShift: { value: new THREE.Vector2(17.31, 29.77) } });
+    const tm2 = new THREE.ShaderMaterial({ uniforms: tu2, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
+    const turf2 = new THREE.Mesh(g, tm2); turf2.frustumCulled = false; turf2.layers.set(1); turf2.renderOrder = -5.6; scene.add(turf2);
     return { mesh, mat: m, push, turf };
   }
 

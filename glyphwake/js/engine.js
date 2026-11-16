@@ -191,7 +191,7 @@
         // (they move with the ground, so no screen-fixed grid / scanlines)
         float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1);
         float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
-        base = mix(vec3(0.03, 0.035, 0.04), vec3(0.025, 0.04, 0.035), grassy) * (0.8 + 0.4 * n2);
+        base = vec3(0.02, 0.06, 0.045) * (0.8 + 0.4 * n2);
         vec2 gp = vW.xz / vec2(0.17, 0.24);
         vec2 gc = floor(gp), gu = fract(gp);
         float r = th(gc * 1.37 + 7.7);
