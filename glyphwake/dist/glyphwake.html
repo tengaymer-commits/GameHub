@@ -7239,24 +7239,30 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
           bool speck = uTurf < 0.5 && fract(sd * 97.13) < 0.03 + 0.12 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 5.5 : lenPx;
-          float wpx = speck ? uLineW * 2.75 : uLineW;
+          float L2 = speck ? uLineW * 10.5 : lenPx;
+          float wpx = speck ? uLineW * 3.5 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
-          cp.xy += (dir * (speck ? t - 0.5 : t) * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
-          vW = root; vT = t; vAc = aV.x;
+          float sx = aV.x, st = t;
+          if (speck) { st = min(t * 2.0, 1.0); sx = t > 0.75 ? 0.0 : aV.x / (t > 0.25 ? 0.6 : 1.0); }   // blade -> rectangle
+          cp.xy += (dir * (speck ? st - 0.5 : t) * L2 + nrm * sx * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
+          vW = root; vT = speck ? min(t * 2.0, 1.0) : t; vAc = speck ? -(t > 0.75 ? 0.0 : aV.x / (t > 0.25 ? 0.6 : 1.0)) : aV.x;
           float tone = fract(sd * 17.0);
           vec3 sea = mix(vec3(0.08, 0.27, 0.21), vec3(0.14, 0.4, 0.31), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.38 : 1.0);
           vSpeck = 0.0;
-          if (speck) { vSpeck = 1.0; vCol = vec3(0.76, 0.8, 0.78) * (0.8 + 0.2 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
+          if (speck) { vSpeck = 1.0; vCol = vec3(0.86, 0.9, 0.88) * (0.85 + 0.15 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
           gl_Position = cp;
         }`,
-      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; ${GW.LIGHT_GLSL}
+      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; uniform sampler2D uAtlas; ${GW.LIGHT_GLSL}
         void main(){
-          if (vSpeck > 0.5) { float rr = length(vec2(vAc, vT * 2.0 - 1.0)); if (rr > 1.0 || rr < 0.38) discard; }
+          if (vSpeck > 0.5) {
+            // a real 'o' glyph from the font atlas (row 9, column 4)
+            float gm = texture2D(uAtlas, vec2((4.0 + vAc * 0.5 + 0.5) / 16.0, (32.0 - 9.0 + vT) / 33.0)).r;
+            if (gm < 0.35) discard;
+          }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
           vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
