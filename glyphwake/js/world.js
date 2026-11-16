@@ -736,7 +736,7 @@
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
         uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift;
-        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc;
+        varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -781,9 +781,9 @@
           if (flatK > 0.01 && length(pd) > 0.001) dir = normalize(mix(dir, normalize(pd), flatK * 0.85));
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
-          bool speck = uTurf < 0.5 && fract(sd * 97.13) < 0.03 + 0.12 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 10.5 : lenPx;
-          float wpx = speck ? uLineW * 3.5 : uLineW;
+          bool speck = uTurf > 1.5 && vis * edgeF > 0.5 && fract(sd * 97.13) < 0.045 + 0.17 * smoothstep(0.5, 0.85, vn(wp * 0.18 + 21.0));
+          float L2 = speck ? uLineW * 11.5 : lenPx;
+          float wpx = speck ? uLineW * 3.9 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
           float sx = aV.x, st = t;
@@ -794,16 +794,22 @@
           vec3 sea = mix(vec3(0.08, 0.27, 0.21), vec3(0.14, 0.4, 0.31), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.38 : 1.0);
-          vSpeck = 0.0;
-          if (speck) { vSpeck = 1.0; vCol = vec3(0.86, 0.9, 0.88) * (0.85 + 0.15 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
+          vSpeck = 0.0; vGl = vec2(4.0, 9.0);
+          if (speck) {
+            vSpeck = 1.0;
+            float kind = fract(sd * 31.7);
+            vGl = kind < 0.45 ? vec2(4.0, 9.0) : kind < 0.65 ? vec2(12.0, 9.0) : kind < 0.85 ? vec2(6.0, 9.0) : vec2(5.0, 15.0);   // o O * +
+            vCol = mix(vec3(0.88, 0.92, 0.9), vec3(0.95, 0.92, 0.7), step(0.85, fract(sd * 51.0))) * (0.85 + 0.15 * fract(sd * 13.0));
+          }
+          if (uTurf > 1.5 && !speck) cp = vec4(9.0, 9.0, 9.0, 1.0);   // flower pass: only flowers
           if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
           gl_Position = cp;
         }`,
-      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; uniform sampler2D uAtlas; ${GW.LIGHT_GLSL}
+      fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl; uniform sampler2D uAtlas; ${GW.LIGHT_GLSL}
         void main(){
           if (vSpeck > 0.5) {
             // a real 'o' glyph from the font atlas (row 9, column 4)
-            float gm = texture2D(uAtlas, vec2((4.0 + vAc * 0.5 + 0.5) / 16.0, (32.0 - 9.0 + vT) / 33.0)).r;
+            float gm = texture2D(uAtlas, vec2((vGl.x + vAc * 0.5 + 0.5) / 16.0, (32.0 - vGl.y + vT) / 33.0)).r;
             if (gm < 0.35) discard;
           }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
@@ -824,6 +830,10 @@
     const tu2 = Object.assign({}, m.uniforms, { uTurf: { value: 1 }, uShift: { value: new THREE.Vector2(17.31, 29.77) } });
     const tm2 = new THREE.ShaderMaterial({ uniforms: tu2, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
     const turf2 = new THREE.Mesh(g, tm2); turf2.frustumCulled = false; turf2.layers.set(1); turf2.renderOrder = -5.6; scene.add(turf2);
+    // dandelions in their own pass, drawn after all grass so straws never cover them
+    const fu = Object.assign({}, m.uniforms, { uTurf: { value: 2 } });
+    const fm = new THREE.ShaderMaterial({ uniforms: fu, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
+    const flowers = new THREE.Mesh(g, fm); flowers.frustumCulled = false; flowers.layers.set(1); flowers.renderOrder = -4.9; scene.add(flowers);
     return { mesh, mat: m, push, turf };
   }
 
