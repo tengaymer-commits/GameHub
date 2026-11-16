@@ -863,9 +863,10 @@
           cp.xy += (dir * (speck ? st - 0.5 : t) * L2 + nrm * sx * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
           vW = root; vT = speck ? min(t * 2.0, 1.0) : t; vAc = speck ? -(t > 0.75 ? 0.0 : aV.x / (t > 0.25 ? 0.6 : 1.0)) : aV.x;
           float tone = fract(sd * 17.0);
-          vec3 sea = mix(vec3(0.11, 0.37, 0.28), vec3(0.19, 0.52, 0.4), tone);
+          vec3 sea = mix(vec3(0.1, 0.31, 0.25), vec3(0.17, 0.43, 0.35), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.55 : 1.0);
+          if (uPush[0].z > 0.0) vCol *= 1.0 - 0.38 * (1.0 - smoothstep(0.7, 2.6, length(wp - uPush[0].xy)));   // soft halo so the hero reads
           vSpeck = 0.0; vGl = vec2(4.0, 9.0);
           if (speck) {
             vSpeck = 1.0;

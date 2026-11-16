@@ -14,7 +14,7 @@
   const SETS = [
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: " .", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
-    /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'`:;~^\"*+", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
     /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
     /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.3, under: 0.07, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
@@ -311,7 +311,7 @@
         float sb = max(max(uSet3[idAt(cell + vec2(1.0, 0.0))].z, uSet3[idAt(cell - vec2(1.0, 0.0))].z), max(uSet3[idAt(cell + vec2(0.0, 1.0))].z, uSet3[idAt(cell - vec2(0.0, 1.0))].z));
         if (sb > 0.5) { gl_FragColor = vec4(px.rgb * 0.15, 1.0); return; }
       }
-      if (asciiGrass) S = vec4(0.0, 2.4, 0.15, 0.0);
+      if (asciiGrass) S = vec4(0.0, 3.2, 0.32, 0.0);
 
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
       vec2 q = CS / uRes * 0.3;
@@ -322,7 +322,7 @@
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
       float jit = actor ? S3.x : 0.16;
       v += (h21(wcell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
-      if (actor) v = clamp(pow(v, 1.15) * 1.35, 0.24, 0.999);
+      if (actor) v = clamp(pow(v, 1.1) * 1.5, 0.3, 0.999);
       if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);

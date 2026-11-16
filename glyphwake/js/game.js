@@ -467,7 +467,8 @@
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
     // grass turns into ASCII as you zoom in (normal straws when zoomed out)
     GW.World.grass.mat.uniforms.uFlowers.value = UI.settings.flowers !== undefined ? UI.settings.flowers : 0.5;
-    G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend !== true ? 0 : GW.clamp((gz - 1.25) / 1.1, 0, 1);
+    { const z = UI.settings.zoom || 1.3, t = GW.clamp((1.15 - z) / 0.7, 0, 1);
+      G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : t * t * (3 - 2 * t); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
