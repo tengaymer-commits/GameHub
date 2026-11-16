@@ -79,7 +79,7 @@
   // ---------- shared lighting uniforms ----------
   const LU = E.LU = {
     uAmb: { value: new THREE.Color(0.17, 0.2, 0.26) },
-    uMoonDir: { value: new THREE.Vector3(-0.45, 0.72, -0.62).normalize() },
+    uMoonDir: { value: new THREE.Vector3(-0.55, 0.72, 0.42).normalize() },
     uMoonCol: { value: new THREE.Color(0.48, 0.55, 0.72) },
     uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
     uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
@@ -122,7 +122,9 @@
     }
     vec3 lightAt(vec3 W, vec3 n) {
       float sh = shadowAt(W, n); gShadow = sh;
-      vec3 L = uAmb * (0.55 + 0.45 * n.y) * (0.85 + 0.15 * sh) + uMoonCol * max(dot(n, uMoonDir), 0.0) * (0.4 + 0.6 * sh);
+      // sky fill (walls get most of it too), wrapped key light so shapes roll off softly instead of going black
+      vec3 L = uAmb * (0.82 + 0.18 * n.y) * (0.85 + 0.15 * sh) * 1.25
+             + uMoonCol * max(dot(n, uMoonDir) * 0.62 + 0.38, 0.0) * (0.35 + 0.65 * sh);
       for (int i = 0; i < ${MAXL}; i++) {
         if (i >= uLN) break;
         vec3 d = uLP[i].xyz - W; float dist = length(d);
@@ -312,7 +314,7 @@
       // woven patterns: mail checker, plate bands, scale rows
       if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
-      if (!actor && id != 4 && idx > 0.5 && idx < 3.5 && h21(cell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
+      if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(cell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
       float edgeBoost = 0.0;
       if (actor) {

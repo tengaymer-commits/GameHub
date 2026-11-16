@@ -13,7 +13,7 @@
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   // soft shadow stretched away from the light (light from the upper left, so it falls down-right)
   const shadowGeo = new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2).scale(0.85, 1, 2.1).translate(0, 0, 1.05)
-    .rotateY(Math.atan2(0.59, 0.81));
+    .rotateY(Math.atan2(-0.55, -0.42) + Math.PI);
   const shadowMat = new THREE.ShaderMaterial({
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `varying vec2 vUv;

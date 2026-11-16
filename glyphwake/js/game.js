@@ -101,7 +101,7 @@
   function init() {
     $('t-menu').style.visibility = 'hidden';
     $('t-foot').textContent = 'loading models…';
-    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
+    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
       .then(build).catch(err => { $('t-foot').textContent = 'Could not load the 3D models: ' + err.message; console.error(err); });
   }
   function build() {
@@ -645,8 +645,8 @@
   // G.tod: 0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk
   G.tod = 0.62;
   const C3 = (r, g, b) => new THREE.Color(r, g, b);
-  const NIGHT = { amb: C3(0.12, 0.14, 0.19), key: C3(0.4, 0.46, 0.62), fog: C3(0.022, 0.032, 0.058), light: 0.58 };
-  const DAY = { amb: C3(0.36, 0.4, 0.45), key: C3(1.0, 0.93, 0.8), fog: C3(0.32, 0.4, 0.5), light: 1.0 };
+  const NIGHT = { amb: C3(0.13, 0.15, 0.21), key: C3(0.36, 0.42, 0.58), fog: C3(0.022, 0.032, 0.058), light: 0.72 };
+  const DAY = { amb: C3(0.3, 0.34, 0.4), key: C3(0.95, 0.88, 0.76), fog: C3(0.32, 0.4, 0.5), light: 1.0 };
   const DUSK = C3(0.9, 0.5, 0.3);
   let lastPhase = null;
   function updateDayNight(dt) {

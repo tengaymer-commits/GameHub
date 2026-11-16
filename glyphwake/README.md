@@ -49,6 +49,13 @@ The knight, the Hollows and the Thornwolves are rigged, skinned models with hand
 ### Characters: shading over borders
 Like the reference, characters aren't outlined in bright glyphs. A thin **black outline** (measured in pixels, so it stays thin at any zoom) separates them from the grass. Inside, they're shaded by the light: bright highlights on plate, darker cloth and the side away from the light. Rim light and self-fill are low, and dark areas keep a dim glyph so they never vanish.
 
+## Environment kit (Blender)
+`tools/blender/build_kit.py` models the props procedurally with Blender's Python API (`pip install bpy`, Blender 5.x), then exports `assets/models/kit.glb`: a gothic arch, broken pillars, four gravestone types, a crypt, a ringed stone cross, three gnarled dead trees (skin modifier), mossy rocks, a thatched hut, a well, a lantern post, a cart, barrels, crates and a fence, about 16k faces in total. Material names (`stone`, `wood`, `bark`, `thatch`, `iron`, `lantern`…) map to glyph sets in `js/world.js` (`KIT_MAT`). Rebuild with:
+```
+python tools/blender/build_kit.py glyphwake/assets/models/kit.glb
+```
+They're placed in the Hollow Ruins, a new graveyard (the Quiet Graves) between Emberhold and the ruins, Emberhold itself (huts, a well, lanterns with real lights, a cart, barrels, crates), Wispwood and across the vale.
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|

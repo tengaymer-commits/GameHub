@@ -33,6 +33,7 @@
     { name: 'THE GLASS RIVER', sub: 'crossing', x: -4, z: -13, r: 9 },
     { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 12, z: -58, r: 30 },
     { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -72, z: 42, r: 26 },
+    { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -36, z: 64, r: 13 },
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
     { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 2, z: -108, r: 22 },
   ];
@@ -412,6 +413,7 @@
     }
 
     natureScatter(batch, place, rnd, free);
+    kitScatter(scene, batch, place, rnd, free);
     batch.build(scene);
     buildFireflies(scene);
     buildSky(scene);
@@ -485,6 +487,66 @@
       const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210;
       if (Math.hypot(x, z) < 108 && Math.hypot(x, z) > 70 && free(x, z, 0.4)) put('bush_large', x, z, 2 + rnd() * 2);
     }
+  }
+
+  // ----- Blender-built environment kit (tools/blender/build_kit.py) -----
+  const KIT_MAT = {
+    stone: { id: ID.STONE, color: 0xa4a8b2, rim: 0.1, fill: 0.06 }, stoneDark: { id: ID.STONE, color: 0x70747e, fill: 0.05 },
+    moss: { id: ID.MOSS, color: 0x5a7a44 }, wood: { id: ID.WOOD, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.WOOD, color: 0x624834, fill: 0.08 },
+    bark: { id: ID.WOOD, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.WOOD, color: 0xb09a60, fill: 0.08 }, iron: { id: ID.METAL, color: 0x5a5e66 },
+    cloth: { id: ID.WOOD, color: 0xb8a882 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
+  };
+  const kitCache = {}, kitMats = {};
+  function kitParts(name) {
+    if (kitCache[name]) return kitCache[name];
+    const g = GW.Assets.gltf.kit; const root = g && g.scene.getObjectByName(name);
+    if (!root) return (kitCache[name] = []);
+    g.scene.updateMatrixWorld(true);
+    const inv = root.matrixWorld.clone().invert(), parts = [];
+    root.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(inv.clone().multiply(o.matrixWorld)); if (!geo.attributes.normal) geo.computeVertexNormals(); parts.push({ geo, mn: o.material.name }); } });
+    return (kitCache[name] = parts);
+  }
+  function kitMat(mn) { return kitMats[mn] || (kitMats[mn] = GW.mat(Object.assign({ side: THREE.DoubleSide }, KIT_MAT[mn] || { id: ID.STONE, color: 0x888888 }))); }
+  function kitScatter(scene, batch, place, rnd, free) {
+    const put = (name, x, z, s, ry, col, tint) => {
+      const y = W.heightAt(x, z) - 0.04;
+      kitParts(name).forEach((p, i) => batch.add('kit_' + name + i, p.geo, kitMat(p.mn), place(x, y, z, ry, s), tint || new THREE.Color(1, 1, 1).multiplyScalar(0.88 + rnd() * 0.24)));
+      if (col) W.addCollider(x, z, col * s, 'kit');
+    };
+    const lantern = (x, z, ry) => {
+      put('kit_lantern', x, z, 1, ry, 0.2);
+      const c = Math.cos(ry), sn = Math.sin(ry), lx = x + 0.58 * c, lz = z - 0.58 * sn;
+      W.lights.add(lx, W.heightAt(x, z) + 1.9, lz, new THREE.Color(1.0, 0.62, 0.28), 8, 0.5);
+    };
+    // ruins: arches, pillars, rubble around the old scriptorium
+    const R = L.ruins;
+    [[-6, -11, 0.2], [9, -4, 1.8], [-12, 7, 1.2], [4, 13, 2.9]].forEach(([dx, dz, a]) => put('kit_arch', R.x + dx, R.z + dz, 1.15, a, 1.6));
+    for (let k = 0; k < 10; k++) { const a = rnd() * 6.28, r = 5 + rnd() * 13, x = R.x + Math.cos(a) * r, z = R.z + Math.sin(a) * r; if (!W.blocked(x, z, 0.8)) put(rnd() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b', x, z, 0.9 + rnd() * 0.3, rnd() * 6.28, 0.6); }
+    // the quiet graves: crypt, rows of graves, shrine, dead trees, lanterns, fence
+    const GX = -36, GZ = 64;
+    put('kit_crypt', GX, GZ - 6, 1.1, 0, 2.0);
+    put('kit_shrine', GX + 6, GZ - 4, 1, 0.3, 0.7);
+    const graves = ['kit_grave_round', 'kit_grave_cross', 'kit_grave_slab', 'kit_grave_obelisk'];
+    for (let row = 0; row < 3; row++) for (let i = 0; i < 6; i++) {
+      const x = GX - 7.5 + i * 3 + (rnd() - 0.5) * 0.8, z = GZ + row * 3.2 + (rnd() - 0.5) * 0.6;
+      if (rnd() < 0.85) put(graves[Math.floor(rnd() * 4)], x, z, 1.05 + rnd() * 0.2, Math.PI + (rnd() - 0.5) * 0.4, 0.35);
+    }
+    put('kit_deadtree_a', GX - 10, GZ - 3, 1, rnd() * 6.28, 0.35); put('kit_deadtree_c', GX + 10, GZ + 7, 1, rnd() * 6.28, 0.35);
+    lantern(GX - 3, GZ - 2.5, 0.4); lantern(GX + 3.5, GZ + 9.5, 2.6);
+    for (let k = 0; k < 9; k++) { const a = k / 9 * 6.28 + 0.2; if (Math.abs(GW.angDiff(a, Math.PI / 2)) < 0.4) continue; put('kit_fence', GX + Math.cos(a) * 12, GZ + 2 + Math.sin(a) * 11, 1, -a + Math.PI / 2, 0); }
+    // Emberhold: huts, well, lanterns, cart, barrels, crates
+    const V = L.village;
+    put('kit_hut', V.x - 9, V.z - 8, 1.25, 0.9, 1.9); put('kit_hut', V.x + 9, V.z + 8, 1.25, -2.3, 1.9);
+    put('kit_well', V.x - 5.5, V.z - 3.5, 1.1, 0.4, 1.0);
+    lantern(V.x + 4, V.z - 10, 0.0); lantern(V.x - 4, V.z + 10, 3.1); lantern(V.x + 11, V.z + 1, 1.5);
+    put('kit_cart', V.x + 11, V.z + 4, 1.1, 2.0, 1.1);
+    [[12, -3], [12.6, -2.2], [11.6, -1.8]].forEach(([dx, dz]) => put('kit_barrel', V.x + dx, V.z + dz, 1, rnd() * 6, 0.35));
+    [[-11, 3], [-11.8, 3.6], [-11.3, 4.4]].forEach(([dx, dz], i) => put('kit_crate', V.x + dx, V.z + dz, 1 - i * 0.12, rnd() * 6, 0.45));
+    // dead trees in Wispwood and across the vale, rocks everywhere
+    const trees = ['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'];
+    for (let k = 0; k < 18; k++) { const a = rnd() * 6.28, r = 4 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r; if (free(x, z, 1)) put(trees[k % 3], x, z, 0.9 + rnd() * 0.4, rnd() * 6.28, 0.4); }
+    for (let k = 0; k < 22; k++) { const x = (rnd() - 0.5) * 200, z = (rnd() - 0.5) * 200; if (Math.hypot(x, z) < 100 && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
+    for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210; if (Math.hypot(x, z) < 104 && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.7 + rnd() * 0.9, rnd() * 6.28, 0.85); }
   }
 
   // ----- night sky: gradient dome, stars, a low moon, distant mountains (follows the camera) -----
@@ -623,7 +685,7 @@
     }
     // tents
     const tentG = new THREE.ConeGeometry(2.0, 2.6, 4); tentG.translate(0, 1.3, 0);
-    const tents = [[-9, 22, 0x6a3a28], [-10, 37, 0x5a4a30], [9, 38, 0x7a3030], [-2, 42, 0x4a4a38]];
+    const tents = [[-10, 37, 0x9a8460], [-2, 42, 0x8a8a70]];
     tents.forEach(([dx, dz, c]) => {
       const m = new THREE.Mesh(tentG, GW.mat({ id: ID.WOOD, color: c, rim: 0.2 })); const x = vx + dx, z = vz + dz - 30 + 30;
       m.position.set(dx, W.heightAt(dx, dz), dz); m.rotation.y = rnd() * 3; scene.add(m);
