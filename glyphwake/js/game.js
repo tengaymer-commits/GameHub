@@ -465,7 +465,8 @@
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
     const gu0 = GW.World.grass.mat.uniforms;
-    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.6 * G.R.dpr * Math.min(1.6, Math.max(1, gz * 0.7)); gu0.uLen.value = 10 * G.R.dpr * Math.min(2.2, gz);
+    const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
+    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
     const gu = GW.World.grass.mat.uniforms;
     gu.uSize.value = 50 * Math.max(1, D / 22) * ((UI.settings.camPitch || 0.98) < 0.75 ? 1.35 : 1);
     gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);
@@ -610,7 +611,7 @@
     const focus = G.state === 'title' ? GW.World.L.village : P.pos;
     GW.World.update(sdt || 0, G.t, focus.x, focus.z);
     if (G.grassCenter && G.state !== 'title') { GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z); GW.World.terrainMat.uniforms.uGrassC.value.set(G.grassCenter.x, G.grassCenter.z); }
-    if (G.state === 'title') GW.World.updateSky(G.camera);
+    if (G.state === 'title') { GW.World.updateSky(G.camera); const gt = GW.World.grass.mat.uniforms, gs = UI.settings.grassSize || 1; gt.uPx.value.set(2 / G.R.W, 2 / G.R.H); gt.uLineW.value = 0.95 * gs * G.R.dpr; gt.uLen.value = 20 * gs * G.R.dpr; }
     // embers rising from campfires near the view
     if (sdt > 0 && frame % 2 === 0) for (const it of GW.World.interact) {
       if (it.type !== 'rest' || Math.hypot(it.x - focus.x, it.z - focus.z) > 40) continue;

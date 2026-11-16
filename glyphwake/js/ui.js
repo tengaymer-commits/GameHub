@@ -323,6 +323,8 @@
     ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
+    const gr = $('o-grass'), grTxt = () => { $('o-grass-v').textContent = Math.round((S.grassSize || 1) * 100) + '%'; };
+    gr.value = S.grassSize || 1; grTxt(); gr.oninput = () => { S.grassSize = +gr.value; grTxt(); UI.saveSettings(); };
     const ln = $('o-lens'), hd = $('o-hud');
     ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };
     hd.value = S.hud || 'min'; hd.onchange = () => { S.hud = hd.value; UI.saveSettings(); };

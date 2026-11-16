@@ -311,6 +311,7 @@ body.touch #hotbar { display: none; }
   <label>Characters <input type="range" id="o-glyphA" min="2" max="12" step="0.5" /><span id="o-glyphA-v"></span></label>
   <label>Environment <input type="range" id="o-glyph" min="2" max="12" step="0.5" /><span id="o-glyph-v"></span></label>
   <label>Water &amp; sky <input type="range" id="o-glyphS" min="2" max="12" step="0.5" /><span id="o-glyphS-v"></span></label>
+  <label>Grass blade size <input type="range" id="o-grass" min="0.4" max="1.8" step="0.05" /><span id="o-grass-v"></span></label>
   <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
   <div class="s-sec">Graphics &amp; audio</div>
   <label>Quality
@@ -7213,7 +7214,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vec3 root = vec3(wp.x, m.r, wp.y);
           // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
-          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(1.0, m.g * 4.0 + 0.7)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
+          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           // lean is shared by neighbours (/ and \ groups), plus a little per-straw jitter and wind
           float lean = (vn(wp * 0.7 + 1.3) - 0.5) * 0.55 + (fract(sd * 5.3) - 0.5) * 0.6
                      + sin(uTime * 1.3 + wp.x * 0.3 + wp.y * 0.2) * 0.06;
@@ -7238,16 +7239,16 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
           bool speck = uTurf < 0.5 && fract(sd * 97.13) < 0.03 + 0.12 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 8.0 : lenPx;
-          float wpx = speck ? uLineW * 4.0 : uLineW;
+          float L2 = speck ? uLineW * 5.5 : lenPx;
+          float wpx = speck ? uLineW * 2.75 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
           cp.xy += (dir * (speck ? t - 0.5 : t) * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
           vW = root; vT = t; vAc = aV.x;
           float tone = fract(sd * 17.0);
-          vec3 sea = mix(vec3(0.12, 0.4, 0.3), vec3(0.2, 0.55, 0.42), tone);
+          vec3 sea = mix(vec3(0.08, 0.27, 0.21), vec3(0.14, 0.4, 0.31), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
-          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.62 : 1.0);
+          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.38 : 1.0);
           vSpeck = 0.0;
           if (speck) { vSpeck = 1.0; vCol = vec3(0.76, 0.8, 0.78) * (0.8 + 0.2 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
@@ -8820,6 +8821,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     ti.value = S.camPitch || 0.98; tiltTxt(); ti.oninput = () => { S.camPitch = +ti.value; tiltTxt(); UI.saveSettings(); };
     const zm = $('o-zoom'); zm.value = S.zoom; $('o-zoom-v').textContent = Math.round(S.zoom * 100) + '%';
     zm.oninput = () => UI.setZoom(+zm.value);
+    const gr = $('o-grass'), grTxt = () => { $('o-grass-v').textContent = Math.round((S.grassSize || 1) * 100) + '%'; };
+    gr.value = S.grassSize || 1; grTxt(); gr.oninput = () => { S.grassSize = +gr.value; grTxt(); UI.saveSettings(); };
     const ln = $('o-lens'), hd = $('o-hud');
     ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };
     hd.value = S.hud || 'min'; hd.onchange = () => { S.hud = hd.value; UI.saveSettings(); };
@@ -9309,7 +9312,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
     const gu0 = GW.World.grass.mat.uniforms;
-    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.6 * G.R.dpr * Math.min(1.6, Math.max(1, gz * 0.7)); gu0.uLen.value = 10 * G.R.dpr * Math.min(2.2, gz);
+    const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
+    gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
     const gu = GW.World.grass.mat.uniforms;
     gu.uSize.value = 50 * Math.max(1, D / 22) * ((UI.settings.camPitch || 0.98) < 0.75 ? 1.35 : 1);
     gu.uWidth.value = Math.max(1, D / 18) * (G.R.H > 1400 ? 1.15 : 1);
@@ -9454,7 +9458,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const focus = G.state === 'title' ? GW.World.L.village : P.pos;
     GW.World.update(sdt || 0, G.t, focus.x, focus.z);
     if (G.grassCenter && G.state !== 'title') { GW.World.grass.mat.uniforms.uCenter.value.set(G.grassCenter.x, G.grassCenter.z); GW.World.terrainMat.uniforms.uGrassC.value.set(G.grassCenter.x, G.grassCenter.z); }
-    if (G.state === 'title') GW.World.updateSky(G.camera);
+    if (G.state === 'title') { GW.World.updateSky(G.camera); const gt = GW.World.grass.mat.uniforms, gs = UI.settings.grassSize || 1; gt.uPx.value.set(2 / G.R.W, 2 / G.R.H); gt.uLineW.value = 0.95 * gs * G.R.dpr; gt.uLen.value = 20 * gs * G.R.dpr; }
     // embers rising from campfires near the view
     if (sdt > 0 && frame % 2 === 0) for (const it of GW.World.interact) {
       if (it.type !== 'rest' || Math.hypot(it.x - focus.x, it.z - focus.z) > 40) continue;

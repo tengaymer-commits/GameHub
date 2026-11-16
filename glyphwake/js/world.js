@@ -757,7 +757,7 @@
           vec3 root = vec3(wp.x, m.r, wp.y);
           // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
-          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(1.0, m.g * 4.0 + 0.7)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
+          float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           // lean is shared by neighbours (/ and \ groups), plus a little per-straw jitter and wind
           float lean = (vn(wp * 0.7 + 1.3) - 0.5) * 0.55 + (fract(sd * 5.3) - 0.5) * 0.6
                      + sin(uTime * 1.3 + wp.x * 0.3 + wp.y * 0.2) * 0.06;
@@ -782,16 +782,16 @@
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
           bool speck = uTurf < 0.5 && fract(sd * 97.13) < 0.03 + 0.12 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 8.0 : lenPx;
-          float wpx = speck ? uLineW * 4.0 : uLineW;
+          float L2 = speck ? uLineW * 5.5 : lenPx;
+          float wpx = speck ? uLineW * 2.75 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
           cp.xy += (dir * (speck ? t - 0.5 : t) * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
           vW = root; vT = t; vAc = aV.x;
           float tone = fract(sd * 17.0);
-          vec3 sea = mix(vec3(0.12, 0.4, 0.3), vec3(0.2, 0.55, 0.42), tone);
+          vec3 sea = mix(vec3(0.08, 0.27, 0.21), vec3(0.14, 0.4, 0.31), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
-          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.62 : 1.0);
+          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.38 : 1.0);
           vSpeck = 0.0;
           if (speck) { vSpeck = 1.0; vCol = vec3(0.76, 0.8, 0.78) * (0.8 + 0.2 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
