@@ -42,12 +42,17 @@
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
     /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
     /* 26 flower (dandelion glyphs, always drawn as rendered) */ { ramp: " ", mode: 1, gain: 1.0, under: 0, edge: 0, bright: 1, white: 0, flick: 0 },
+    /* 27 masonry */ { ramp: "  .:-=+*#%@", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.15, white: 0.35, flick: 0 },
+    /* 28 bark    */ { ramp: " .:;!|lI1H", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.05, white: 0.08, flick: 0 },
+    /* 29 thatch  */ { ramp: " .'`/\\^vwW", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.1, white: 0.1, flick: 0 },
+    /* 30 planks  */ { ramp: " .-~=+#H", mode: 0, gain: 2.5, under: 0.06, edge: 0, bright: 1.05, white: 0.1, flick: 0 },
+    /* 31 rock    */ { ramp: " .,:;oO0@", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.3; });
-  [3, 5, 10, 13, 14].forEach(i => { SETS[i].scen = 1; });   // scenery: soft dark outline against the ground
+  [3, 5, 10, 13, 14, 27, 28, 29, 30, 31].forEach(i => { SETS[i].scen = 1; });   // scenery: soft dark outline against the ground
   while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
-  const ID = E.ID = { SKY: 23, STAR: 24, MOON: 25, MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
+  const ID = E.ID = { MASONRY: 27, BARK: 28, THATCH: 29, PLANKS: 30, ROCK: 31, SKY: 23, STAR: 24, MOON: 25, MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
   E.SETS = SETS;
   const COLS = 16, ROWS = 33; // row 32: edge glyphs
 
@@ -175,10 +180,48 @@
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex;
     float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
     float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
+    // Procedural surface textures, projected from the dominant axis of the normal (triplanar-lite),
+    // so they are fixed to the object and give the glyph pass real structure to pick characters from.
+    float surfTex(float kind, vec3 W, vec3 n) {
+      vec3 an = abs(n);
+      vec2 uv = an.y > max(an.x, an.z) ? W.xz : (an.x > an.z ? W.zy : W.xy);
+      float vert = an.y > max(an.x, an.z) ? 0.0 : 1.0;
+      if (kind < 1.5) {            // 1 masonry: cut-stone blocks with mortar joints
+        vec2 b = uv / vec2(0.62, 0.3); float row = floor(b.y); b.x += mod(row, 2.0) * 0.5;
+        vec2 f = fract(b), id = floor(b);
+        float joint = smoothstep(0.0, 0.07, min(min(f.x, 1.0 - f.x) * 2.0, min(f.y, 1.0 - f.y)));
+        return (0.55 + 0.45 * joint) * (0.8 + 0.35 * th(id)) * (0.85 + 0.3 * tn(uv * 5.0));
+      } else if (kind < 2.5) {     // 2 planks: boards with gaps and grain
+        vec2 p = vert > 0.5 ? vec2(uv.y, uv.x) : uv;
+        float board = floor(p.y / 0.2), f = fract(p.y / 0.2);
+        float gap = smoothstep(0.0, 0.08, min(f, 1.0 - f));
+        float grain = 0.75 + 0.25 * sin(p.x * 9.0 + tn(vec2(p.x * 0.6, board * 7.0)) * 6.0 + f * 3.0);
+        return (0.45 + 0.55 * gap) * grain * (0.8 + 0.3 * th(vec2(board, 3.0)));
+      } else if (kind < 3.5) {     // 3 bark: vertical fissures
+        float a = atan(W.z, W.x);
+        float fis = abs(sin(uv.x * 22.0 + tn(vec2(uv.x * 3.0, W.y * 1.5)) * 4.0 + a * 3.0));
+        return 0.5 + 0.6 * smoothstep(0.1, 0.6, fis) * (0.8 + 0.3 * tn(vec2(W.y * 6.0, a * 4.0)));
+      } else if (kind < 4.5) {     // 4 thatch: slanted straw strands in tiers
+        float tier = fract(W.y / 0.32);
+        float st = 0.5 + 0.5 * sin((uv.x + uv.y * 0.35) * 70.0 + tn(uv * 8.0) * 5.0);
+        return (0.6 + 0.4 * st) * (0.7 + 0.3 * smoothstep(0.0, 0.25, tier));
+      } else if (kind < 5.5) {     // 5 foliage: clumps lit on top, dark between
+        float c = tn(W.xz * 2.2 + W.y * 1.7) * 0.65 + tn(W.xz * 7.0 - W.y * 5.0) * 0.35;
+        return (0.4 + 0.9 * smoothstep(0.35, 0.75, c)) * (0.75 + 0.35 * clamp(n.y, 0.0, 1.0));
+      } else if (kind < 6.5) {     // 6 rock: cracks and lichen
+        float cr = abs(tn(uv * 2.4) - 0.5); float crack = smoothstep(0.0, 0.05, cr);
+        float lich = smoothstep(0.72, 0.8, tn(uv * 5.0 + 9.0));
+        return (0.5 + 0.5 * crack) * (0.85 + 0.3 * tn(uv * 9.0)) + lich * 0.35;
+      } else {                     // 7 iron: seams and rivets
+        vec2 g = fract(uv / 0.35); float seam = smoothstep(0.0, 0.06, min(min(g.x, 1.0 - g.x), min(g.y, 1.0 - g.y)));
+        float riv = 1.0 - smoothstep(0.03, 0.05, length(g - vec2(0.1)));
+        return (0.6 + 0.4 * seam) + riv * 0.6;
+      }
+    }
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
@@ -188,7 +231,8 @@
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 base = vC;
-      if (uSpec < 0.3 && uUnlit < 0.5 && uFarGrass <= 0.0) {
+      if (uTex > 0.5 && uUnlit < 0.5) base *= surfTex(uTex, vW, n);
+      else if (uSpec < 0.3 && uUnlit < 0.5 && uFarGrass <= 0.0) {
         // matte, rough surfaces: blotchy grime at two scales + fine pitting
         vec3 q3 = vW * vec3(1.0, 1.4, 1.0);
         float g1 = tn(q3.xz * 1.7 + q3.y * 1.3), g2 = tn(q3.xz * 6.5 - q3.y * 5.0 + 3.0), g3 = th(floor(vW.xz * 18.0 + vW.y * 11.0));
@@ -241,6 +285,7 @@
         uFarGrass: { value: o.farGrass || 0 },
         uGrassC: { value: new THREE.Vector2() },
         uFill: { value: o.fill !== undefined ? o.fill : (FILL[o.id] || 0) },
+        uTex: { value: o.tex || 0 },
         uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,

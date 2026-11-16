@@ -286,11 +286,11 @@
       for (let i = 0; i < p.count; i++) { const f = 0.78 + r2() * 0.4; p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f); }
       g.computeVertexNormals(); return g; });
     // icosahedron vertices are duplicated per face: jitter per vertex keeps facets (stylised look)
-    const stoneM = GW.mat({ id: ID.STONE, color: 0x8a90a0, rim: 0.2 });
-    const ruinM = GW.mat({ id: ID.RUIN, color: 0x7c88a8, rim: 0.3 });
-    const woodM = GW.mat({ id: ID.WOOD, color: 0x6a4e34, fill: 0.15 });
-    const leafM = GW.mat({ id: ID.LEAF, color: 0x3e7a62, rim: 0.0, fill: 0.08 });
-    const deadM = GW.mat({ id: ID.BONE, color: 0x8a8478 });
+    const stoneM = GW.mat({ id: ID.ROCK, tex: 6, color: 0x8a90a0 });
+    const ruinM = GW.mat({ id: ID.MASONRY, tex: 1, color: 0x8c94aa });
+    const woodM = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.12 });
+    const leafM = GW.mat({ id: ID.LEAF, tex: 5, color: 0x3e7a62, fill: 0.08 });
+    const deadM = GW.mat({ id: ID.BARK, tex: 3, color: 0x8a8478 });
     const mossM = GW.mat({ id: ID.MOSS, color: 0x6a7aa8 });
     const flowerM = GW.mat({ id: ID.FLOWER, color: 0xffffff, emissive: 0x2a2a30 });
     const trunkG = new THREE.CylinderGeometry(0.16, 0.3, 2.4, 6); trunkG.translate(0, 1.2, 0);
@@ -423,10 +423,10 @@
 
   // ----- CC0 nature models (Kenney Nature Kit via the asset pack), instanced per material -----
   const NAT_MAT = {
-    leafsDark: { id: ID.LEAF, color: 0x3c7a60, rim: 0.0, fill: 0.08 }, leafsGreen: { id: ID.LEAF, color: 0x4f8a4c, rim: 0.0, fill: 0.08 },
-    leafsFall: { id: ID.LEAF, color: 0xc06a28, rim: 0.2 }, grass: { id: ID.LEAF, color: 0x2c5a2e, rim: 0.1 },
-    woodBark: { id: ID.WOOD, color: 0x8a6646, fill: 0.12 }, woodBarkDark: { id: ID.WOOD, color: 0x6a5038, fill: 0.12 }, woodBirch: { id: ID.WOOD, color: 0xd6d0c2, rim: 0.2 },
-    woodInner: { id: ID.WOOD, color: 0xb88e5c }, dirt: { id: ID.STONE, color: 0x7a7e88, rim: 0.2 }, stone: { id: ID.STONE, color: 0x8a8e98, rim: 0.2 },
+    leafsDark: { id: ID.LEAF, tex: 5, color: 0x3c7a60, fill: 0.08 }, leafsGreen: { id: ID.LEAF, tex: 5, color: 0x4f8a4c, fill: 0.08 },
+    leafsFall: { id: ID.LEAF, tex: 5, color: 0xc06a28 }, grass: { id: ID.LEAF, tex: 5, color: 0x2c5a2e },
+    woodBark: { id: ID.BARK, tex: 3, color: 0x8a6646, fill: 0.12 }, woodBarkDark: { id: ID.BARK, tex: 3, color: 0x6a5038, fill: 0.12 }, woodBirch: { id: ID.BARK, tex: 3, color: 0xd6d0c2 },
+    woodInner: { id: ID.PLANKS, tex: 2, color: 0xb88e5c }, dirt: { id: ID.ROCK, tex: 6, color: 0x7a7e88 }, stone: { id: ID.ROCK, tex: 6, color: 0x8a8e98 },
     colorRed: { id: ID.FLOWER, color: 0xc02424, emissive: 0x200404 }, _defaultMat: { id: ID.STONE, color: 0xd0c8b8 },
   };
   const natCache = {}, natMats = {};
@@ -492,10 +492,12 @@
 
   // ----- Blender-built environment kit (tools/blender/build_kit.py) -----
   const KIT_MAT = {
-    stone: { id: ID.STONE, color: 0xa4a8b2, fill: 0.06 }, stoneDark: { id: ID.STONE, color: 0x70747e, fill: 0.05 },
-    moss: { id: ID.MOSS, color: 0x5a7a44 }, wood: { id: ID.WOOD, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.WOOD, color: 0x624834, fill: 0.08 },
-    bark: { id: ID.WOOD, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.WOOD, color: 0x7a6a44, fill: 0.04 }, iron: { id: ID.METAL, color: 0x5a5e66 },
-    cloth: { id: ID.WOOD, color: 0xb8a882 }, needle: { id: ID.LEAF, color: 0x4a9070, fill: 0.12 }, foliage: { id: ID.LEAF, color: 0x6a9a58, fill: 0.12 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
+    stone: { id: ID.MASONRY, tex: 1, color: 0xa4a8b2, fill: 0.06 }, stoneDark: { id: ID.MASONRY, tex: 1, color: 0x7a7e88, fill: 0.05 },
+    moss: { id: ID.MOSS, tex: 5, color: 0x5a7a44 }, wood: { id: ID.PLANKS, tex: 2, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.PLANKS, tex: 2, color: 0x6a4e38, fill: 0.08 },
+    bark: { id: ID.BARK, tex: 3, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.THATCH, tex: 4, color: 0x8a7650, fill: 0.05 }, iron: { id: ID.METAL, tex: 7, color: 0x5a5e66 },
+    cloth: { id: ID.PLANKS, color: 0xb8a882 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
+    needle: { id: ID.LEAF, tex: 5, color: 0x4a9070, fill: 0.12 }, foliage: { id: ID.LEAF, tex: 5, color: 0x6a9a58, fill: 0.12 },
+    rock: { id: ID.ROCK, tex: 6, color: 0x9a9ea8, fill: 0.06 },
   };
   const kitCache = {}, kitMats = {};
   function kitParts(name) {
@@ -504,7 +506,7 @@
     if (!root) return (kitCache[name] = []);
     g.scene.updateMatrixWorld(true);
     const inv = root.matrixWorld.clone().invert(), parts = [];
-    root.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(inv.clone().multiply(o.matrixWorld)); if (!geo.attributes.normal) geo.computeVertexNormals(); parts.push({ geo, mn: o.material.name }); } });
+    root.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(inv.clone().multiply(o.matrixWorld)); if (!geo.attributes.normal) geo.computeVertexNormals(); parts.push({ geo, mn: /kit_rock/.test(name) && o.material.name === 'stone' ? 'rock' : o.material.name }); } });
     return (kitCache[name] = parts);
   }
   let _kitBatch = null, _kitPlace = null, _kitRnd = null;
