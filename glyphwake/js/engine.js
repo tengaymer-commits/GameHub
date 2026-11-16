@@ -245,7 +245,7 @@
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl; uniform float uGrassMix;
     vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
@@ -281,12 +281,20 @@
       vec3 raw = px.rgb;
       // raw sets (grass strokes) are decided per pixel so blades stay crisp lines;
       // around characters the grass is darkened into a halo so silhouettes read
-      if (!actor && uSet[pid].x > 0.5 && uSet[pid].x < 1.5) {
-        float halo = max(max(actorAt(cell + vec2(1.0, 0.0)), actorAt(cell - vec2(1.0, 0.0))), max(actorAt(cell + vec2(0.0, 1.0)), actorAt(cell - vec2(0.0, 1.0))));
+      // grass blends from raw straws (zoomed out) to ASCII glyphs (zoomed in) by uGrassMix
+      bool asciiGrass = false;
+      if (uGrassMix > 0.01 && uSet[2].x > 0.5 && (pid == 2 || pid == 1) && !actor) {
+        vec2 qq = CS / uRes * 0.3;
+        bool cg = id == 2 || int(texture2D(tScene, cc + vec2(qq.x, qq.y)).a * 32.0) == 2 || int(texture2D(tScene, cc - vec2(qq.x, qq.y)).a * 32.0) == 2
+               || int(texture2D(tScene, cc + vec2(qq.x, -qq.y)).a * 32.0) == 2 || int(texture2D(tScene, cc + vec2(-qq.x, qq.y)).a * 32.0) == 2;
+        if (cg) { asciiGrass = true; id = 2; }
+      }
+      if (!actor && uSet[pid].x > 0.5 && uSet[pid].x < 1.5 && !asciiGrass) {
         gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return;
       }
-      if (uSet[id].x > 0.5 && uSet[id].x < 1.5) id = 1;
+      if (uSet[id].x > 0.5 && uSet[id].x < 1.5 && !asciiGrass) id = 1;
       vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
+      if (asciiGrass) S = vec4(0.0, 2.4, 0.15, 0.0);
 
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
       vec2 q = CS / uRes * 0.3;
@@ -329,7 +337,9 @@
       vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
       vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.55) * S2.x * (actor ? 1.12 : 1.0);
       vec3 under = actor ? c * S.z : c * S.z;
-      gl_FragColor = vec4(under + gm * gcol, 1.0);
+      vec3 outc = under + gm * gcol;
+      if (asciiGrass) outc = mix(raw, outc, uGrassMix);
+      gl_FragColor = vec4(outc, 1.0);
     }`;
   const QUAD_V = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
   const BRIGHT_F = `uniform sampler2D tIn; varying vec2 vUv; uniform vec2 uTexel;
@@ -382,7 +392,7 @@
     const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
