@@ -5592,18 +5592,18 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: " .", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 2 grass  */ { ramp: " .,'/|\\;:!lI", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
-    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 1.9, under: 0.5, edge: 0, bright: 1.1, white: 0.25, flick: 0 },
+    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.16, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
     /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
-    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.0, under: 0.5, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
+    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.3, under: 0.22, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
     /* 8 fire   */ { ramp: " .'^*+#%@", mode: 0, gain: 0.9, under: 0.45, edge: 0, bright: 1.5, white: 0.2, flick: 9 },
     /* 9 flower */ { ramp: " .o*o*O@", mode: 0, gain: 1.6, under: 0.4, edge: 0, bright: 1.4, white: 0.6, flick: 0 },
-    /* 10 wood  */ { ramp: " .-=|[#H", mode: 0, gain: 1.9, under: 0.5, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
+    /* 10 wood  */ { ramp: " .-=|[#H", mode: 0, gain: 2.4, under: 0.18, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
     /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.4, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
     /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
-    /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 1.9, under: 0.45, edge: 0, bright: 1.15, white: 0.3, flick: 0 },
-    /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.3, under: 0.45, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
+    /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 2.5, under: 0.16, edge: 0, bright: 1.15, white: 0.4, flick: 0 },
+    /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.5, under: 0.2, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
     // ---- armour glyph patterns (actors) ----
     /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
@@ -5622,7 +5622,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.3; });
-  [3, 5, 10, 13].forEach(i => { SETS[i].scen = 1; });   // scenery: soft dark outline against the ground
+  [3, 5, 10, 13, 14].forEach(i => { SETS[i].scen = 1; });   // scenery: soft dark outline against the ground
   while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
   const ID = E.ID = { SKY: 23, STAR: 24, MOON: 25, MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
   E.SETS = SETS;
@@ -5848,7 +5848,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           if (groundPx) os = max(os, uSet3[nid].z);
         }
         if (ol > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-        if (os > 0.5) { gl_FragColor = vec4(px.rgb * 0.12, 1.0); return; }
+
       }
       // separate glyph densities: characters, water & sky, everything else
       CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : uCell);
@@ -5869,11 +5869,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
                || int(texture2D(tScene, cc + vec2(qq.x, -qq.y)).a * 32.0) == 2 || int(texture2D(tScene, cc + vec2(-qq.x, qq.y)).a * 32.0) == 2;
         if (cg) { asciiGrass = true; id = 2; }
       }
-      if (!actor && uSet[pid].x > 0.5 && uSet[pid].x < 1.5 && !asciiGrass) {
+      bool scenCell = uSet3[id].z > 0.5;
+      if (!actor && !scenCell && uSet[pid].x > 0.5 && uSet[pid].x < 1.5 && !asciiGrass) {
         gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return;
       }
       if (uSet[id].x > 0.5 && uSet[id].x < 1.5 && !asciiGrass) id = 1;
       vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
+      if (!scenCell && !actor && (id == 1 || id == 2)) {
+        // ground cell touching a structure: drawn dark, a one-character shadow border
+        float sb = max(max(uSet3[idAt(cell + vec2(1.0, 0.0))].z, uSet3[idAt(cell - vec2(1.0, 0.0))].z), max(uSet3[idAt(cell + vec2(0.0, 1.0))].z, uSet3[idAt(cell - vec2(0.0, 1.0))].z));
+        if (sb > 0.5) { gl_FragColor = vec4(px.rgb * 0.15, 1.0); return; }
+      }
       if (asciiGrass) S = vec4(0.0, 2.4, 0.15, 0.0);
 
       if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
@@ -5886,6 +5892,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       float jit = actor ? S3.x : 0.16;
       v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
       if (actor) v = clamp(pow(v, 1.15) * 1.35, 0.24, 0.999);
+      if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
