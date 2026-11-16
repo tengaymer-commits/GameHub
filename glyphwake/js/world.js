@@ -732,10 +732,10 @@
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) }, uFlowers: { value: 0.5 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -781,7 +781,7 @@
           if (flatK > 0.01 && length(pd) > 0.001) dir = normalize(mix(dir, normalize(pd), flatK * 0.85));
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
-          bool speck = uTurf > 1.5 && vis * edgeF > 0.5 && fract(sd * 97.13) < 0.045 + 0.17 * smoothstep(0.5, 0.85, vn(wp * 0.18 + 21.0));
+          bool speck = uTurf > 1.5 && vis * edgeF > 0.5 && fract(sd * 97.13) < uFlowers * (0.045 + 0.17 * smoothstep(0.5, 0.85, vn(wp * 0.18 + 21.0)));
           float L2 = speck ? uLineW * 11.5 : lenPx;
           float wpx = speck ? uLineW * 3.9 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
@@ -791,9 +791,9 @@
           cp.xy += (dir * (speck ? st - 0.5 : t) * L2 + nrm * sx * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
           vW = root; vT = speck ? min(t * 2.0, 1.0) : t; vAc = speck ? -(t > 0.75 ? 0.0 : aV.x / (t > 0.25 ? 0.6 : 1.0)) : aV.x;
           float tone = fract(sd * 17.0);
-          vec3 sea = mix(vec3(0.08, 0.27, 0.21), vec3(0.14, 0.4, 0.31), tone);
+          vec3 sea = mix(vec3(0.11, 0.37, 0.28), vec3(0.19, 0.52, 0.4), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
-          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.38 : 1.0);
+          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.55 : 1.0);
           vSpeck = 0.0; vGl = vec2(4.0, 9.0);
           if (speck) {
             vSpeck = 1.0;
@@ -814,7 +814,7 @@
           }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
-          vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
+          vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.6 + 0.4 * gShadow) + vCol * warm * 1.2;
           col = applyFog(col, vW);
           gl_FragColor = vec4(col, (vSpeck > 0.5 ? 26.5 : ${ID.GRASS}.0 + 0.5) / 32.0);
         }`,

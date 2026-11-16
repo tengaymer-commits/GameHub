@@ -465,6 +465,7 @@
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
     // grass turns into ASCII as you zoom in (normal straws when zoomed out)
+    GW.World.grass.mat.uniforms.uFlowers.value = UI.settings.flowers !== undefined ? UI.settings.flowers : 0.5;
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : GW.clamp((gz - 1.25) / 1.1, 0, 1);
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
@@ -544,7 +545,7 @@
       GW.LU.uAmb.value.setRGB(0.07, 0.07, 0.09);
       G.R.render(v.scene, v.cam, { hurt: 0, white: G.flashWhite });
       G.flashWhite = Math.max(0, G.flashWhite - dt * 2);
-      GW.LU.uFog.value = 0.012; GW.LU.uAmb.value.setRGB(0.1, 0.12, 0.17);
+      GW.LU.uFog.value = 0.012; GW.LU.uAmb.value.setRGB(0.17, 0.2, 0.26);
       return;
     }
     const P = G.player;
