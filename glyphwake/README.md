@@ -62,6 +62,13 @@ They're placed in the Hollow Ruins, a new graveyard (the Quiet Graves) between E
 python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 ```
 
+## Greymoss Keep (Blender)
+`tools/blender/build_castle.py` models a ruined castle in mossy cobblestone: crenellated curtain walls with a gate and a collapsed breach, four round towers (one fallen), a two-story keep with a collapsed corner, a timber upper floor with a hole, an outside stair, rubble and a well. It's placed at `L.castle` with its own zone and a road from the meadow. `CASTLE_LAYOUT` in `js/world.js` (`buildCastle`, `W.levelAt`) mirrors the model's dimensions for colliders and walkable floors. Colliders carry a level (0 ground, 1 upper floor), and the player switches level on the stair and falls through the hole or off edges. Three Hollows guard the courtyard, and loot (Wyrmscale Coat, a gold ingot, a Thirst rune) waits upstairs; it's saved once taken.
+
+## Zoom-aware shading
+- `uDetail` (from the camera distance) fades fine surface texture and grime when zoomed out, so glyphs form clean shapes instead of dots.
+- Structures use soft four-step lighting bands and a contact shadow where they meet the ground (sampled from the terrain height map), so each face keeps a consistent glyph family.
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|

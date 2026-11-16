@@ -42,7 +42,7 @@
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
     /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
     /* 26 flower (dandelion glyphs, always drawn as rendered) */ { ramp: " ", mode: 1, gain: 1.0, under: 0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 27 masonry */ { ramp: "  .:-=+*#%@", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.15, white: 0.35, flick: 0 },
+    /* 27 masonry */ { ramp: "  .:-=+*#%@", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.15, white: 0.15, flick: 0 },
     /* 28 bark    */ { ramp: " .:;!|lI1H", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.05, white: 0.08, flick: 0 },
     /* 29 thatch  */ { ramp: " .'`/\\^vwW", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.1, white: 0.1, flick: 0 },
     /* 30 planks  */ { ramp: " .-~=+#H", mode: 0, gain: 2.5, under: 0.06, edge: 0, bright: 1.05, white: 0.1, flick: 0 },
@@ -95,6 +95,8 @@
     uFogStart: { value: 18 },
     uFogCol: { value: new THREE.Color(0.022, 0.032, 0.058) },
     uDayLight: { value: 1.0 },
+    uDetail: { value: 1.0 },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -108,7 +110,7 @@
     #include <packing>
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
-    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
     float gShadow;
     // moon shadow map, 3x3 PCF with a normal offset against acne
@@ -222,6 +224,16 @@
         return (0.6 + 0.4 * seam) + riv * 0.6;
       }
     }
+    // 8 cobblestone: rounded, irregular stones with deep dark gaps
+    float cobble(vec2 uv) {
+      vec2 g = uv / 0.34, i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec2 bid = vec2(0.0);
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+        vec2 o = vec2(float(x), float(y)); vec2 c = o + 0.15 + 0.7 * vec2(th(i + o), th(i + o + 17.0)) - f;
+        float d = dot(c, c); if (d < d1) { d2 = d1; d1 = d; bid = i + o; } else if (d < d2) d2 = d;
+      }
+      float edge = smoothstep(0.0, 0.18, sqrt(d2) - sqrt(d1));
+      return (0.35 + 0.65 * edge) * (0.75 + 0.4 * th(bid)) * (0.85 + 0.25 * (1.0 - sqrt(d1)));
+    }
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
@@ -231,12 +243,17 @@
       vec3 V = normalize(uCam - vW);
       float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
       vec3 base = vC;
-      if (uTex > 0.5 && uUnlit < 0.5) base *= surfTex(uTex, vW, n);
+      if (uTex > 0.5 && uUnlit < 0.5) {
+        vec3 an = abs(n); vec2 uvc = an.y > max(an.x, an.z) ? vW.xz : (an.x > an.z ? vW.zy : vW.xy);
+        float t = uTex > 7.5 ? cobble(uvc) : surfTex(uTex, vW, n);
+        // zoom-aware: far away fine texture fades so glyphs form clean shapes instead of dots
+        base *= mix(0.9 + 0.1 * t, t, 0.2 + 0.8 * uDetail);
+      }
       else if (uSpec < 0.3 && uUnlit < 0.5 && uFarGrass <= 0.0) {
         // matte, rough surfaces: blotchy grime at two scales + fine pitting
         vec3 q3 = vW * vec3(1.0, 1.4, 1.0);
         float g1 = tn(q3.xz * 1.7 + q3.y * 1.3), g2 = tn(q3.xz * 6.5 - q3.y * 5.0 + 3.0), g3 = th(floor(vW.xz * 18.0 + vW.y * 11.0));
-        base *= 0.62 + 0.55 * g1 * (0.6 + 0.4 * g2) + (g3 - 0.5) * 0.18;
+        base *= mix(0.95, 0.62 + 0.55 * g1 * (0.6 + 0.4 * g2) + (g3 - 0.5) * 0.18, 0.25 + 0.75 * uDetail);
       }
       float gGlyph = 0.0; vec3 gTint = vec3(0.0);
       if (uFarGrass > 0.0) {
@@ -257,6 +274,16 @@
           float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
           gGlyph = gm * (1.0 - smoothstep(0.22, 0.55, px));
           gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.08, 0.08, 0.07);
+        }
+      }
+      if (uTex > 0.5 && uUnlit < 0.5) {
+        float l = max(dot(L, vec3(0.333)), 1e-4);
+        float q = l * 4.0, fq = fract(q);
+        float lb = (floor(q) + smoothstep(0.35, 0.65, fq)) / 4.0;     // soft steps: lit / side / shade / deep shade
+        L *= mix(1.0, max(lb, 0.06) / l, 0.75);
+        if (uWorldSize > 0.0) {
+          float gh = texture2D(uHeightMap, vW.xz / uWorldSize + 0.5).r;
+          L *= mix(0.5, 1.0, smoothstep(0.0, 1.1, vW.y - gh));      // contact shadow where walls meet the ground
         }
       }
       vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;

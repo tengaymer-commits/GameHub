@@ -19,6 +19,7 @@
     arena: { x: 2, z: -108 },
     ruinFire: { x: -48, z: 30 },
     meadowFire: { x: -18, z: -42 },
+    castle: { x: 55, z: -65 },
   };
   const RIVER_CP = [[-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44]];
   const PATHS = [
@@ -26,6 +27,7 @@
     [[0, 18], [-3, 4], [-4, -13], [2, -30], [8, -45], [12, -58], [8, -80], [3, -96], [2, -104]],
     [[-12, 31], [-30, 34], [-48, 30], [-60, 38], [-70, 42]],
     [[12, 31], [32, 27], [52, 33], [70, 36]],
+    [[14, -58], [30, -54], [44, -51], [55, -51], [55, -56]],
   ];
   const ZONES = [
     { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 78, r: 14 },
@@ -33,6 +35,7 @@
     { name: 'THE GLASS RIVER', sub: 'crossing', x: -4, z: -13, r: 9 },
     { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 12, z: -58, r: 30 },
     { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -72, z: 42, r: 26 },
+    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 55, z: -65, r: 17 },
     { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -36, z: 64, r: 13 },
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
     { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 2, z: -108, r: 22 },
@@ -80,6 +83,7 @@
     flatK(L.village.x, L.village.z, 12, 20, 0.15);
     flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
     flatK(L.start.x, L.start.z, 6, 12, 0.3);
+    flatK(L.castle.x, L.castle.z, 16, 23, 0.4);
     return h;
   }
 
@@ -156,8 +160,8 @@
   };
 
   const CELL = 8;
-  W.addCollider = function (x, z, r, tag) {
-    const c = { x, z, r, tag };
+  W.addCollider = function (x, z, r, tag, lv) {
+    const c = { x, z, r, tag, lv };
     W.colliders.push(c);
     const i0 = Math.floor((x - r) / CELL), i1 = Math.floor((x + r) / CELL), j0 = Math.floor((z - r) / CELL), j1 = Math.floor((z + r) / CELL);
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
@@ -166,12 +170,14 @@
     return c;
   };
   // push a circle out of colliders; returns true if touched
-  W.collide = function (p, r) {
+  W.collide = function (p, r, lv) {
+    lv = lv || 0;
     let hit = false;
     const i = Math.floor(p.x / CELL), j = Math.floor(p.z / CELL);
     for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) {
       const arr = W.grid.get(a * 1000 + b); if (!arr) continue;
       for (const c of arr) {
+        if (c.lv !== undefined && c.lv !== lv) continue;
         const dx = p.x - c.x, dz = p.z - c.z, rr = r + c.r, d2 = dx * dx + dz * dz;
         if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2), k = (rr - d) / d; p.x += dx * k; p.z += dz * k; hit = true; }
       }
@@ -208,7 +214,7 @@
     }
     const tMap = new THREE.DataTexture(half, N, N, THREE.RGBAFormat, THREE.HalfFloatType);
     tMap.minFilter = THREE.LinearFilter; tMap.magFilter = THREE.LinearFilter; tMap.needsUpdate = true;
-    W.tMap = tMap;
+    W.tMap = tMap; GW.LU.uHeightMap.value = tMap; GW.LU.uWorldSize.value = SIZE;
 
     // ---- terrain ----
     const SEG = 180;
@@ -345,7 +351,7 @@
     const free = (x, z, r) => {
       if (W.riverAt(x, z) < RIVER_W + 1.5 + r) return false;
       if (W.pathAt(x, z) < 2.5 + r) return false;
-      for (const k of ['village', 'start', 'arena']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : 18) + r) return false;
+      for (const k of ['village', 'start', 'arena', 'castle']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 : 18) + r) return false;
       return !W.blocked(x, z, r + 0.6);
     };
 
@@ -415,6 +421,7 @@
 
     natureScatter(batch, place, rnd, free);
     kitScatter(scene, batch, place, rnd, free);
+    buildCastle(scene);
     batch.build(scene);
     buildFireflies(scene);
     buildSky(scene);
@@ -558,6 +565,67 @@
     for (let k = 0; k < 22; k++) { const x = (rnd() - 0.5) * 200, z = (rnd() - 0.5) * 200; if (Math.hypot(x, z) < 100 && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
     for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210; if (Math.hypot(x, z) < 104 && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.7 + rnd() * 0.9, rnd() * 6.28, 0.85); }
   }
+
+  // ----- Greymoss Keep (tools/blender/build_castle.py). Local coords: lx east, ly north (= game -z). -----
+  const CL = { u: 1.0, floorY: 3.4 };
+  const toW = (lx, ly) => [L.castle.x + lx, L.castle.z - ly];
+  W.castleLocal = (x, z) => [x - L.castle.x, -(z - L.castle.z)];
+  function buildCastle(scene) {
+    const g = GW.Assets.gltf.castle; if (!g) return;
+    const base = W.heightAt(L.castle.x, L.castle.z) - 0.05;
+    const cmat = {
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x767a82, fill: 0.03 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x575b63, fill: 0.03 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x5a8048 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.06 }),
+      woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
+    };
+    g.scene.updateMatrixWorld(true);
+    const byMat = {};
+    g.scene.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); (byMat[o.material.name] = byMat[o.material.name] || []).push(geo); } });
+    for (const mn in byMat) {
+      // merge per material into one mesh (few draw calls)
+      const geos = byMat[mn], merged = new THREE.BufferGeometry();
+      let n = 0; geos.forEach(gg => { n += (gg.index ? gg.index.count : gg.attributes.position.count); });
+      const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let k = 0;
+      geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
+      merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      const m = new THREE.Mesh(merged, cmat[mn] || cmat.cobble); m.position.set(L.castle.x, base, L.castle.z); m.frustumCulled = false; scene.add(m);
+    }
+    CL.base = base;
+    // ---- colliders (level 0 = ground, 1 = upper floor; undefined = both) ----
+    const seg = (x0, y0, x1, y1, r, lv, skip) => {
+      const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(len / (r * 1.1)));
+      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; const [x, z] = toW(lx, ly); W.addCollider(x, z, r, 'castle', lv); }
+    };
+    const R = 11;
+    seg(-R, -R, R, -R, 0.7, undefined, (lx) => Math.abs(lx) < 1.6);                 // south wall, gate
+    seg(-R, -R, -R, R, 0.7, undefined, (lx, ly) => ly > -6 && ly < -1.5);         // west wall, breach (climb over rubble)
+    seg(-R, R, R, R, 0.7); seg(R, -R, R, R, 0.7);
+    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => { const [x, z] = toW(lx, ly); W.addCollider(x, z, 2.7, 'castle'); });
+    // keep: outer face x -6..6, y 2..10
+    seg(-6, 2, -1.1, 2, 0.55); seg(1.1, 2, 6, 2, 0.55); seg(-1.1, 2, 1.1, 2, 0.55, 1);   // door only open on the ground
+    seg(-6, 2, -6, 10, 0.55); seg(-6, 10, 6, 10, 0.55);
+    seg(6, 2, 6, 7.1, 0.55); seg(6, 7.1, 6, 9.2, 0.55, 0); seg(6, 9.2, 6, 10, 0.55); // east face: stair gap on the upper floor
+    seg(8.0, 0.2, 8.0, 8.4, 0.35);                                                 // stair's outer wall
+    seg(6.2, 8.6, 7.8, 8.6, 0.35, 0);                                              // the stair's back (can't walk under it)
+    seg(6.0, 9.4, 8.0, 9.4, 0.35, 1); seg(8.0, 8.4, 8.0, 9.4, 0.35, 1);              // landing walls at the top
+    W.addCollider(...toW(-5, -5), 1.0, 'castle');                                  // well
+  }
+  // walkable height for a position at a given level; returns { y, lv }
+  W.levelAt = function (x, z, lv) {
+    if (CL.base === undefined) return { y: W.groundY(x, z), lv: 0 };
+    const [lx, ly] = W.castleLocal(x, z);
+    const onStair = lx > 6.15 && lx < 7.85 && ly > -0.3 && ly < 8.6;
+    const stairY = CL.base + CL.floorY * GW.clamp((ly - 0.2) / 7.8, 0, 1);
+    const inFloor = lx > -5.1 && lx < 7.85 && ly > 2.9 && ly < 9.1;
+    const inHole = lx > 1.5 && lx < 4.0 && ly > 4.0 && ly < 6.5;
+    if (lv === 1) {
+      if (onStair && ly < 7.2) return { y: stairY, lv: ly < 0.4 ? 0 : 1 };
+      if (inFloor && !inHole) return { y: CL.base + CL.floorY, lv: 1 };
+      return { y: W.groundY(x, z), lv: 0 };          // stepped off an edge or into the hole: fall
+    }
+    if (onStair) return { y: stairY, lv: ly > 6.8 ? 1 : 0 };
+    return { y: W.groundY(x, z), lv: 0 };
+  };
 
   // ----- night sky: gradient dome, stars, a low moon, distant mountains (follows the camera) -----
   function buildSky(scene) {

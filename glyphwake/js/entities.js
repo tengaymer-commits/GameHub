@@ -196,7 +196,7 @@
     this.trail.color.set(s.trail);
   };
   Player.prototype.need = function () { return Math.round(80 * Math.pow(this.level, 1.6)); };
-  Player.prototype.place = function (x, z) { this.pos.set(x, GW.World.groundY(x, z), z); this.vel.set(0, 0, 0); };
+  Player.prototype.place = function (x, z) { this.pos.set(x, GW.World.groundY(x, z), z); this.vel.set(0, 0, 0); this.level = 0; };
   Player.prototype.fwd = function () { return new V3(Math.sin(this.yaw), 0, Math.cos(this.yaw)); };
 
   Player.prototype.update = function (dt, input, G) {
@@ -348,7 +348,7 @@
     }
     // integrate + collide
     this.pos.x += vx * dt; this.pos.z += vz * dt;
-    W.collide(this.pos, 0.35);
+    W.collide(this.pos, 0.35, this.level || 0);
     for (const e of G.enemies) {
       if (!e.alive) continue;
       const dx = this.pos.x - e.pos.x, dz = this.pos.z - e.pos.z, rr = 0.45 + e.radius, d2 = dx * dx + dz * dz;
@@ -358,8 +358,10 @@
       const A = W.L.arena, dx = this.pos.x - A.x, dz = this.pos.z - A.z, d = Math.hypot(dx, dz);
       if (d > 17.5) { this.pos.x = A.x + dx / d * 17.5; this.pos.z = A.z + dz / d * 17.5; }
     }
-    const gy = W.groundY(this.pos.x, this.pos.z);
-    this.pos.y += (gy - this.pos.y) * Math.min(1, dt * 18);
+    const la = W.levelAt(this.pos.x, this.pos.z, this.level || 0);
+    this.level = la.lv;
+    const gy = la.y, falling = gy < this.pos.y - 0.6;
+    this.pos.y += (gy - this.pos.y) * Math.min(1, dt * (falling ? 6 : 18));
     this.animate(dt);
     // trail
     const tip = new V3(), base = new V3();

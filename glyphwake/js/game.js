@@ -101,7 +101,7 @@
   function init() {
     $('t-menu').style.visibility = 'hidden';
     $('t-foot').textContent = 'loading models…';
-    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit', 'armor'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
+    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit', 'armor', 'castle'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
       .then(build).catch(err => { $('t-foot').textContent = 'Could not load the 3D models: ' + err.message; console.error(err); });
   }
   function build() {
@@ -162,6 +162,8 @@
     for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, r = 4 + (k % 3) * 2.5; G.spawnEnemy('hollow', Lw.ruins.x + Math.cos(a) * r, Lw.ruins.z + Math.sin(a) * r); }
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, r = 6 + (k % 2) * 6; G.spawnEnemy('wisp', Lw.grove.x + Math.cos(a) * r, Lw.grove.z + Math.sin(a) * r); }
     G.boss = G.spawnEnemy('warden', Lw.arena.x, Lw.arena.z - 4);
+    // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
+    [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
   }
   G.spawnEnemy = function (type, x, z, home, temp) {
     const e = new GW.Enemy(G.scene, type, x, z, home);
@@ -183,10 +185,12 @@
           P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
           P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
           if (d.tod !== undefined) G.tod = d.tod;
+          G.castleLooted = !!d.castleLooted;
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
         }
       } else { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
+      G.castleLoot();
       P.recalc(); P.hp = P.maxHp;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
@@ -358,13 +362,20 @@
       for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2; G.parts.spark.emit(P.pos.x + Math.cos(a), P.pos.y + 0.3, P.pos.z + Math.sin(a), Math.cos(a) * 2, 4, Math.sin(a) * 2, 1, 1, 0xffd060, -2); }
     }
   }
-  function spawnPickup(kind, key, at) {
+  G.castleLoot = function () {
+    if (G.castleLooted) return;
+    const Lw = GW.World.L, y = GW.World.levelAt(Lw.castle.x - 3, Lw.castle.z - 7, 1).y;
+    [['armor', 'scale'], ['ingot', 'gold'], ['rune', 'thirst']].forEach(([k, key], i) => {
+      spawnPickup(k, key, new V3(Lw.castle.x - 3 + i * 0.9, y, Lw.castle.z - 7.5), y);
+    });
+  };
+  function spawnPickup(kind, key, at, fixedY) {
     const col = kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
     const m = new THREE.Mesh(kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
     const p = at.clone(); p.x += (Math.random() - 0.5) * 1.2; p.z += (Math.random() - 0.5) * 1.2;
     m.position.copy(p); G.scene.add(m);
     const light = GW.World.lights.add(p.x, p.y + 1, p.z, new THREE.Color(col).multiplyScalar(0.6), 4, 0.3);
-    G.pickups.push({ kind, key, m, p, t: 0, light });
+    G.pickups.push({ kind, key, m, p, t: 0, light, fixedY });
   }
   G.hurtPlayer = function (dmg, from, o) {
     o = o || {};
@@ -437,7 +448,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
   function loadData() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
@@ -469,7 +480,8 @@
     // grass turns into ASCII as you zoom in (normal straws when zoomed out)
     GW.World.grass.mat.uniforms.uFlowers.value = UI.settings.flowers !== undefined ? UI.settings.flowers : 0.5;
     { const z = UI.settings.zoom || 1.3, t = GW.clamp((1.15 - z) / 0.7, 0, 1);
-      G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : t * t * (3 - 2 * t); }
+      GW.LU.uDetail.value = GW.clamp((1.7 - (UI.settings.zoom || 1.3)) / 1.1, 0, 1);
+    G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : t * t * (3 - 2 * t); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
@@ -768,10 +780,10 @@
     G.pickups = G.pickups.filter(p => {
       p.t += dt;
       const d = Math.hypot(P.pos.x - p.p.x, P.pos.z - p.p.z);
-      if (d < 4 && p.t > 0.6) { p.p.x += (P.pos.x - p.p.x) * dt * 6; p.p.z += (P.pos.z - p.p.z) * dt * 6; }
-      p.m.position.set(p.p.x, GW.World.groundY(p.p.x, p.p.z) + 0.7 + Math.sin(p.t * 3) * 0.15, p.p.z); p.m.rotation.y += dt * 2;
+      if (d < 4 && p.t > 0.6 && (p.fixedY === undefined || Math.abs(P.pos.y - p.fixedY) < 1.2)) { p.p.x += (P.pos.x - p.p.x) * dt * 6; p.p.z += (P.pos.z - p.p.z) * dt * 6; }
+      p.m.position.set(p.p.x, (p.fixedY !== undefined ? p.fixedY : GW.World.groundY(p.p.x, p.p.z)) + 0.7 + Math.sin(p.t * 3) * 0.15, p.p.z); p.m.rotation.y += dt * 2;
       p.light.p.copy(p.m.position);
-      if (d < 1.3 && p.t > 0.6) { give(p.kind, p.key); G.scene.remove(p.m); GW.World.lights.remove(p.light); return false; }
+      if (d < 1.3 && p.t > 0.6 && (p.fixedY === undefined || Math.abs(P.pos.y - p.fixedY) < 1.2)) { if (p.fixedY !== undefined) G.castleLooted = true; give(p.kind, p.key); G.scene.remove(p.m); GW.World.lights.remove(p.light); return false; }
       return true;
     });
   }
