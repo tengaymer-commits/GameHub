@@ -631,7 +631,7 @@
     mtn.frustumCulled = false; g.add(mtn);
     g.traverse(o => o.layers.set(2));   // sky layer: seen by the camera and the water's reflection, never casts shadows
   }
-  W.updateSky = function (cam) { if (W.sky) W.sky.position.set(cam.position.x, 0, cam.position.z); };
+  W.updateSky = function (cam) { if (W.sky) { W.sky.position.set(cam.position.x, 0, cam.position.z); W.sky.scale.setScalar(Math.max(1, cam.far / 400 * 0.95)); } };
 
   // ----- pieces -----
   function campfire(scene, x, z, label) {

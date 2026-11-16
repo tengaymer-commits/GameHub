@@ -284,6 +284,7 @@
       vec2 go = mod(uGridOff, CS);
       vec2 cell = floor((fc - go) / CS);
       vec2 cuv = fract((fc - go) / CS);
+      vec2 wcell = floor((fc - uGridOff) / CS);   // world-stable cell index for per-cell variation
       vec2 cc = ((cell + 0.5) * CS + go) / uRes;
       vec4 cs = texture2D(tScene, cc);
       int id = int(cs.a * 32.0);
@@ -320,7 +321,7 @@
       v = pow(v, 0.8);
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
       float jit = actor ? S3.x : 0.16;
-      v += (h21(cell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
+      v += (h21(wcell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
       if (actor) v = clamp(pow(v, 1.15) * 1.35, 0.24, 0.999);
       if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
       v = clamp(v, 0.0, 0.999);
@@ -328,7 +329,7 @@
       // woven patterns: mail checker, plate bands, scale rows
       if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
-      if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(cell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
+      if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(wcell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
       float edgeBoost = 0.0;
       if (actor) {

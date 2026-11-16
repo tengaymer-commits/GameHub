@@ -448,10 +448,10 @@
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
     const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
-    const fovF = G.R.aspect < 0.8 ? 21 : 17;
+    const fovF = G.R.aspect < 0.8 ? 7 : 6;   // near-orthographic: no parallax, so pixel snapping holds for every depth
     C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
     const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
-    C.far = 400 * lensK;
+    C.far = 400 * lensK; C.near = 0.5 * Math.max(1, lensK * 0.5);
     if (title) {
       const a = G.t * 0.05, c = GW.World.L.village;
       C.position.set(c.x + Math.sin(a) * 30, 16, c.z + Math.cos(a) * 30);
@@ -641,8 +641,8 @@
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(camD * 0.95 / (G.camera.fov < 30 ? 2.4 : 1), 16, 70) / 6) * 6,
-      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * (G.camera.fov < 30 ? 0.7 : 1.6) + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
     if (GWAudio.ctx) {
