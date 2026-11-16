@@ -332,6 +332,9 @@
     const tm = $('o-time'), dl = $('o-daylen'), dlTxt = () => { $('o-daylen-v').textContent = (S.dayLen || 16) + ' min'; };
     tm.value = S.time || 'cycle'; tm.onchange = () => { S.time = tm.value; UI.saveSettings(); };
     dl.value = S.dayLen || 16; dlTxt(); dl.oninput = () => { S.dayLen = +dl.value; dlTxt(); UI.saveSettings(); };
+    const shd = $('o-shadows'); shd.value = S.shadows || 'soft'; shd.onchange = () => { S.shadows = shd.value; apply(); UI.saveSettings(); };
+    const fb = $('o-farblend'), fbTxt = () => { $('o-farblend-v').textContent = Math.round((S.farBlend !== undefined ? S.farBlend : 0.7) * 100) + '%'; };
+    fb.value = S.farBlend !== undefined ? S.farBlend : 0.7; fbTxt(); fb.oninput = () => { S.farBlend = +fb.value; fbTxt(); UI.saveSettings(); };
     const gb = $('o-gblend'); gb.checked = S.grassBlend !== false; gb.onchange = () => { S.grassBlend = gb.checked; UI.saveSettings(); };
     const ln = $('o-lens'), hd = $('o-hud');
     ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };

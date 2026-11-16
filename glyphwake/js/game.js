@@ -149,7 +149,9 @@
   function applySettings() {
     const S = UI.settings, R = G.R;
     R.glyphPx = S.glyph; R.glyphA = S.glyphA; R.glyphS = S.glyphS; R.quality = S.quality; R.renderScale = S.res || 'auto'; R.resize(); R.setPureGrass(S.pure);
-    R.setShadows([0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
+    const sm = S.shadows || 'soft';
+    R.setShadows(sm === 'off' ? 0 : [0, 1024, 2048][S.quality]); R.reflOn = S.quality > 0;
+    GW.LU.uShadowSoft.value = sm === 'soft' ? 2.6 : 1.25; GW.LU.uShadowStr.value = sm === 'soft' ? 0.55 : 1.0;
     GWAudio.setVolume(S.vol, S.mus);
   }
   function openSettings(from) { if (UI.resNote) UI.resNote(); G.settingsFrom = from; $('settings').classList.remove('hidden'); $('pause').classList.add('hidden'); $('title').classList.add('hidden'); }
@@ -481,6 +483,9 @@
     GW.World.grass.mat.uniforms.uFlowers.value = UI.settings.flowers !== undefined ? UI.settings.flowers : 0.5;
     { const z = UI.settings.zoom || 1.3, t = GW.clamp((1.15 - z) / 0.7, 0, 1);
       GW.LU.uDetail.value = GW.clamp((1.7 - (UI.settings.zoom || 1.3)) / 1.1, 0, 1);
+    { const zb = UI.settings.zoom || 1.3, fbs = UI.settings.farBlend !== undefined ? UI.settings.farBlend : 0.7;
+      G.R.asciiMat.uniforms.uFarBlend.value = fbs * GW.clamp((zb - 0.75) / 0.9, 0, 1); }
+    GW.LU.uPlayerW.value.copy(P.pos);
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : t * t * (3 - 2 * t); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)

@@ -17,7 +17,7 @@
     /* 2 grass  */ { ramp: " .,'`:;~^\"*+", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
     /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
-    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.3, under: 0.07, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
+    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.4, under: 0.25, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
     /* 8 fire   */ { ramp: " .'^*+#%@", mode: 0, gain: 0.9, under: 0.45, edge: 0, bright: 1.5, white: 0.2, flick: 9 },
@@ -26,7 +26,7 @@
     /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.4, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
     /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
     /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.15, white: 0.4, flick: 0 },
-    /* 14 moss  */ { ramp: " .oo08QQB", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
+    /* 14 moss  */ { ramp: " .,:;~*%&", mode: 0, gain: 2.0, under: 0.2, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
     // ---- armour glyph patterns (actors) ----
     /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
@@ -96,6 +96,7 @@
     uFogCol: { value: new THREE.Color(0.022, 0.032, 0.058) },
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
+    uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
     uHeightMap: { value: null }, uWorldSize: { value: 260 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
@@ -110,7 +111,7 @@
     #include <packing>
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
-    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
     float gShadow;
     // moon shadow map, 3x3 PCF with a normal offset against acne
@@ -121,11 +122,11 @@
       if (sc.x < 0.0 || sc.x > 1.0 || sc.y < 0.0 || sc.y > 1.0 || sc.z > 1.0) return 1.0;
       float sh = 0.0;
       for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) {
-        float d = unpackRGBAToDepth(texture2D(uShadowMap, sc.xy + vec2(float(x), float(y)) * uShadowTexel * 1.25));
+        float d = unpackRGBAToDepth(texture2D(uShadowMap, sc.xy + vec2(float(x), float(y)) * uShadowTexel * uShadowSoft));
         sh += (sc.z - 0.0012 > d) ? 0.0 : 1.0;
       }
       float edge = smoothstep(0.0, 0.08, min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y)));
-      return mix(1.0, sh / 9.0, edge);
+      return mix(1.0, mix(1.0, sh / 9.0, uShadowStr), edge);
     }
     vec3 lightAt(vec3 W, vec3 n) {
       float sh = shadowAt(W, n); gShadow = sh;
@@ -237,6 +238,12 @@
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
+      if (uTex > 0.5 && vW.y > uPlayerW.y + 1.9) {
+        // dissolve tree tops and roofs above and around the hero (dithered), so he is never hidden
+        float dp = length(vW.xz - uPlayerW.xz);
+        float cut = 1.0 - smoothstep(1.6, 3.4, dp);
+        if (cut > 0.0 && th(floor(gl_FragCoord.xy * 0.5)) < cut * 0.85) discard;
+      }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
       vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
@@ -325,7 +332,7 @@
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff; uniform float uFarBlend;
     vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
@@ -381,7 +388,7 @@
       if (!scenCell && !actor && (id == 1 || id == 2)) {
         // ground cell touching a structure: drawn dark, a one-character shadow border
         float sb = max(max(uSet3[idAt(cell + vec2(1.0, 0.0))].z, uSet3[idAt(cell - vec2(1.0, 0.0))].z), max(uSet3[idAt(cell + vec2(0.0, 1.0))].z, uSet3[idAt(cell - vec2(0.0, 1.0))].z));
-        if (sb > 0.5) { gl_FragColor = vec4(px.rgb * 0.15, 1.0); return; }
+        if (sb > 0.5) { gl_FragColor = vec4(px.rgb * mix(0.15, 0.75, uFarBlend), 1.0); return; }
       }
       if (asciiGrass) S = vec4(0.0, 3.2, 0.32, 0.0);
 
@@ -429,6 +436,8 @@
       vec3 under = actor ? c * S.z : c * S.z;
       vec3 outc = under + gm * gcol;
       if (asciiGrass) outc = mix(raw, outc, uGrassMix);
+      // zoomed out, structures and trees blend with their real shaded colour; glyphs ride on top
+      if (!actor && S3.z > 0.5) outc = mix(outc, raw * 1.05 + gm * gcol * 0.45, uFarBlend);
       gl_FragColor = vec4(outc, 1.0);
     }`;
   const QUAD_V = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -482,7 +491,7 @@
     const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() }, uFarBlend: { value: 0 },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
@@ -501,7 +510,7 @@
     const w = window.innerWidth, h = window.innerHeight;
     const native = Math.min(window.devicePixelRatio || 1, 2);
     const want = this.renderScale === 'auto' || !this.renderScale ? [1.5, 2.5, 3][this.quality] : +this.renderScale;
-    const cap = [2.5e6, 6e6, 11e6][this.quality];
+    const cap = [2.5e6, 6e6, 20e6][this.quality];
     // a whole-number supersampling factor, so whole-screen-pixel camera steps are whole render pixels too
     const ssMax = Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))) / native;
     const ss = Math.max(1, Math.floor(ssMax + 0.15));
@@ -525,7 +534,7 @@
   // glyph cell sizes; `glyphZoom` grows them when the camera is close so the letters become readable
   E.Renderer.prototype.updateCells = function () {
     const dpr = this.dpr, z = this.glyphZoom || 1;
-    const cellOf = px => [Math.max(5, Math.round(px * z * dpr * 0.62)), Math.max(8, Math.round(px * z * dpr))];   // smaller cells can't draw a glyph, only bars
+    const cellOf = px => [Math.max(3, Math.round(px * z * dpr * 0.62)), Math.max(5, Math.round(px * z * dpr))];   // smaller cells can't draw a glyph, only bars
     this.cell = cellOf(this.glyphPx);
     const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
     this.asciiMat.uniforms.uRes.value.set(this.W, this.H);

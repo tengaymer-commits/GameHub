@@ -500,10 +500,10 @@
   // ----- Blender-built environment kit (tools/blender/build_kit.py) -----
   const KIT_MAT = {
     stone: { id: ID.MASONRY, tex: 1, color: 0xa4a8b2, fill: 0.06 }, stoneDark: { id: ID.MASONRY, tex: 1, color: 0x7a7e88, fill: 0.05 },
-    moss: { id: ID.MOSS, tex: 5, color: 0x5a7a44 }, wood: { id: ID.PLANKS, tex: 2, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.PLANKS, tex: 2, color: 0x6a4e38, fill: 0.08 },
+    moss: { id: ID.MOSS, tex: 5, color: 0x3e5a36 }, wood: { id: ID.PLANKS, tex: 2, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.PLANKS, tex: 2, color: 0x6a4e38, fill: 0.08 },
     bark: { id: ID.BARK, tex: 3, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.THATCH, tex: 4, color: 0x8a7650, fill: 0.05 }, iron: { id: ID.METAL, tex: 7, color: 0x5a5e66 },
     cloth: { id: ID.PLANKS, color: 0xb8a882 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
-    needle: { id: ID.LEAF, tex: 5, color: 0x4a9070, fill: 0.12 }, foliage: { id: ID.LEAF, tex: 5, color: 0x6a9a58, fill: 0.12 },
+    needle: { id: ID.LEAF, tex: 5, color: 0x50906a, fill: 0.2 }, foliage: { id: ID.LEAF, tex: 5, color: 0x6a9658, fill: 0.2 },
     rock: { id: ID.ROCK, tex: 6, color: 0x9a9ea8, fill: 0.06 },
   };
   const kitCache = {}, kitMats = {};
@@ -575,7 +575,7 @@
     const base = W.heightAt(L.castle.x, L.castle.z) - 0.05;
     const cmat = {
       cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x767a82, fill: 0.03 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x575b63, fill: 0.03 }),
-      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x5a8048 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.06 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.06 }),
       woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
     };
     g.scene.updateMatrixWorld(true);
