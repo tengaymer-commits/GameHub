@@ -89,6 +89,7 @@
     uFog: { value: 0.012 },
     uFogStart: { value: 18 },
     uFogCol: { value: new THREE.Color(0.022, 0.032, 0.058) },
+    uDayLight: { value: 1.0 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -102,7 +103,7 @@
     #include <packing>
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
-    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
     float gShadow;
     // moon shadow map, 3x3 PCF with a normal offset against acne
@@ -143,7 +144,7 @@
       return S;
     }
     float fogAt(vec3 W) { return exp(-max(length(W - uCam) - uFogStart, 0.0) * uFog); }
-    vec3 applyFog(vec3 col, vec3 W) { return mix(uFogCol, col, fogAt(W)); }
+    vec3 applyFog(vec3 col, vec3 W) { return mix(uFogCol, col * uDayLight, fogAt(W)); }
   `;
   E.LIGHT_GLSL = LIGHT_GLSL;
 

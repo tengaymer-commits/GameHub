@@ -182,6 +182,7 @@
           P.weapon = d.weapon; P.inv = d.inv;
           P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
           P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
+          if (d.tod !== undefined) G.tod = d.tod;
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
         }
@@ -436,7 +437,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
   function loadData() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
@@ -621,6 +622,7 @@
       const y = GW.World.heightAt(it.x, it.z);
       G.parts.spark.emit(it.x + (Math.random() - 0.5) * 0.6, y + 0.7, it.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 1.4 + Math.random() * 1.6, (Math.random() - 0.5) * 0.6, 1.4 + Math.random(), 0.45, Math.random() < 0.5 ? 0xffa040 : 0xff6a20, 0.5, 0.6);
     }
+    updateDayNight(dt);
     GW.World.lights.update(focus.x, focus.z, G.t);
     updateCamera(dt, G.state === 'title');
     UI.updateFloaters(dt, G.camera);
@@ -637,6 +639,37 @@
       const combat = G.enemies.some(e => e.alive && e.aggro && !e.T.boss && e.type !== 'husk') || G.bossActive;
       GWAudio.update(dt, { riverDist: GW.World.riverDist(focus.x, focus.z), fireDist: fd, combat, boss: G.bossActive });
     }
+  }
+
+  // ---------------- day / night ----------------
+  // G.tod: 0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk
+  G.tod = 0.62;
+  const C3 = (r, g, b) => new THREE.Color(r, g, b);
+  const NIGHT = { amb: C3(0.12, 0.14, 0.19), key: C3(0.4, 0.46, 0.62), fog: C3(0.022, 0.032, 0.058), light: 0.58 };
+  const DAY = { amb: C3(0.36, 0.4, 0.45), key: C3(1.0, 0.93, 0.8), fog: C3(0.32, 0.4, 0.5), light: 1.0 };
+  const DUSK = C3(0.9, 0.5, 0.3);
+  let lastPhase = null;
+  function updateDayNight(dt) {
+    const S = UI.settings, mode = S.time || 'cycle';
+    if (mode === 'cycle' && G.state === 'play') G.tod = (G.tod + dt / ((S.dayLen || 16) * 60)) % 1;
+    const tod = mode === 'day' ? 0.5 : mode === 'night' ? 0.0 : G.tod;
+    const sunH = -Math.cos(tod * Math.PI * 2);                    // -1 midnight .. 1 noon
+    const day = GW.clamp((sunH + 0.15) / 0.4, 0, 1), k = day * day * (3 - 2 * day);
+    const dusk = Math.max(0, 1 - Math.abs(sunH) / 0.28) * 0.9;
+    const LU = GW.LU;
+    LU.uAmb.value.copy(NIGHT.amb).lerp(DAY.amb, k);
+    LU.uMoonCol.value.copy(NIGHT.key).lerp(DAY.key, k).lerp(DUSK, dusk * 0.5);
+    LU.uFogCol.value.copy(NIGHT.fog).lerp(DAY.fog, k).lerp(C3(0.3, 0.17, 0.12), dusk * 0.4);
+    LU.uDayLight.value = GW.lerp(NIGHT.light, DAY.light, k);
+    const W = GW.World;
+    if (W.skyDome) { W.skyDome.material.uniforms.uDay.value = k; W.skyDome.material.uniforms.uDusk.value = dusk; }
+    if (W.stars) W.stars.visible = k < 0.6;
+    if (W.moonMesh) W.moonMesh.visible = k < 0.75;
+    // fires and torches matter more at night
+    for (const l of W.lights.list) { if (!l.base0) l.base0 = l.c.clone(); l.c.copy(l.base0).multiplyScalar(GW.lerp(1.25, 0.55, k)); }
+    const phase = k > 0.5 ? 'day' : 'night';
+    if (lastPhase && phase !== lastPhase && G.state === 'play') UI.banner('', phase === 'day' ? 'DAWN BREAKS' : 'NIGHT FALLS', 2.5);
+    lastPhase = phase;
   }
 
   function world(dt) {

@@ -307,6 +307,11 @@ body.touch #hotbar { display: none; }
   <label>Camera distance <input type="range" id="o-zoom" min="0.35" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
   <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
   <label>Screen shake <input type="checkbox" id="o-shake" /></label>
+  <div class="s-sec">World</div>
+  <label>Time of day
+    <select id="o-time"><option value="cycle">Day / night cycle</option><option value="day">Always day</option><option value="night">Always night</option></select>
+  </label>
+  <label>Day length <input type="range" id="o-daylen" min="4" max="60" step="1" /><span id="o-daylen-v"></span></label>
   <div class="s-sec">Glyph density (smaller = denser)</div>
   <label>Characters <input type="range" id="o-glyphA" min="2" max="12" step="0.5" /><span id="o-glyphA-v"></span></label>
   <label>Environment <input type="range" id="o-glyph" min="2" max="12" step="0.5" /><span id="o-glyph-v"></span></label>
@@ -5661,6 +5666,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uFog: { value: 0.012 },
     uFogStart: { value: 18 },
     uFogCol: { value: new THREE.Color(0.022, 0.032, 0.058) },
+    uDayLight: { value: 1.0 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -5674,7 +5680,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     #include <packing>
     uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
-    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
     float gShadow;
     // moon shadow map, 3x3 PCF with a normal offset against acne
@@ -5715,7 +5721,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       return S;
     }
     float fogAt(vec3 W) { return exp(-max(length(W - uCam) - uFogStart, 0.0) * uFog); }
-    vec3 applyFog(vec3 col, vec3 W) { return mix(uFogCol, col, fogAt(W)); }
+    vec3 applyFog(vec3 col, vec3 W) { return mix(uFogCol, col * uDayLight, fogAt(W)); }
   `;
   E.LIGHT_GLSL = LIGHT_GLSL;
 
@@ -6964,15 +6970,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     W.moonVis = moonVis;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(330, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
-      uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime },
+      uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime, uDay: { value: 0 }, uDusk: { value: 0 } },
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
       fragmentShader: `varying vec3 vDir; uniform vec3 uMoon; uniform float uTime;
         float ch(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float cn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(ch(i), ch(i + vec2(1.0, 0.0)), f.x), mix(ch(i + vec2(0.0, 1.0)), ch(i + vec2(1.0, 1.0)), f.x), f.y); }
+        uniform float uDay; uniform float uDusk;
         void main(){
           float y = vDir.y;
-          vec3 hor = vec3(0.07, 0.09, 0.15), zen = vec3(0.006, 0.01, 0.025);
+          vec3 hor = mix(vec3(0.07, 0.09, 0.15), vec3(0.55, 0.68, 0.82), uDay), zen = mix(vec3(0.006, 0.01, 0.025), vec3(0.18, 0.34, 0.62), uDay);
+          hor = mix(hor, vec3(0.75, 0.42, 0.25), uDusk * 0.8);
           vec3 col = mix(hor, zen, smoothstep(-0.02, 0.55, y));
           float m = max(dot(vDir, uMoon), 0.0);
           col += vec3(0.45, 0.52, 0.7) * (pow(m, 90.0) * 0.5 + pow(m, 12.0) * 0.08);
@@ -6985,7 +6993,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           gl_FragColor = vec4(col, (${ID.SKY}.0 + 0.5) / 32.0);
         }`,
     }));
-    dome.frustumCulled = false; dome.renderOrder = -10; g.add(dome);
+    dome.frustumCulled = false; dome.renderOrder = -10; g.add(dome); W.skyDome = dome;
     // stars
     const n = 900, r = GW.rand(42);
     const stars = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), GW.mat({ id: ID.STAR, color: 0xffffff, unlit: true, noFog: true }), n);
@@ -6996,7 +7004,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const big = r(); m4.compose(v, q, sc.setScalar(big < 0.92 ? 0.7 + r() * 0.8 : 1.8 + r() * 1.2));
       stars.setMatrixAt(i, m4); stars.setColorAt(i, c.setHSL(0.58 + (r() - 0.5) * 0.15, 0.3, 0.55 + r() * 0.4));
     }
-    stars.frustumCulled = false; g.add(stars);
+    stars.frustumCulled = false; g.add(stars); W.stars = stars;
     // the moon, low on the horizon
     const moon = new THREE.Mesh(new THREE.SphereGeometry(46, 32, 20), new THREE.ShaderMaterial({
       uniforms: { uMoon: { value: moonVis } },
@@ -7015,7 +7023,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           gl_FragColor = vec4(col, (${ID.MOON}.0 + 0.5) / 32.0);
         }`,
     }));
-    moon.position.copy(moonVis).multiplyScalar(285); g.add(moon);
+    moon.position.copy(moonVis).multiplyScalar(285); g.add(moon); W.moonMesh = moon;
     // distant mountains: a jagged ring that the night haze turns into silhouettes
     const N = 160, pos = [], idx = [], rm = GW.rand(7);
     for (let i = 0; i <= N; i++) {
@@ -8854,6 +8862,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     gr.value = S.grassSize || 1; grTxt(); gr.oninput = () => { S.grassSize = +gr.value; grTxt(); UI.saveSettings(); };
     const fl = $('o-flowers'), flTxt = () => { $('o-flowers-v').textContent = Math.round((S.flowers !== undefined ? S.flowers : 0.5) * 100) + '%'; };
     fl.value = S.flowers !== undefined ? S.flowers : 0.5; flTxt(); fl.oninput = () => { S.flowers = +fl.value; flTxt(); UI.saveSettings(); };
+    const tm = $('o-time'), dl = $('o-daylen'), dlTxt = () => { $('o-daylen-v').textContent = (S.dayLen || 16) + ' min'; };
+    tm.value = S.time || 'cycle'; tm.onchange = () => { S.time = tm.value; UI.saveSettings(); };
+    dl.value = S.dayLen || 16; dlTxt(); dl.oninput = () => { S.dayLen = +dl.value; dlTxt(); UI.saveSettings(); };
     const gb = $('o-gblend'); gb.checked = S.grassBlend !== false; gb.onchange = () => { S.grassBlend = gb.checked; UI.saveSettings(); };
     const ln = $('o-lens'), hd = $('o-hud');
     ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };
@@ -9061,6 +9072,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           P.weapon = d.weapon; P.inv = d.inv;
           P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
           P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
+          if (d.tod !== undefined) G.tod = d.tod;
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
         }
@@ -9315,7 +9327,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
   function loadData() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
@@ -9500,6 +9512,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const y = GW.World.heightAt(it.x, it.z);
       G.parts.spark.emit(it.x + (Math.random() - 0.5) * 0.6, y + 0.7, it.z + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 1.4 + Math.random() * 1.6, (Math.random() - 0.5) * 0.6, 1.4 + Math.random(), 0.45, Math.random() < 0.5 ? 0xffa040 : 0xff6a20, 0.5, 0.6);
     }
+    updateDayNight(dt);
     GW.World.lights.update(focus.x, focus.z, G.t);
     updateCamera(dt, G.state === 'title');
     UI.updateFloaters(dt, G.camera);
@@ -9516,6 +9529,37 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const combat = G.enemies.some(e => e.alive && e.aggro && !e.T.boss && e.type !== 'husk') || G.bossActive;
       GWAudio.update(dt, { riverDist: GW.World.riverDist(focus.x, focus.z), fireDist: fd, combat, boss: G.bossActive });
     }
+  }
+
+  // ---------------- day / night ----------------
+  // G.tod: 0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk
+  G.tod = 0.62;
+  const C3 = (r, g, b) => new THREE.Color(r, g, b);
+  const NIGHT = { amb: C3(0.12, 0.14, 0.19), key: C3(0.4, 0.46, 0.62), fog: C3(0.022, 0.032, 0.058), light: 0.58 };
+  const DAY = { amb: C3(0.36, 0.4, 0.45), key: C3(1.0, 0.93, 0.8), fog: C3(0.32, 0.4, 0.5), light: 1.0 };
+  const DUSK = C3(0.9, 0.5, 0.3);
+  let lastPhase = null;
+  function updateDayNight(dt) {
+    const S = UI.settings, mode = S.time || 'cycle';
+    if (mode === 'cycle' && G.state === 'play') G.tod = (G.tod + dt / ((S.dayLen || 16) * 60)) % 1;
+    const tod = mode === 'day' ? 0.5 : mode === 'night' ? 0.0 : G.tod;
+    const sunH = -Math.cos(tod * Math.PI * 2);                    // -1 midnight .. 1 noon
+    const day = GW.clamp((sunH + 0.15) / 0.4, 0, 1), k = day * day * (3 - 2 * day);
+    const dusk = Math.max(0, 1 - Math.abs(sunH) / 0.28) * 0.9;
+    const LU = GW.LU;
+    LU.uAmb.value.copy(NIGHT.amb).lerp(DAY.amb, k);
+    LU.uMoonCol.value.copy(NIGHT.key).lerp(DAY.key, k).lerp(DUSK, dusk * 0.5);
+    LU.uFogCol.value.copy(NIGHT.fog).lerp(DAY.fog, k).lerp(C3(0.3, 0.17, 0.12), dusk * 0.4);
+    LU.uDayLight.value = GW.lerp(NIGHT.light, DAY.light, k);
+    const W = GW.World;
+    if (W.skyDome) { W.skyDome.material.uniforms.uDay.value = k; W.skyDome.material.uniforms.uDusk.value = dusk; }
+    if (W.stars) W.stars.visible = k < 0.6;
+    if (W.moonMesh) W.moonMesh.visible = k < 0.75;
+    // fires and torches matter more at night
+    for (const l of W.lights.list) { if (!l.base0) l.base0 = l.c.clone(); l.c.copy(l.base0).multiplyScalar(GW.lerp(1.25, 0.55, k)); }
+    const phase = k > 0.5 ? 'day' : 'night';
+    if (lastPhase && phase !== lastPhase && G.state === 'play') UI.banner('', phase === 'day' ? 'DAWN BREAKS' : 'NIGHT FALLS', 2.5);
+    lastPhase = phase;
   }
 
   function world(dt) {

@@ -494,15 +494,17 @@
     W.moonVis = moonVis;
     const dome = new THREE.Mesh(new THREE.SphereGeometry(330, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
-      uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime },
+      uniforms: { uMoon: { value: moonVis }, uTime: GW.LU.uTime, uDay: { value: 0 }, uDusk: { value: 0 } },
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
       fragmentShader: `varying vec3 vDir; uniform vec3 uMoon; uniform float uTime;
         float ch(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float cn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(ch(i), ch(i + vec2(1.0, 0.0)), f.x), mix(ch(i + vec2(0.0, 1.0)), ch(i + vec2(1.0, 1.0)), f.x), f.y); }
+        uniform float uDay; uniform float uDusk;
         void main(){
           float y = vDir.y;
-          vec3 hor = vec3(0.07, 0.09, 0.15), zen = vec3(0.006, 0.01, 0.025);
+          vec3 hor = mix(vec3(0.07, 0.09, 0.15), vec3(0.55, 0.68, 0.82), uDay), zen = mix(vec3(0.006, 0.01, 0.025), vec3(0.18, 0.34, 0.62), uDay);
+          hor = mix(hor, vec3(0.75, 0.42, 0.25), uDusk * 0.8);
           vec3 col = mix(hor, zen, smoothstep(-0.02, 0.55, y));
           float m = max(dot(vDir, uMoon), 0.0);
           col += vec3(0.45, 0.52, 0.7) * (pow(m, 90.0) * 0.5 + pow(m, 12.0) * 0.08);
@@ -515,7 +517,7 @@
           gl_FragColor = vec4(col, (${ID.SKY}.0 + 0.5) / 32.0);
         }`,
     }));
-    dome.frustumCulled = false; dome.renderOrder = -10; g.add(dome);
+    dome.frustumCulled = false; dome.renderOrder = -10; g.add(dome); W.skyDome = dome;
     // stars
     const n = 900, r = GW.rand(42);
     const stars = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), GW.mat({ id: ID.STAR, color: 0xffffff, unlit: true, noFog: true }), n);
@@ -526,7 +528,7 @@
       const big = r(); m4.compose(v, q, sc.setScalar(big < 0.92 ? 0.7 + r() * 0.8 : 1.8 + r() * 1.2));
       stars.setMatrixAt(i, m4); stars.setColorAt(i, c.setHSL(0.58 + (r() - 0.5) * 0.15, 0.3, 0.55 + r() * 0.4));
     }
-    stars.frustumCulled = false; g.add(stars);
+    stars.frustumCulled = false; g.add(stars); W.stars = stars;
     // the moon, low on the horizon
     const moon = new THREE.Mesh(new THREE.SphereGeometry(46, 32, 20), new THREE.ShaderMaterial({
       uniforms: { uMoon: { value: moonVis } },
@@ -545,7 +547,7 @@
           gl_FragColor = vec4(col, (${ID.MOON}.0 + 0.5) / 32.0);
         }`,
     }));
-    moon.position.copy(moonVis).multiplyScalar(285); g.add(moon);
+    moon.position.copy(moonVis).multiplyScalar(285); g.add(moon); W.moonMesh = moon;
     // distant mountains: a jagged ring that the night haze turns into silhouettes
     const N = 160, pos = [], idx = [], rm = GW.rand(7);
     for (let i = 0; i <= N; i++) {

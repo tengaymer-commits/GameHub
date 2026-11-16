@@ -327,6 +327,9 @@
     gr.value = S.grassSize || 1; grTxt(); gr.oninput = () => { S.grassSize = +gr.value; grTxt(); UI.saveSettings(); };
     const fl = $('o-flowers'), flTxt = () => { $('o-flowers-v').textContent = Math.round((S.flowers !== undefined ? S.flowers : 0.5) * 100) + '%'; };
     fl.value = S.flowers !== undefined ? S.flowers : 0.5; flTxt(); fl.oninput = () => { S.flowers = +fl.value; flTxt(); UI.saveSettings(); };
+    const tm = $('o-time'), dl = $('o-daylen'), dlTxt = () => { $('o-daylen-v').textContent = (S.dayLen || 16) + ' min'; };
+    tm.value = S.time || 'cycle'; tm.onchange = () => { S.time = tm.value; UI.saveSettings(); };
+    dl.value = S.dayLen || 16; dlTxt(); dl.oninput = () => { S.dayLen = +dl.value; dlTxt(); UI.saveSettings(); };
     const gb = $('o-gblend'); gb.checked = S.grassBlend !== false; gb.onchange = () => { S.grassBlend = gb.checked; UI.saveSettings(); };
     const ln = $('o-lens'), hd = $('o-hud');
     ln.value = S.lens || 'flat'; ln.onchange = () => { S.lens = ln.value; UI.saveSettings(); };
