@@ -118,6 +118,35 @@
     const skin = M({ id: ID.BODY, color: 0xd0b8a0, rim: 0.4 });
 
     K.bindPose(rig);
+    // ---- Blender-built armour (tools/blender/build_armor.py), fitted to the rig in model space ----
+    const AR = GW.Assets.gltf.armor;
+    const useHelm = !!AR && gear.helm === 'greathelm', useBody = !!AR && gear.chest === 'knightplate', useCloak = !!AR && gear.cloak !== 'none';
+    if (AR) {
+      AR.scene.updateMatrixWorld(true);
+      const am = {
+        plate: M({ id: ID.PLATE, color: 0x9ea4ae, rim: 0.15, spec: 1.6, fill: 0.04 }),
+        plateDark: M({ id: ID.PLATE, color: 0x5a5e68, rim: 0.15, spec: 1.2, fill: 0.04 }),
+        trim: M({ id: ID.METAL, color: 0xc8a050, rim: 0.3, spec: 1.8, fill: 0.1 }),
+        leather: M({ id: ID.LEATHER, color: 0x5a3c24, fill: 0.08 }),
+        cloth: M({ id: ID.TABARD, color: 0x2c3240, fill: 0.08 }),
+        cloak: M({ id: CL.set, color: CL.color, fill: 0.08 }),
+        void: GW.mat({ id: ID.VOID, color: 0, unlit: true, side: THREE.DoubleSide }),
+      };
+      AR.scene.traverse(o => {
+        if (!o.isMesh) return;
+        const nm = (o.name.startsWith('arm__') ? o.name : (o.parent && o.parent.name) || '').split('__');
+        if (nm[0] !== 'arm') return;
+        const bone = nm[1].replace(/_([LR])$/, '.$1'), piece = nm[2];
+        const isHelm = /^helm|^visor/.test(piece), isCloak = piece === 'cloak';
+        if (isHelm ? !useHelm : isCloak ? !useCloak : !useBody) return;
+        const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld);
+        const mn = o.material.name;
+        const mesh = new THREE.Mesh(geo, isCloak ? am.cloak : am[mn] || am.plate);
+        mesh.frustumCulled = false;
+        if (isCloak) P.cloak = null;
+        P.attachments.push(rig.attach(bone, mesh, new THREE.Matrix4()));
+      });
+    }
     const headB = rig.boneModel('Head');
     const headC = headB.clone().add(new THREE.Vector3(0, 0.1, 0.01));
     // ---- helm on the head bone ----
@@ -154,10 +183,11 @@
         }
       }
     }
+    if (useHelm) head.children.forEach(c => { if (c !== P.plume) c.visible = false; });   // Blender helm replaces it; keep the plume
     P.attachments.push(rig.attach('Head', head, new THREE.Matrix4().makeTranslation(headC.x, headC.y, headC.z)));
     // ---- cloak from the shoulders, on the chest bone ----
     P.cloak = null;
-    if (gear.cloak !== 'none') {
+    if (gear.cloak !== 'none' && !useCloak) {
       const cm = M({ id: CL.set, color: CL.color, rim: 0.4 });
       const sh = rig.boneModel('Shoulder.L');
       const g = new THREE.CylinderGeometry(0.17, 0.36, 1.05, 12, 5, true, Math.PI * 0.55, Math.PI * 0.9); g.translate(0, -0.52, 0);

@@ -101,7 +101,7 @@
   function init() {
     $('t-menu').style.visibility = 'hidden';
     $('t-foot').textContent = 'loading models…';
-    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
+    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit', 'armor'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
       .then(build).catch(err => { $('t-foot').textContent = 'Could not load the 3D models: ' + err.message; console.error(err); });
   }
   function build() {

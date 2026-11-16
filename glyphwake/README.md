@@ -56,6 +56,12 @@ python tools/blender/build_kit.py glyphwake/assets/models/kit.glb
 ```
 They're placed in the Hollow Ruins, a new graveyard (the Quiet Graves) between Emberhold and the ruins, Emberhold itself (huts, a well, lanterns with real lights, a cart, barrels, crates), Wispwood and across the vale.
 
+## Knight armor (Blender)
+`tools/blender/build_armor.py` models a full plate harness fitted to the Monarch rig's rest pose, using bone positions measured in-game. Pieces: a great helm with a cut visor slit, breathing holes, a brass cross-brace and rivets; a ridged breastplate; a gorget; a belt with a buckle; three-lame faulds; a tabard with a cross; layered three-lame pauldrons; rerebraces, couters with wings, flared vambraces and gauntlets; tassets, ridged cuisses, poleyns, greaves and segmented sabatons; and a folded cloak. That's 30 pieces and about 6.8k faces. Each object is named `arm__<Bone>__<piece>`, and `js/knight.js` attaches it to that bone so it follows every animation. It's worn with the Knight's Great Helm, Knight's Plate and any cloak; the other gear keeps the earlier pieces.
+```
+python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
+```
+
 ## Controls
 | | Desktop | Touch |
 |---|---|---|
