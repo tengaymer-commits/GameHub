@@ -430,8 +430,11 @@
     const native = Math.min(window.devicePixelRatio || 1, 2);
     const want = this.renderScale === 'auto' || !this.renderScale ? [1.5, 2.5, 3][this.quality] : +this.renderScale;
     const cap = [2.5e6, 6e6, 11e6][this.quality];
-    const dpr = Math.max(native * 0.75, Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))));
-    this.dpr = dpr; this.ss = dpr / native;
+    // a whole-number supersampling factor, so whole-screen-pixel camera steps are whole render pixels too
+    const ssMax = Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))) / native;
+    const ss = Math.max(1, Math.floor(ssMax + 0.15));
+    const dpr = native * ss;
+    this.dpr = dpr; this.ss = ss;
     this.r.setPixelRatio(native); this.r.setSize(w, h, false);
     const W = Math.floor(w * dpr), H = Math.floor(h * dpr);
     this.W = W; this.H = H; this.aspect = w / h;
@@ -516,8 +519,9 @@
     LU.uCam.value.copy(camera.position);
     // world anchor for the glyph grid: where a fixed ground point lands on screen (render pixels)
     camera.updateMatrixWorld();
-    const a = (this._anchor || (this._anchor = new THREE.Vector3())).set(0, 0, 0).project(camera);
-    this.asciiMat.uniforms.uGridOff.value.set(Math.round((a.x * 0.5 + 0.5) * this.W), Math.round((a.y * 0.5 + 0.5) * this.H));
+    if (fx && fx.gridOff) this.asciiMat.uniforms.uGridOff.value.copy(fx.gridOff);
+    else { const a = (this._anchor || (this._anchor = new THREE.Vector3())).set(0, 0, 0).project(camera);
+      this.asciiMat.uniforms.uGridOff.value.set(Math.round((a.x * 0.5 + 0.5) * this.W), Math.round((a.y * 0.5 + 0.5) * this.H)); }
     camera.layers.enable(1); camera.layers.enable(2);
     if (fx && fx.reflY !== undefined && this.reflOn) this.renderReflection(scene, camera, fx.reflY); else LU.uReflOn.value = 0;
     if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;

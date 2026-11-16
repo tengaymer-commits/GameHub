@@ -444,11 +444,12 @@
   G.save = save;
 
   // ---------------- camera ----------------
-  const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3();
+  const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3(), _snapP = new V3();
+  G.gridOff = new THREE.Vector2(0, 0);
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
     const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
-    const fovF = G.R.aspect < 0.8 ? 7 : 6;   // near-orthographic: no parallax, so pixel snapping holds for every depth
+    const fovF = G.R.aspect < 0.8 ? 2.4 : 2;   // near-orthographic: no parallax, so pixel snapping holds for every depth
     C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
     const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
     C.far = 400 * lensK; C.near = 0.5 * Math.max(1, lensK * 0.5);
@@ -461,7 +462,7 @@
     const portrait = G.R.aspect < 0.8;
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
-    GW.LU.uFogStart.value = D * lensK + 10;
+    GW.LU.uFogStart.value = D * lensK + D * 2.5 + 10;
     // close up the glyphs grow so the letters read; far out they shrink into a dense texture
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
@@ -488,7 +489,7 @@
     const po = portrait ? 2.6 : 0;
     camT.set(P.pos.x + mvv.x * 0.16 + sy * po, P.pos.y, P.pos.z + mvv.z * 0.16 + cy * po);
     camLook.lerp(camT, Math.min(1, dt * (S.follow ? 7 : 11)));
-    if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; }
+    if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; G._camJump = true; }
     const Dc = D * lensK;
     C.position.set(camLook.x + sy * Math.cos(pitch) * Dc, camLook.y + Math.sin(pitch) * Dc, camLook.z + cy * Math.cos(pitch) * Dc);
     const s = G.shakeAmt * G.shakeAmt * 0.6;
@@ -497,13 +498,24 @@
     // pixel-snap: translate the camera so the world anchor lands on a whole render pixel; the glyph grid
     // then moves in whole pixels with the world and still objects keep identical glyphs while you walk
     {
+      // Track how far a ground point near the view centre moved on screen since last frame (using last frame's
+      // view), round that to whole SCREEN pixels, nudge the camera by the remainder, and accumulate the grid
+      // offset. Everything near the view then shifts by exactly the same whole-pixel step as the glyph grid.
+      const R = G.R, unit = R.ss || 1;
       C.updateMatrixWorld();
-      const a = _snapA.set(0, 0, 0).project(C), R = G.R;
-      const px = (a.x * 0.5 + 0.5) * R.W, py = (a.y * 0.5 + 0.5) * R.H;
-      const wpp = 2 * C.position.distanceTo(camLook) * Math.tan(C.fov * Math.PI / 360) / R.H;
+      const A = _snapA.set(Math.round(camLook.x / 4) * 4, camLook.y, Math.round(camLook.z / 4) * 4);
       _snapR.setFromMatrixColumn(C.matrixWorld, 0); _snapU.setFromMatrixColumn(C.matrixWorld, 1);
-      C.position.addScaledVector(_snapR, (px - Math.round(px)) * wpp).addScaledVector(_snapU, (py - Math.round(py)) * wpp);
+      const wpp = 2 * C.position.distanceTo(camLook) * Math.tan(C.fov * Math.PI / 360) / R.H;
+      if (G._prevVP && !G._camJump) {
+        const p0 = _snapP.copy(A).applyMatrix4(G._prevVP), p1 = A.clone().project(C);
+        const dx = (p1.x - p0.x) * 0.5 * R.W, dy = (p1.y - p0.y) * 0.5 * R.H;
+        const sx = Math.round(dx / unit) * unit, sy = Math.round(dy / unit) * unit;
+        C.position.addScaledVector(_snapR, (dx - sx) * wpp).addScaledVector(_snapU, (dy - sy) * wpp);
+        G.gridOff.x += sx; G.gridOff.y += sy;
+      }
+      G._camJump = false;
       C.updateMatrixWorld();
+      G._prevVP = (G._prevVP || new THREE.Matrix4()).multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
     }
     // keep the grass patch centred a little ahead of the view, not on the hero
     const ahead2 = gu.uSize.value * (pitch < 0.75 ? 0.28 : 0.12);
@@ -642,7 +654,7 @@
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
+    G.R.render(G.scene, G.camera, { gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
