@@ -449,7 +449,7 @@
   // glyph cell sizes; `glyphZoom` grows them when the camera is close so the letters become readable
   E.Renderer.prototype.updateCells = function () {
     const dpr = this.dpr, z = this.glyphZoom || 1;
-    const cellOf = px => [Math.max(2, Math.round(px * z * dpr * 0.62)), Math.max(3, Math.round(px * z * dpr))];
+    const cellOf = px => [Math.max(5, Math.round(px * z * dpr * 0.62)), Math.max(8, Math.round(px * z * dpr))];   // smaller cells can't draw a glyph, only bars
     this.cell = cellOf(this.glyphPx);
     const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
     this.asciiMat.uniforms.uRes.value.set(this.W, this.H);
@@ -516,7 +516,7 @@
     // world anchor for the glyph grid: where a fixed ground point lands on screen (render pixels)
     camera.updateMatrixWorld();
     const a = (this._anchor || (this._anchor = new THREE.Vector3())).set(0, 0, 0).project(camera);
-    this.asciiMat.uniforms.uGridOff.value.set((a.x * 0.5 + 0.5) * this.W, (a.y * 0.5 + 0.5) * this.H);
+    this.asciiMat.uniforms.uGridOff.value.set(Math.round((a.x * 0.5 + 0.5) * this.W), Math.round((a.y * 0.5 + 0.5) * this.H));
     camera.layers.enable(1); camera.layers.enable(2);
     if (fx && fx.reflY !== undefined && this.reflOn) this.renderReflection(scene, camera, fx.reflY); else LU.uReflOn.value = 0;
     if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;

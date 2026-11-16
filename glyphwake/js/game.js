@@ -444,7 +444,7 @@
   G.save = save;
 
   // ---------------- camera ----------------
-  const camT = new V3(), camLook = new V3();
+  const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3();
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
     const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
@@ -493,6 +493,17 @@
     const s = G.shakeAmt * G.shakeAmt * 0.6;
     C.position.x += (Math.random() - 0.5) * s; C.position.y += (Math.random() - 0.5) * s; C.position.z += (Math.random() - 0.5) * s;
     C.lookAt(camLook.x, camLook.y + 0.8, camLook.z);
+    // pixel-snap: translate the camera so the world anchor lands on a whole render pixel; the glyph grid
+    // then moves in whole pixels with the world and still objects keep identical glyphs while you walk
+    {
+      C.updateMatrixWorld();
+      const a = _snapA.set(0, 0, 0).project(C), R = G.R;
+      const px = (a.x * 0.5 + 0.5) * R.W, py = (a.y * 0.5 + 0.5) * R.H;
+      const wpp = 2 * C.position.distanceTo(camLook) * Math.tan(C.fov * Math.PI / 360) / R.H;
+      _snapR.setFromMatrixColumn(C.matrixWorld, 0); _snapU.setFromMatrixColumn(C.matrixWorld, 1);
+      C.position.addScaledVector(_snapR, (px - Math.round(px)) * wpp).addScaledVector(_snapU, (py - Math.round(py)) * wpp);
+      C.updateMatrixWorld();
+    }
     // keep the grass patch centred a little ahead of the view, not on the hero
     const ahead2 = gu.uSize.value * (pitch < 0.75 ? 0.28 : 0.12);
     GW.World.terrainMat.uniforms.uFarGrass.value = gu.uSize.value * 0.4;
@@ -630,7 +641,7 @@
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: GW.clamp(camD * 0.95 / (G.camera.fov < 30 ? 2.4 : 1), 16, 70),
+    G.R.render(G.scene, G.camera, { hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(camD * 0.95 / (G.camera.fov < 30 ? 2.4 : 1), 16, 70) / 6) * 6,
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < camD * (G.camera.fov < 30 ? 0.7 : 1.6) + 12) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     // audio
