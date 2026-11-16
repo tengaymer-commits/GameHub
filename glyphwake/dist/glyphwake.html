@@ -5611,6 +5611,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     /* 23 sky     */ { ramp: "    ..'`", mode: 0, gain: 2.6, under: 0.9, edge: 0, bright: 0.6, white: 0.2, flick: 0 },
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
     /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
+    /* 26 flower (dandelion glyphs, always drawn as rendered) */ { ramp: " ", mode: 1, gain: 1.0, under: 0, edge: 0, bright: 1, white: 0, flick: 0 },
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.3; });
@@ -7273,7 +7274,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
           vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
           col = applyFog(col, vW);
-          gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
+          gl_FragColor = vec4(col, (vSpeck > 0.5 ? 26.5 : ${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
     });
     m.depthTest = false; m.depthWrite = false;

@@ -816,7 +816,7 @@
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
           vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
           col = applyFog(col, vW);
-          gl_FragColor = vec4(col, (${ID.GRASS}.0 + 0.5) / 32.0);
+          gl_FragColor = vec4(col, (vSpeck > 0.5 ? 26.5 : ${ID.GRASS}.0 + 0.5) / 32.0);
         }`,
     });
     m.depthTest = false; m.depthWrite = false;
