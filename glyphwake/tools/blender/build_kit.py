@@ -344,6 +344,80 @@ def fence():
     rails[1].rotation_euler = (0, 0.06, 0)
     return posts + rails
 
+# ---------------------------------------------------------------- realistic trees
+def clump(name, center, radius, stretch, material, seed, droop=0.0):
+    bm = bmesh.new(); bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
+    ob = obj_from_bm(bm, name, material)
+    for v in ob.data.vertices:
+        v.co.x *= stretch[0]; v.co.y *= stretch[1]; v.co.z *= stretch[2]
+        v.co.z -= droop * (v.co.x ** 2 + v.co.y ** 2)
+    displace(ob, 0.35, 0.45, seed); displace(ob, 0.12, 0.15, seed + 1)
+    ob.scale = (radius, radius, radius); ob.location = center
+    return ob
+
+def pine(seed, height):
+    random.seed(seed)
+    trunk = cyl('trunk', 0.07 * height / 6 + 0.12, height * 0.92, (0, 0, -0.1), 'bark', segs=10, r2=0.03)
+    subdiv(trunk, 1, simple=True); displace(trunk, 0.02, 0.2, seed)
+    parts = [trunk]
+    tiers = int(height * 2.2)
+    for k in range(tiers):
+        t = k / tiers
+        z = height * (0.22 + 0.76 * t)
+        R = (1.0 - t) ** 0.9 * height * 0.24 + 0.15
+        n = max(3, int(7 * (1 - t)) + 2)
+        for i in range(n):
+            a = i / n * 2 * math.pi + random.uniform(-0.4, 0.4) + k * 0.7
+            d = Vector((math.cos(a), math.sin(a), 0))
+            L = R * random.uniform(0.75, 1.1)
+            c = Vector((0, 0, z)) + d * L * 0.55 + Vector((0, 0, -L * 0.18))
+            cl = clump('br', c, 1.0, (L * 0.55, L * 0.22, 0.13 + 0.05 * (1 - t)), 'needle', seed * 31 + k * 7 + i, droop=0.25)
+            cl.rotation_euler = (0, 0.25, a); parts.append(cl)
+    tip = cyl('tip', 0.12, height * 0.14, (0, 0, height * 0.97), 'needle', segs=6, r2=0.0); parts.append(tip)
+    nd = join(parts[1:], 'needles'); decimate(nd, min(1.0, 2600.0 / max(1, len(nd.data.polygons))))
+    return [nd, trunk]
+
+def broadleaf(seed, height):
+    random.seed(seed)
+    bm = bmesh.new(); radii = {}; tips = []
+    def grow(start, direction, length, radius, depth):
+        d = direction.normalized(); cur = start
+        segs = max(2, int(length / 0.5))
+        for i in range(segs):
+            d = (d + Vector((random.uniform(-0.25, 0.25), random.uniform(-0.25, 0.25), random.uniform(0.0, 0.2)))).normalized()
+            nv = bm.verts.new(cur.co + d * (length / segs)); bm.edges.new((cur, nv))
+            radii[nv] = radius * (1 - (i + 1) / segs * 0.55); cur = nv
+        if depth < 2:
+            for k in range(random.randint(2, 3)):
+                side = (d + Vector((random.uniform(-1.1, 1.1), random.uniform(-1.1, 1.1), random.uniform(0.2, 0.9)))).normalized()
+                grow(cur, side, length * random.uniform(0.55, 0.75), radius * 0.55, depth + 1)
+        else:
+            tips.append(cur.co.copy())
+    root = bm.verts.new((0, 0, 0)); radii[root] = 0.28 * height / 6
+    for k in range(4):
+        a = k * math.pi / 2 + random.random(); rv = bm.verts.new((math.cos(a) * 0.7, math.sin(a) * 0.7, -0.1)); bm.edges.new((root, rv)); radii[rv] = 0.06
+    grow(root, Vector((0, 0, 1)), height * 0.45, 0.26 * height / 6, 0)
+    me = bpy.data.meshes.new('trunk'); bm.to_mesh(me)
+    ob = bpy.data.objects.new('trunk', me); bpy.context.scene.collection.objects.link(ob)
+    ob.modifiers.new('skin', 'SKIN'); sl = me.skin_vertices[0].data
+    for i, v in enumerate(me.vertices):
+        r = 0.04
+        for bv, rr in radii.items():
+            if (bv.co - v.co).length < 1e-5: r = rr; break
+        sl[i].radius = (r, r)
+    sl[0].use_root = True; apply_mods(ob); displace(ob, 0.03, 0.25, seed)
+    me.materials.append(mat('bark')); decimate(ob, min(1.0, 1800.0 / max(1, len(ob.data.polygons)))); smooth(ob)
+    leaves = []
+    for i, tp in enumerate(tips):
+        r = random.uniform(0.9, 1.4) * height / 6
+        leaves.append(clump('lf', tp + Vector((0, 0, 0.2)), 1.0, (r, r * 0.9, r * 0.7), 'foliage', seed * 17 + i))
+    # inner fill so the crown reads as one canopy with holes
+    for k in range(4):
+        a = random.random() * 6.28
+        leaves.append(clump('lf', Vector((math.cos(a) * 0.8, math.sin(a) * 0.8, height * 0.62)), 1.0, (1.3, 1.2, 0.9), 'foliage', seed * 5 + k))
+    fol = join(leaves, 'foliage'); decimate(fol, min(1.0, 3000.0 / max(1, len(fol.data.polygons))))
+    return [fol, ob]
+
 # ---------------------------------------------------------------- build
 reset()
 x = 0
@@ -354,6 +428,8 @@ KIT = [
     ('kit_crypt', crypt), ('kit_shrine', stone_cross_shrine),
     ('kit_deadtree_a', lambda: dead_tree(21, 5.0)), ('kit_deadtree_b', lambda: dead_tree(22, 3.6)), ('kit_deadtree_c', lambda: dead_tree(23, 6.2)),
     ('kit_rock_a', lambda: rock(31, 1.0)), ('kit_rock_b', lambda: rock(32, 1.6, 0.45)), ('kit_rock_c', lambda: rock(33, 0.8, 1.0)),
+    ('kit_pine_a', lambda: pine(61, 7.0)), ('kit_pine_b', lambda: pine(62, 9.5)), ('kit_pine_c', lambda: pine(63, 5.0)),
+    ('kit_oak_a', lambda: broadleaf(71, 6.5)), ('kit_oak_b', lambda: broadleaf(72, 8.0)),
     ('kit_hut', hut), ('kit_well', well), ('kit_lantern', lantern_post), ('kit_cart', cart),
     ('kit_barrel', barrel), ('kit_crate', crate), ('kit_fence', fence),
 ]

@@ -116,12 +116,12 @@ def tube(name, p0, p1, r0, r1, material, segs=14, flare=0.0, ridge=0.0, sy=0.85,
         r = r0 + (r1 - r0) * t
         if k == rings: r += flare
         prof.append((r, t * L))
-    ob = lathe(prof, segs, name, material, Vector((0, 0, 0)), 1.0, sy)
+    ob = lathe(prof, max(segs, 24), name, material, Vector((0, 0, 0)), 1.0, sy)
     if ridge > 0:
         for v in ob.data.vertices:
             a = math.atan2(v.co.y, v.co.x)
             v.co += Vector((math.cos(a), math.sin(a), 0)) * ridge * max(0.0, math.cos(a + math.pi / 2)) ** 8
-    solidify(ob, 0.008)
+    solidify(ob, 0.008); refine(ob); weather(ob, 0.0015, 0.04, int(L * 100))
     # align +Z to the segment, keep the front (−Y) facing the knight's front
     z = d.normalized(); x = FWD.cross(z); x = x.normalized() if x.length > 1e-4 else Vector((1, 0, 0)); y = z.cross(x)
     R = Matrix((x, y, z)).transposed().to_4x4()
@@ -130,6 +130,52 @@ def tube(name, p0, p1, r0, r1, material, segs=14, flare=0.0, ridge=0.0, sy=0.85,
     return ob
 
 PIECES = []  # (bone, object)
+
+def refine(ob, levels=1):
+    m = ob.modifiers.new('sub', 'SUBSURF'); m.levels = levels; m.render_levels = levels; apply(ob)
+
+def weather(ob, amt=0.0025, scale=0.035, seed=0):
+    off = Vector((seed * 3.1, seed * 1.7, seed * 2.3))
+    for v in ob.data.vertices:
+        n = noise.noise((v.co + off) / scale) * 0.7 + noise.noise((v.co + off) * 3.0 / scale) * 0.3
+        v.co += v.normal * n * amt
+
+def flute(ob, center, count, amp, z0=-9, z1=9, phase=0.0):
+    for v in ob.data.vertices:
+        rel = v.co - center
+        if not (z0 < rel.z < z1): continue
+        a = math.atan2(rel.y, rel.x) + phase
+        k = 1 + amp * max(0.0, math.cos(a * count)) ** 6
+        v.co.x = center.x + rel.x * k; v.co.y = center.y + rel.y * k
+
+def roll(name, center, r, z, sx, sy, minor, material='plate', segs=40):
+    bm = bmesh.new()
+    bmesh.ops.create_circle(bm, cap_ends=False, segments=segs, radius=1.0)
+    ob = new_obj(bm, name, material)
+    for v in ob.data.vertices: v.co = Vector((center.x + v.co.x * r * sx, center.y + v.co.y * r * sy, center.z + z))
+    m = ob.modifiers.new('sk', 'SKIN'); apply_skin = True
+    for sv in ob.data.skin_vertices[0].data: sv.radius = (minor, minor)
+    apply(ob)
+    for p in ob.data.polygons: p.use_smooth = True
+    return ob
+
+def cup(name, c, r, depth, material, wing_dir, segs=24):
+    """Shaped elbow/knee cup: a shallow domed plate with a fan-shaped side wing."""
+    d = lathe([(0.0, depth), (r * 0.55, depth * 0.85), (r * 0.9, depth * 0.35), (r, 0.0), (r * 1.05, -depth * 0.25)], segs, name, material, Vector((0, 0, 0)), 1.0, 1.0)
+    solidify(d, 0.007)
+    # fan wing: a thin curved plate on one side
+    bm = bmesh.new(); pts = []
+    for i in range(7):
+        a = -0.9 + 1.8 * i / 6
+        pts.append((math.cos(a) * r * 1.9, math.sin(a) * r * 1.9))
+    vs = [bm.verts.new((0, 0, 0))] + [bm.verts.new((x, y, -abs(y) * 0.25)) for x, y in pts]
+    for i in range(1, 7): bm.faces.new((vs[0], vs[i], vs[i + 1]))
+    w = new_obj(bm, name + 'w', material); solidify(w, 0.006)
+    w.rotation_euler = (0, math.pi / 2, 0); bake(w)
+    flute(w, Vector((0, 0, 0)), 3, 0.0)
+    ob = join([d, w], name)
+    return ob
+
 def add(bone, ob, piece):
     ob.name = 'arm__%s__%s' % (bone.replace('.', '_'), piece)
     PIECES.append(ob)
@@ -137,17 +183,18 @@ def add(bone, ob, piece):
 # ---------------------------------------------------------------- helm
 hc = T(B['Head']) + Vector((0, -0.01, 0.085))
 helm = lathe([(0.0, 0.23), (0.06, 0.225), (0.105, 0.2), (0.135, 0.15), (0.145, 0.07), (0.148, -0.02), (0.146, -0.11), (0.14, -0.15)],
-             28, 'helm', 'plate', hc, 1.0, 1.08)
+             48, 'helm', 'plate', hc, 1.0, 1.08)
+flute(helm, hc, 8, 0.035, z0=0.08, z1=0.24)
 solidify(helm, 0.012)
 slit = box('slit', (0.24, 0.12, 0.022), hc + Vector((0, -0.14, 0.03)), 'plate'); boolean(helm, slit)
 for i in range(6):
     hole = cyl('hole', 0.0075, 0.1, hc + Vector((0.035 + (i % 3) * 0.024, -0.14, -0.035 - (i // 3) * 0.028)), 'plate', segs=6, rot=(math.pi / 2, 0, 0)); boolean(helm, hole)
-bevel(helm, 0.003, 1)
+refine(helm); weather(helm, 0.0018, 0.04, 1)
 add('Head', helm, 'helm')
 ridge = box('ridge', (0.016, 0.3, 0.02), hc + Vector((0, 0.0, 0.215)), 'plate', rot=(0, 0, 0))
 ridge2 = box('ridge2', (0.018, 0.02, 0.27), hc + Vector((0, -0.154, 0.0)), 'trim')
 brow = box('brow', (0.25, 0.02, 0.018), hc + Vector((0, -0.153, 0.062)), 'trim')
-rim = lathe([(0.152, -0.155), (0.156, -0.14)], 28, 'rim', 'trim', hc, 1.0, 1.08); solidify(rim, 0.006)
+rim = roll('rim', hc, 0.15, -0.15, 1.0, 1.08, 0.008, 'trim', 48)
 dark = box('visor_dark', (0.23, 0.01, 0.02), hc + Vector((0, -0.135, 0.03)), 'void')
 rivets = [sphere('rv', 0.008, hc + Vector((math.cos(a) * 0.15, math.sin(a) * 0.162, -0.13)), 'trim', 6) for a in [i * math.pi / 6 for i in range(12)]]
 add('Head', join([ridge, ridge2, brow, rim] + rivets, 'trim'), 'helmtrim')
@@ -156,12 +203,14 @@ add('Head', dark, 'visor')
 # ---------------------------------------------------------------- torso
 cc = T([0.005, 1.0, 0.06])
 breast = lathe([(0.15, 0.0), (0.165, 0.06), (0.175, 0.16), (0.195, 0.3), (0.2, 0.4), (0.185, 0.48), (0.14, 0.54), (0.085, 0.57)],
-               28, 'breast', 'plate', cc, 1.0, 0.72)
+               48, 'breast', 'plate', cc, 1.0, 0.72)
 for v in breast.data.vertices:   # centre ridge on the chest, slight barrel on the front
     rel = v.co - cc; a = math.atan2(rel.y, rel.x)
     front = max(0.0, -math.sin(a))
     v.co.y -= 0.022 * front ** 6 * (1 if 0.12 < rel.z < 0.5 else 0.3)
-solidify(breast, 0.012); bevel(breast, 0.003, 1)
+solidify(breast, 0.012); refine(breast); weather(breast, 0.002, 0.04, 3)
+brim = roll('brim', cc, 0.088, 0.57, 1.0, 0.9, 0.007)
+breast = join([breast, brim], 'breast')
 add('Chest', breast, 'breastplate')
 gorget = lathe([(0.095, 0.0), (0.085, 0.05), (0.075, 0.09)], 20, 'gorget', 'plate', T(B['Neck']) + Vector((0, 0.0, -0.05)), 1.0, 0.95); solidify(gorget, 0.01)
 add('Neck', gorget, 'gorget')
@@ -190,19 +239,28 @@ for s in ('L', 'R'):
     paul = []
     for k in range(3):
         c = ua + Vector((sg * 0.015, 0, 0.03 - k * 0.055))
-        dome = lathe([(0.0, 0.07 - k * 0.01), (0.06, 0.06 - k * 0.01), (0.1 - k * 0.006, 0.02), (0.11 - k * 0.006, -0.03)], 20, 'p%d' % k, 'plate', c, 1.0, 1.05)
-        solidify(dome, 0.009); paul.append(dome)
-    pt = lathe([(0.115, -0.035), (0.118, -0.028)], 20, 'ptrim', 'trim', ua + Vector((sg * 0.015, 0, 0.03)), 1.0, 1.05); solidify(pt, 0.006)
+        dome = lathe([(0.0, 0.07 - k * 0.01), (0.035, 0.068 - k * 0.01), (0.07, 0.055 - k * 0.01), (0.1 - k * 0.006, 0.02), (0.112 - k * 0.006, -0.03)], 36, 'p%d' % k, 'plate', c, 1.0, 1.05)
+        flute(dome, c, 6, 0.06, phase=0.3)
+        solidify(dome, 0.009); refine(dome); weather(dome, 0.0018, 0.04, k + 5)
+        paul.append(dome); paul.append(roll('pr%d' % k, c, 0.112 - k * 0.006, -0.03, 1.0, 1.05, 0.006))
+    pt = roll('ptrim', ua + Vector((sg * 0.015, 0, 0.03)), 0.118, -0.03, 1.0, 1.05, 0.007, 'trim')
     add('UpperArm.' + s, join(paul + [pt], 'paul'), 'pauldron')
     add('UpperArm.' + s, tube('rere', ua, la, 0.052, 0.046, 'plate', ridge=0.0), 'rerebrace')
     add('LowerArm.' + s, tube('vamb', la, wr, 0.045, 0.04, 'plate', flare=0.012, ridge=0.006), 'vambrace')
-    couter = sphere('couter', 0.05, la, 'plate', 12); couter.scale = (1.0, 1.1, 0.8)
-    wing = box('wing', (0.012, 0.06, 0.07), la + Vector((sg * 0.045, 0.0, 0.0)), 'plate', rot=(0, 0, 0))
-    add('LowerArm.' + s, join([couter, wing], 'couter'), 'couter')
+    couter = cup('couter', la, 0.05, 0.035, 'plate', sg)
+    couter.matrix_world = Matrix.Translation(la + Vector((0, 0.03, 0))) @ Matrix.Rotation(math.pi / 2, 4, 'X'); bake(couter)
+    add('LowerArm.' + s, couter, 'couter')
     d = (wr - la).normalized()
-    g = sphere('gaunt', 0.05, wr + d * 0.05, 'plateDark', 10); g.scale = (1.05, 1.0, 1.15)
-    cuff = lathe([(0.048, 0.0), (0.056, 0.04)], 16, 'cuff', 'plateDark', wr - d * 0.03, 1.0, 1.0); solidify(cuff, 0.006)
-    add('Wrist.' + s, join([g, cuff], 'gauntlet'), 'gauntlet')
+    cuff = tube('cuff', wr - d * 0.07, wr + d * 0.01, 0.046, 0.058, 'plateDark', segs=20, flare=0.008)
+    hand = []
+    side = Vector((sg, 0, 0)); fwd = FWD
+    hand.append(box('back', (0.075, 0.03, 0.07), wr + d * 0.05 + fwd * 0.0, 'plateDark'))
+    for f in range(4):
+        for k in range(3):
+            hand.append(box('f%d%d' % (f, k), (0.016, 0.022, 0.024), wr + d * (0.1 + k * 0.026) + side * (-0.028 + f * 0.019), 'plateDark'))
+    hand.append(box('thumb', (0.018, 0.022, 0.05), wr + d * 0.06 - side * 0.045 + fwd * 0.015, 'plateDark'))
+    g = join(hand, 'hand'); bevel(g, 0.003, 1)
+    add('Wrist.' + s, join([cuff, g], 'gauntlet'), 'gauntlet')
 
 # ---------------------------------------------------------------- legs
 for s in ('L', 'R'):
@@ -212,9 +270,9 @@ for s in ('L', 'R'):
     add('UpperLeg.' + s, tube('cuisse', ul + (ll - ul) * 0.12, ll, 0.085, 0.062, 'plate', ridge=0.008), 'cuisse')
     tasset = tube('tasset', ul + Vector((sg * 0.02, -0.05, 0.02)), ul + (ll - ul) * 0.42 + Vector((sg * 0.02, -0.05, 0)), 0.1, 0.105, 'plate', segs=14, sy=0.6)
     add('UpperLeg.' + s, tasset, 'tasset')
-    knee = sphere('poleyn', 0.062, ll + Vector((0, -0.04, 0.0)), 'plate', 14); knee.scale = (1.0, 0.8, 1.1)
-    kwing = box('kwing', (0.012, 0.07, 0.08), ll + Vector((sg * 0.06, -0.01, 0.0)), 'plate')
-    add('LowerLeg.' + s, join([knee, kwing], 'poleyn'), 'poleyn')
+    knee = cup('poleyn', ll, 0.062, 0.045, 'plate', sg)
+    knee.matrix_world = Matrix.Translation(ll + Vector((0, -0.045, 0))) @ Matrix.Rotation(-math.pi / 2, 4, 'X'); bake(knee)
+    add('LowerLeg.' + s, knee, 'poleyn')
     add('LowerLeg.' + s, tube('greave', ll, ankle, 0.058, 0.045, 'plate', flare=0.01, ridge=0.006), 'greave')
     # sabaton: segmented plates over the foot, pointing forward
     sab = []
@@ -226,7 +284,7 @@ for s in ('L', 'R'):
 # ---------------------------------------------------------------- cloak (hangs from the shoulders, attached to Chest)
 cl = T([0.0, 1.47, -0.04])
 bm = bmesh.new()
-W_, H_, nx, ny = 0.5, 1.08, 12, 14
+W_, H_, nx, ny = 0.5, 1.08, 20, 20
 grid = []
 for j in range(ny + 1):
     row = []
@@ -235,14 +293,14 @@ for j in range(ny + 1):
         u = i / nx - 0.5
         w = (0.34 + 0.32 * t)                      # widens toward the hem
         x = u * w * 2 * 0.5 / 0.5 * 0.5
-        y = 0.06 + 0.1 * t + 0.035 * math.sin(u * 9.0 + t * 2) * t + 0.12 * (u * 2) ** 2 * (1 - t * 0.6)   # folds and wrap
+        y = 0.06 + 0.1 * t + (0.045 * math.sin(u * 14.0 + t * 1.5) + 0.015 * math.sin(u * 31.0)) * (0.3 + t) + 0.12 * (u * 2) ** 2 * (1 - t * 0.6)   # folds and wrap
         z = -H_ * t
         row.append(bm.verts.new(cl + Vector((x * 1.0, y, z))))
     grid.append(row)
 for j in range(ny):
     for i in range(nx):
         bm.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
-cloak = new_obj(bm, 'cloak', 'cloth'); solidify(cloak, 0.01)
+cloak = new_obj(bm, 'cloak', 'cloth'); solidify(cloak, 0.01); refine(cloak)
 add('Chest', cloak, 'cloak')
 
 # ---------------------------------------------------------------- export

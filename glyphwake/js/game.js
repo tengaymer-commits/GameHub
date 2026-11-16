@@ -646,7 +646,7 @@
   G.tod = 0.62;
   const C3 = (r, g, b) => new THREE.Color(r, g, b);
   const NIGHT = { amb: C3(0.13, 0.15, 0.21), key: C3(0.36, 0.42, 0.58), fog: C3(0.022, 0.032, 0.058), light: 0.72 };
-  const DAY = { amb: C3(0.3, 0.34, 0.4), key: C3(0.95, 0.88, 0.76), fog: C3(0.32, 0.4, 0.5), light: 1.0 };
+  const DAY = { amb: C3(0.24, 0.27, 0.33), key: C3(0.72, 0.64, 0.52), fog: C3(0.2, 0.25, 0.32), light: 0.88 };
   const DUSK = C3(0.9, 0.5, 0.3);
   let lastPhase = null;
   function updateDayNight(dt) {

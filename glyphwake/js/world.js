@@ -196,6 +196,7 @@
     const batch = new Batch();
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const place = (x, y, z, ry, sx, sy, sz) => { q.setFromAxisAngle(up, ry); m4.compose(v3.set(x, y, z), q, s3.set(sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz)); return m4; };
+    _kitBatch = batch; _kitPlace = place; _kitRnd = rnd;
 
     // ---- data texture for shaders ----
     const half = new Uint16Array(N * N * 4);
@@ -288,7 +289,7 @@
     const stoneM = GW.mat({ id: ID.STONE, color: 0x8a90a0, rim: 0.2 });
     const ruinM = GW.mat({ id: ID.RUIN, color: 0x7c88a8, rim: 0.3 });
     const woodM = GW.mat({ id: ID.WOOD, color: 0x6a4e34, fill: 0.15 });
-    const leafM = GW.mat({ id: ID.LEAF, color: 0x3e7a62, rim: 0.15, fill: 0.18 });
+    const leafM = GW.mat({ id: ID.LEAF, color: 0x3e7a62, rim: 0.0, fill: 0.08 });
     const deadM = GW.mat({ id: ID.BONE, color: 0x8a8478 });
     const mossM = GW.mat({ id: ID.MOSS, color: 0x6a7aa8 });
     const flowerM = GW.mat({ id: ID.FLOWER, color: 0xffffff, emissive: 0x2a2a30 });
@@ -352,19 +353,19 @@
     for (let k = 0; k < 520; k++) {
       const a = rnd() * Math.PI * 2, r = 96 + rnd() * 30;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (free(x, z, 1)) tree(x, z, 1.1 + rnd() * 0.9, true);
+      if (free(x, z, 1)) kitTree(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][Math.floor(rnd() * 3)], x, z, 0.9 + rnd() * 0.5);
     }
     // scattered trees
     for (let k = 0; k < 140; k++) {
       const x = (rnd() - 0.5) * 190, z = (rnd() - 0.5) * 190;
       if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 26) continue;
       if (Math.hypot(x - L.ruins.x, z - L.ruins.z) < 20) continue;
-      if (free(x, z, 1)) tree(x, z, 0.9 + rnd() * 0.7, false);
+      if (free(x, z, 1)) kitTree(rnd() < 0.5 ? 'kit_oak_a' : 'kit_pine_a', x, z, 0.75 + rnd() * 0.4);
     }
     // wispwood: dead trees + some pines
     for (let k = 0; k < 70; k++) {
       const a = rnd() * 6.28, r = 6 + rnd() * 24, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
-      if (free(x, z, 0.8)) (rnd() < 0.65 ? deadTree : tree)(x, z, 1 + rnd() * 0.6, true);
+      if (free(x, z, 0.8)) { if (rnd() < 0.65) deadTree(x, z, 1 + rnd() * 0.6); else kitTree('kit_pine_c', x, z, 0.8 + rnd() * 0.3); }
     }
     // rocks
     for (let k = 0; k < 160; k++) {
@@ -422,7 +423,7 @@
 
   // ----- CC0 nature models (Kenney Nature Kit via the asset pack), instanced per material -----
   const NAT_MAT = {
-    leafsDark: { id: ID.LEAF, color: 0x3c7a60, rim: 0.15, fill: 0.18 }, leafsGreen: { id: ID.LEAF, color: 0x4f8a4c, rim: 0.15, fill: 0.18 },
+    leafsDark: { id: ID.LEAF, color: 0x3c7a60, rim: 0.0, fill: 0.08 }, leafsGreen: { id: ID.LEAF, color: 0x4f8a4c, rim: 0.0, fill: 0.08 },
     leafsFall: { id: ID.LEAF, color: 0xc06a28, rim: 0.2 }, grass: { id: ID.LEAF, color: 0x2c5a2e, rim: 0.1 },
     woodBark: { id: ID.WOOD, color: 0x8a6646, fill: 0.12 }, woodBarkDark: { id: ID.WOOD, color: 0x6a5038, fill: 0.12 }, woodBirch: { id: ID.WOOD, color: 0xd6d0c2, rim: 0.2 },
     woodInner: { id: ID.WOOD, color: 0xb88e5c }, dirt: { id: ID.STONE, color: 0x7a7e88, rim: 0.2 }, stone: { id: ID.STONE, color: 0x8a8e98, rim: 0.2 },
@@ -455,19 +456,19 @@
     // conifers thicken the forest ring
     for (let k = 0; k < 260; k++) {
       const a = rnd() * Math.PI * 2, r = 92 + rnd() * 30, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 3.2 + rnd() * 2.2;
-      if (free(x, z, 1)) put(rnd() < 0.55 ? 'tree_pine_tall' : 'tree_dark', x, z, s, { col: 0.12 * s });
+      if (free(x, z, 1)) kitTree(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][Math.floor(rnd() * 3)], x, z, 0.85 + rnd() * 0.45);
     }
     // broadleaf trees: oaks in the open, birches with autumn leaves around the village and the ruins
     for (let k = 0; k < 120; k++) {
       const x = (rnd() - 0.5) * 190, z = (rnd() - 0.5) * 190, s = 3 + rnd() * 2;
       if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 24) continue;
       const nearVillage = Math.hypot(x - L.village.x, z - L.village.z) < 45 || Math.hypot(x - L.ruins.x, z - L.ruins.z) < 40;
-      if (free(x, z, 1.2)) put(nearVillage && rnd() < 0.7 ? 'tree_autumn' : rnd() < 0.6 ? 'tree_oak' : 'tree_fat', x, z, s, { col: 0.12 * s });
+      if (free(x, z, 1.2)) kitTree(rnd() < 0.55 ? ['kit_oak_a', 'kit_oak_b'][Math.floor(rnd() * 2)] : ['kit_pine_a', 'kit_pine_c'][Math.floor(rnd() * 2)], x, z, 0.8 + rnd() * 0.4);
     }
     // Wispwood: dark trees and faintly glowing mushrooms
     for (let k = 0; k < 40; k++) {
       const a = rnd() * 6.28, r = 5 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
-      if (free(x, z, 1)) put('tree_dark', x, z, 3.4 + rnd() * 2, { col: 0.45 });
+      if (free(x, z, 1)) kitTree('kit_pine_c', x, z, 0.8 + rnd() * 0.4);
     }
     for (let k = 0; k < 90; k++) {
       const a = rnd() * 6.28, r = rnd() * 30, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
@@ -491,10 +492,10 @@
 
   // ----- Blender-built environment kit (tools/blender/build_kit.py) -----
   const KIT_MAT = {
-    stone: { id: ID.STONE, color: 0xa4a8b2, rim: 0.1, fill: 0.06 }, stoneDark: { id: ID.STONE, color: 0x70747e, fill: 0.05 },
+    stone: { id: ID.STONE, color: 0xa4a8b2, fill: 0.06 }, stoneDark: { id: ID.STONE, color: 0x70747e, fill: 0.05 },
     moss: { id: ID.MOSS, color: 0x5a7a44 }, wood: { id: ID.WOOD, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.WOOD, color: 0x624834, fill: 0.08 },
-    bark: { id: ID.WOOD, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.WOOD, color: 0xb09a60, fill: 0.08 }, iron: { id: ID.METAL, color: 0x5a5e66 },
-    cloth: { id: ID.WOOD, color: 0xb8a882 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
+    bark: { id: ID.WOOD, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.WOOD, color: 0x7a6a44, fill: 0.04 }, iron: { id: ID.METAL, color: 0x5a5e66 },
+    cloth: { id: ID.WOOD, color: 0xb8a882 }, needle: { id: ID.LEAF, color: 0x4a9070, fill: 0.12 }, foliage: { id: ID.LEAF, color: 0x6a9a58, fill: 0.12 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
   };
   const kitCache = {}, kitMats = {};
   function kitParts(name) {
@@ -505,6 +506,13 @@
     const inv = root.matrixWorld.clone().invert(), parts = [];
     root.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(inv.clone().multiply(o.matrixWorld)); if (!geo.attributes.normal) geo.computeVertexNormals(); parts.push({ geo, mn: o.material.name }); } });
     return (kitCache[name] = parts);
+  }
+  let _kitBatch = null, _kitPlace = null, _kitRnd = null;
+  function kitTree(name, x, z, s) {
+    if (!_kitBatch) return;
+    const y = W.heightAt(x, z) - 0.05, ry = _kitRnd() * 6.28;
+    kitParts(name).forEach((p, i) => _kitBatch.add('kit_' + name + i, p.geo, kitMat(p.mn), _kitPlace(x, y, z, ry, s), new THREE.Color(1, 1, 1).multiplyScalar(0.82 + _kitRnd() * 0.3)));
+    W.addCollider(x, z, 0.4 * s, 'tree');
   }
   function kitMat(mn) { return kitMats[mn] || (kitMats[mn] = GW.mat(Object.assign({ side: THREE.DoubleSide }, KIT_MAT[mn] || { id: ID.STONE, color: 0x888888 }))); }
   function kitScatter(scene, batch, place, rnd, free) {
