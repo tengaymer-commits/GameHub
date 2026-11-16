@@ -203,7 +203,7 @@
           float gm = texture2D(uAtlas, auv).r;
           float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
           gGlyph = gm * (1.0 - smoothstep(0.22, 0.55, px));
-          gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.14, 0.13, 0.11);
+          gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.08, 0.08, 0.07);
         }
       }
       vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;

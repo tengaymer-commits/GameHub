@@ -781,9 +781,9 @@
           if (flatK > 0.01 && length(pd) > 0.001) dir = normalize(mix(dir, normalize(pd), flatK * 0.85));
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
-          bool speck = uTurf < 0.5 && fract(sd * 97.13) < 0.035 + 0.08 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
-          float L2 = speck ? uLineW * 7.0 : lenPx;
-          float wpx = speck ? uLineW * 3.5 : uLineW;
+          bool speck = uTurf < 0.5 && fract(sd * 97.13) < 0.03 + 0.12 * smoothstep(0.55, 0.85, vn(wp * 0.18 + 21.0));
+          float L2 = speck ? uLineW * 8.0 : lenPx;
+          float wpx = speck ? uLineW * 4.0 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
           vec4 cp = cr;
           cp.xy += (dir * (speck ? t - 0.5 : t) * L2 + nrm * aV.x * wpx * (speck ? 1.0 : (1.0 - 0.25 * t))) * uPx * cr.w;
@@ -791,15 +791,15 @@
           float tone = fract(sd * 17.0);
           vec3 sea = mix(vec3(0.12, 0.4, 0.3), vec3(0.2, 0.55, 0.42), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
-          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.78 : 1.0);
+          vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.62 : 1.0);
           vSpeck = 0.0;
-          if (speck) { vSpeck = 1.0; vCol = vec3(0.82, 0.86, 0.85) * (0.75 + 0.25 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
+          if (speck) { vSpeck = 1.0; vCol = vec3(0.76, 0.8, 0.78) * (0.8 + 0.2 * fract(sd * 51.0)); if (keep < 0.5) cp.xy = vec2(9.0) * cp.w; }
           if (cr.w < 1.0 || cr.z > cr.w) cp = vec4(9.0, 9.0, 9.0, 1.0);   // behind the camera or past the far plane: drop
           gl_Position = cp;
         }`,
       fragmentShader: `varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; ${GW.LIGHT_GLSL}
         void main(){
-          if (vSpeck > 0.5) { float rr = length(vec2(vAc, vT * 2.0 - 1.0)); if (rr > 1.0 || rr < 0.42) discard; }
+          if (vSpeck > 0.5) { float rr = length(vec2(vAc, vT * 2.0 - 1.0)); if (rr > 1.0 || rr < 0.38) discard; }
           vec3 L = lightAt(vW, normalize(vec3(0.2, 1.0, 0.3)));
           vec3 warm = max(L - uAmb - uMoonCol, vec3(0.0));
           vec3 col = vSpeck > 0.5 ? vCol * (0.85 + 0.15 * gShadow) : vCol * (0.42 + 0.58 * gShadow) + vCol * warm * 1.2;
@@ -813,7 +813,7 @@
     // It shares every uniform with the main grass (same camera, wind, footsteps), except uTurf.
     const tu = Object.assign({}, m.uniforms, { uTurf: { value: 1 } });
     const tm = new THREE.ShaderMaterial({ uniforms: tu, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
-    const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; turf.visible = false; scene.add(turf);   // replaced by world-anchored ground glyphs
+    const turf = new THREE.Mesh(g, tm); turf.frustumCulled = false; turf.layers.set(1); turf.renderOrder = -5.5; scene.add(turf);
     return { mesh, mat: m, push, turf };
   }
 
