@@ -10,7 +10,7 @@
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear', KeyM: 'map' };
+  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'inv', KeyM: 'map' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {
@@ -195,7 +195,50 @@
   UI.hint = function (text, dur) { $('hint').innerHTML = text; $('hint').classList.add('on'); hintT = dur || 5; };
   UI.clearHint = function () { $('hint').classList.remove('on'); hintT = 0; };
   let bannerT = 0;
-  UI.banner = function (small, big, dur) { $('zb-small').textContent = small; $('zb-big').textContent = big; $('zone-banner').classList.add('on'); bannerT = dur || 3.2; };
+  UI.banner = function (small, big, dur, col) { $('zb-small').textContent = small; $('zb-big').textContent = big; $('zb-big').style.color = col || ''; $('zb-small').style.color = col || ''; $('zone-banner').classList.add('on'); bannerT = dur || 3.2; };
+  // travel panel: list of discovered fires
+  UI.showTravel = function (list, pick) {
+    const el = $('travel-list'); el.innerHTML = '';
+    list.forEach(f => { const b = document.createElement('button'); b.className = 'btn'; b.innerHTML = `▲ ${f.name} <span style="opacity:.55">· ${f.dist} m</span>`; b.onclick = () => { $('travel').classList.add('hidden'); pick(f); }; el.appendChild(b); });
+    $('travel-stay').onclick = () => { $('travel').classList.add('hidden'); pick(null); };
+    $('travel').classList.remove('hidden');
+  };
+  UI.invOpen = () => !$('inv').classList.contains('hidden');
+  UI.toggleInv = function (G, on) {
+    const open = on === undefined ? !UI.invOpen() : on; $('inv').classList.toggle('hidden', !open); if (!open) return;
+    const P = G.player, F = GW.Forge, K = GW.Knight, inv = P.inv, hex = c => '#' + c.toString(16).padStart(6, '0');
+    const row = (l, r) => `<div class="row"><span>${l}</span><span>${r}</span></div>`;
+    let h = '<div class="sec">CARRIED</div>' + row('♥ Flasks', P.flasks + ' / ' + P.maxFlasks) + row('<span style="color:#e09040">♨</span> Kindling', inv.kindling || 0) + row('⚔ Blade', F.weaponName(P.weapon));
+    const runes = Object.entries(inv.runes).filter(([, n]) => n > 0);
+    h += '<div class="sec">RUNES</div>' + (runes.length ? runes.map(([k, n]) => row(`<span style="color:${hex(F.RUNES[k].color)}">${F.RUNES[k].g}</span> ${F.RUNES[k].name}`, '×' + n)).join('') : row('·', ''));
+    const ing = Object.entries(inv.ingots).filter(([, n]) => n > 0);
+    h += '<div class="sec">INGOTS</div>' + (ing.length ? ing.map(([k, n]) => row(`<span style="color:${hex(F.METALS[k].color)}">${F.METALS[k].glyph}</span> ${F.METALS[k].name}`, '×' + n)).join('') : row('·', ''));
+    const arm = Object.keys(inv.armor || {}).map(k => { const sl = K.SLOTS.find(s => K.GEAR[s][k]); return sl ? K.GEAR[sl][k] : null; }).filter(Boolean);
+    h += '<div class="sec">ARMOUR (wear it in Gear · C)</div>' + arm.map(it => row(`<span style="color:${hex(it.color)}">${K.pattern(it.set)}</span> ${it.name}`, '')).join('');
+    $('inv-body').innerHTML = h;
+    $('inv-close').onclick = () => UI.toggleInv(G, false);
+  };
+  UI.travelOpen = () => !$('travel').classList.contains('hidden');
+  // compass strip: cardinal points and nearby places, relative to where the camera looks
+  UI.drawCompass = function (G) {
+    const c = $('compass'); if (!c) return; const g = c.getContext('2d'), w = c.width, h = c.height;
+    g.clearRect(0, 0, w, h);
+    const yaw = UI.settings.camYaw || 0, P = G.player, FOV = Math.PI * 0.55;
+    const toX = b => { const rel = Math.atan2(Math.sin(b + yaw), Math.cos(b + yaw)); return Math.abs(rel) > FOV ? null : w / 2 + rel / FOV * (w / 2 - 14); };
+    g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, 10, w, 24);
+    g.strokeStyle = 'rgba(200,205,220,.25)'; g.beginPath(); g.moveTo(0, 34); g.lineTo(w, 34); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 18px ui-monospace, Menlo, monospace';
+    [['N', 0], ['E', Math.PI / 2], ['S', Math.PI], ['W', -Math.PI / 2]].forEach(([s, b]) => { const x = toX(b); if (x !== null) { g.fillStyle = s === 'N' ? '#ffcf6a' : '#c8ccd8'; g.fillText(s, x, 22); } });
+    for (let k = 0; k < 24; k++) { const x = toX(k / 24 * Math.PI * 2); if (x !== null && k % 6) { g.fillStyle = 'rgba(200,205,220,.4)'; g.fillRect(x, 28, 1.5, 5); } }
+    const pois = G.compassPOIs ? G.compassPOIs() : [];
+    g.font = '15px ui-monospace, Menlo, monospace';
+    for (const p of pois) {
+      const dx = p.x - P.pos.x, dz = p.z - P.pos.z, d = Math.hypot(dx, dz); if (d < 6 || d > p.range) continue;
+      const x = toX(Math.atan2(dx, -dz)); if (x === null) continue;
+      g.globalAlpha = GW.clamp(1.2 - d / p.range, 0.35, 1); g.fillStyle = p.col; g.fillText(p.g, x, 22);
+    }
+    g.globalAlpha = 1;
+  };
   UI.toast = function (text, dur) {
     const d = document.createElement('div'); d.innerHTML = text; $('toast').appendChild(d);
     setTimeout(() => d.remove(), (dur || 2) * 1000);
@@ -289,18 +332,23 @@
     const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
     const [ox, oy] = to(-S / 2, -S / 2);
     g.imageSmoothingEnabled = true; g.globalAlpha = 0.85; g.drawImage(mapImg, ox, oy, S * px, S * px); g.globalAlpha = 1;
+    // fog of war: unexplored land stays dark
+    if (G.fog) { const FC = G.FOG_CELL, FN = G.FOG_N; g.fillStyle = '#030408';
+      for (let j = 0; j < FN; j++) for (let i = 0; i < FN; i++) if (!G.fog[j * FN + i]) { const [x, y] = to(i * FC - S / 2, j * FC - S / 2); g.fillRect(x - 0.5, y - 0.5, FC * px + 1, FC * px + 1); } }
+    const seen = (x, z) => !G.fog || G.fog[Math.floor((z + S / 2) / G.FOG_CELL) * G.FOG_N + Math.floor((x + S / 2) / G.FOG_CELL)];
     g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const z of W.ZONES) {
+      if (!seen(z.x, z.z)) continue;
       const [x, y] = to(z.x, z.z);
       g.strokeStyle = 'rgba(200,200,210,.18)'; g.setLineDash([2, 4]); g.beginPath(); g.arc(x, y, z.r * px, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
       g.font = `600 ${Math.round(GW.clamp(10 * WM.zoom, 10, 15))}px ui-monospace, Menlo, monospace`; g.fillStyle = '#c8ccd8';
       g.fillText(z.name, x, y - z.r * px - 8);
     }
     g.font = 'bold 14px ui-monospace, Menlo, monospace';
-    for (const f of W.fires) { const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
+    for (const f of W.fires) { if (!seen(f.x, f.z)) continue; const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
     for (const it of W.interact) { if (it.type === 'chest' && !(G.opened || {})[it.id]) { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffd860'; g.fillText('■', x, y); } if (it.type === 'forge') { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffcf6a'; g.fillText('π', x, y); } }
-    for (const e of G.enemies) if (e.alive && e.T.boss) { const [x, y] = to(e.pos.x, e.pos.z); g.fillStyle = '#ff4040'; g.fillText('Ω', x, y); }
+    for (const e of G.enemies) if (e.alive && e.T.boss && seen(e.pos.x, e.pos.z)) { const [x, y] = to(e.pos.x, e.pos.z); g.fillStyle = '#ff4040'; g.fillText('Ω', x, y); }
     const obj = G.objective(); if (obj) { const [x, y] = to(obj.x, obj.z); g.fillStyle = '#ffd860'; g.fillText('◆', x, y); }
     const P = G.player, [x, y] = to(P.pos.x, P.pos.z);
     g.save(); g.translate(x, y); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 8; g.fillText('▲', 0, 0); g.restore();
@@ -367,6 +415,7 @@
     const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
     const xr = $('o-xray'); xr.checked = !!S.xray; xr.onchange = () => { S.xray = xr.checked; UI.saveSettings(); };
+    const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };

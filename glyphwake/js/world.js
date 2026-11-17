@@ -207,8 +207,8 @@
   // instances are split into 36 m chunks with real bounds, so off-screen trees/props are skipped
   // by the main, shadow and reflection passes instead of always being drawn
   const it0Scale = m => new THREE.Vector3().setFromMatrixScale(m).y;
-  Batch.prototype.build = function (scene, out) {
-    const CH = 36, _p = new THREE.Vector3();
+  Batch.prototype.build = function (scene, out, chunk) {
+    const CH = chunk || 36, _p = new THREE.Vector3();
     Object.values(this.groups).forEach(g => {
       const chunks = new Map();
       for (const it of g.items) { _p.setFromMatrixPosition(it.m); const k = Math.floor(_p.x / CH) + ',' + Math.floor(_p.z / CH); (chunks.get(k) || chunks.set(k, []).get(k)).push(it); }
@@ -855,7 +855,7 @@
         else if (roll > 0.955) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.45 + rnd() * 0.6, 0.85, 'vale'); }
       }
     }
-    const meshes = []; batch.build(scene, meshes);
+    const meshes = []; batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
     return { meshes, cols };
   }
   W.stream = function (px, pz, scene, budget) {

@@ -279,7 +279,7 @@
         const d = loadData();
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
-          G.opened = d.opened || {};
+          G.opened = d.opened || {}; G.discovered = d.discovered || {}; if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
           P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
@@ -329,6 +329,7 @@
 
   function rest(it) {
     const P = G.player;
+    if (!it.own) G.discovered[it.name] = true;
     fade(() => {
       P.hp = P.maxHp; P.flasks = P.maxFlasks; P.fo = 100; P.st = 100;
       G.respawn = { x: it.x, z: it.z };
@@ -336,8 +337,40 @@
       P.place(it.x, it.z + 2.2);
       UI.banner('rested at', it.name.toUpperCase(), 2.4);
       save();
+      // fast travel between fires you have found
+      const list = GW.World.fires.filter(f => !f.out && !f.rest.own && G.discovered[f.rest.name] && f.rest !== it)
+        .map(f => ({ name: f.rest.name, x: f.x, z: f.z, rest: f.rest, dist: Math.round(Math.hypot(f.x - it.x, f.z - it.z)) })).sort((a, b) => a.dist - b.dist);
+      if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); }
     });
   }
+  function travelTo(f) {
+    fade(() => {
+      const P = G.player; P.place(f.x, f.z + 2.4); P.yaw = Math.PI; G.snapCam = true;
+      G.respawn = { x: f.x, z: f.z }; GW.World._streamBudget = 99; GW.World.terrainRefresh(false, f.x, f.z);
+      UI.banner('you travel to', f.name.toUpperCase(), 2.6); save();
+    });
+  }
+  // ---- exploration: fog of war, discovered fires, compass, regions ----
+  G.FOG_CELL = 20; G.FOG_N = Math.ceil(GW.World.SIZE / 20); G.fog = new Uint8Array(G.FOG_N * G.FOG_N); G.discovered = {};
+  function explore() {
+    const P = G.player, S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N, R = 70;
+    const i0 = Math.floor((P.pos.x - R + S / 2) / FC), i1 = Math.floor((P.pos.x + R + S / 2) / FC), j0 = Math.floor((P.pos.z - R + S / 2) / FC), j1 = Math.floor((P.pos.z + R + S / 2) / FC);
+    for (let j = Math.max(0, j0); j <= Math.min(FN - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(FN - 1, i1); i++)
+      if (Math.hypot((i + 0.5) * FC - S / 2 - P.pos.x, (j + 0.5) * FC - S / 2 - P.pos.z) < R) G.fog[j * FN + i] = 1;
+    for (const f of GW.World.fires) if (!f.rest.own && !G.discovered[f.rest.name] && Math.hypot(f.x - P.pos.x, f.z - P.pos.z) < 16) { G.discovered[f.rest.name] = true; UI.toast(`<span style="color:#ff9a40">▲</span> Found a fire: ${f.rest.name}`, 3); }
+    const r = GW.World.regionAt(P.pos.x, P.pos.z);
+    if (r !== G.region) { const R0 = GW.World.REGIONS[r]; if (G.region) UI.banner(R0.sub, R0.name, 3.6, R0.col); G.region = r; }
+  }
+  G.compassPOIs = function () {
+    const W = GW.World, out = [];
+    for (const z of W.ZONES) out.push({ x: z.x, z: z.z, g: '◇', col: '#c8ccd8', range: 520 });
+    for (const f of W.fires) if (!f.out && (f.rest.own || G.discovered[f.rest.name])) out.push({ x: f.x, z: f.z, g: '▲', col: '#ff9a40', range: 700 });
+    const o = G.objective(); if (o) out.push({ x: o.x, z: o.z, g: '◆', col: '#ffd860', range: 99999 });
+    for (const e of G.enemies) if (e.alive && e.T.boss) out.push({ x: e.pos.x, z: e.pos.z, g: 'Ω', col: '#ff5040', range: 260 });
+    return out;
+  };
+  const fogPack = () => { let s = ''; for (let k = 0; k < G.fog.length; k += 8) { let b = 0; for (let t = 0; t < 8; t++) if (G.fog[k + t]) b |= 1 << t; s += String.fromCharCode(b); } return btoa(s); };
+  const fogUnpack = str => { try { const s = atob(str); for (let k = 0; k < s.length; k++) { const b = s.charCodeAt(k); for (let t = 0; t < 8; t++) G.fog[k * 8 + t] = (b >> t) & 1; } } catch (e) { /* ignore */ } };
   function resetEnemies() {
     if (!UI.settings.respawn) {
       // default: the dead stay dead (camps refill on their own); the living calm down and go home; bosses heal
@@ -595,7 +628,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead,
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
@@ -613,10 +646,16 @@
     if (G.state !== 'play' || UI.settings.xray) { hiddenK = 0; return; }
     if (--hiddenTest <= 0) {
       hiddenTest = 3; let any = false;
+      // only things within ~30 m of the hero can hide him (the camera is near-orthographic)
+      if (!G._occT || G.t - G._occT > 0.5) {
+        G._occT = G.t; G._occ = (W.occluders || []).filter(o => { const bs = o.geometry.boundingSphere || (o.computeBoundingSphere && o.computeBoundingSphere(), o.boundingSphere); const sp = o.boundingSphere || bs; if (!sp) return false;
+          const cx = sp.center.x + (o.isInstancedMesh ? 0 : o.position.x), cz = sp.center.z + (o.isInstancedMesh ? 0 : o.position.z); return Math.hypot(cx - P.pos.x, cz - P.pos.z) < sp.radius + 30; });
+      }
       for (const hgt of [0.4, 0.9, 1.4, 1.85]) {
-        _hp.set(P.pos.x, P.pos.y + hgt, P.pos.z); _dir.subVectors(_hp, C.position); const dist = _dir.length(); _dir.normalize();
-        const rc = new THREE.Raycaster(C.position.clone(), _dir.clone(), 0, dist - 0.6);
-        const hits = rc.intersectObjects(W.occluders || [], false); if (hits.length) { any = true; break; }
+        _hp.set(P.pos.x, P.pos.y + hgt, P.pos.z); _dir.subVectors(C.position, _hp).normalize();
+        const from = _hp.clone().addScaledVector(_dir, 28);                     // start 28 m toward the camera, cast back at the hero
+        const rc = new THREE.Raycaster(from, _dir.clone().negate(), 0, 27.4);
+        const hits = rc.intersectObjects(G._occ, false); if (hits.length) { any = true; break; }
       }
       if (any) hiddenHold = 1.0;   // stay shown a moment, so edges of roofs don't make it flicker
     }
@@ -638,6 +677,33 @@
     const pulse = 0.7 + 0.3 * Math.sin(G.t * 4);
     shape(); cx.strokeStyle = `rgba(235,240,255,${pulse})`; cx.shadowColor = '#c8d4ff'; cx.shadowBlur = 8 * dpr; cx.lineWidth = 2.2 * dpr; cx.setLineDash([4 * dpr, 2.5 * dpr]); cx.stroke();
     cx.setLineDash([2 * dpr, 3 * dpr]); cx.lineWidth = 1.5 * dpr; cx.beginPath(); cx.ellipse(fx, fy, wid * 1.2, wid * 0.48, 0, 0, Math.PI * 2); cx.stroke();
+    cx.restore();
+  }
+  // ---- weather: glyph rain in the Vale (comes and goes), snow in Frostmere, drifting ash in the Barrens ----
+  const WX = { parts: [], rain: 0, snow: 0, ash: 0 };
+  function drawWeather(dt) {
+    if (!fxCx || !(dt > 0)) return;
+    const S = UI.settings, on = S.weather !== false && (G.state === 'play' || G.state === 'paused');
+    const b = GW.World.biomeAt(G.player.pos.x, G.player.pos.z);
+    const rainy = Math.max(0, Math.sin(G.t / 190) * 0.6 + Math.sin(G.t / 73 + 1.7) * 0.5);   // showers come and go
+    const tgt = { rain: on ? GW.clamp(rainy, 0, 1) * (1 - b.frost) * (1 - b.ash) : 0, snow: on ? b.frost : 0, ash: on ? b.ash * 0.7 : 0 };
+    for (const k of ['rain', 'snow', 'ash']) WX[k] += (tgt[k] - WX[k]) * Math.min(1, dt * 0.6);
+    const W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, want = Math.round(WX.rain * 260 + WX.snow * 170 + WX.ash * 90);
+    while (WX.parts.length < want) WX.parts.push({ x: Math.random() * W, y: Math.random() * H, k: Math.random(), s: 0.6 + Math.random() * 0.8 });
+    if (WX.parts.length > want) WX.parts.length = want;
+    if (!want) return;
+    const cx = fxCx, tot = WX.rain + WX.snow + WX.ash + 1e-6;
+    cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    for (const p of WX.parts) {
+      const kind = p.k * tot < WX.rain ? 0 : p.k * tot < WX.rain + WX.snow ? 1 : 2;
+      if (kind === 0) { p.x += -90 * dt * dpr; p.y += 620 * p.s * dt * dpr; }
+      else if (kind === 1) { p.x += Math.sin(G.t * 1.3 + p.k * 40) * 22 * dt * dpr; p.y += 55 * p.s * dt * dpr; }
+      else { p.x += (30 + Math.sin(G.t + p.k * 30) * 25) * dt * dpr; p.y += 18 * p.s * dt * dpr - Math.sin(G.t * 0.7 + p.k * 9) * 6 * dt * dpr; }
+      if (p.y > H + 10) { p.y = -10; p.x = Math.random() * W; } if (p.x < -10) p.x = W + 10; if (p.x > W + 10) p.x = -10;
+      if (kind === 0) { cx.font = `${Math.round(13 * dpr)}px ui-monospace, Menlo, monospace`; cx.fillStyle = 'rgba(190,205,230,.45)'; cx.fillText('/', p.x, p.y); }
+      else if (kind === 1) { cx.font = `${Math.round((8 + p.s * 5) * dpr)}px ui-monospace, Menlo, monospace`; cx.fillStyle = 'rgba(235,242,255,.8)'; cx.fillText(p.k < 0.5 ? '*' : '.', p.x, p.y); }
+      else { cx.font = `${Math.round(9 * dpr)}px ui-monospace, Menlo, monospace`; cx.fillStyle = p.k > 0.85 ? 'rgba(255,140,60,.8)' : 'rgba(150,140,130,.6)'; cx.fillText(p.k > 0.85 ? "'" : '.', p.x, p.y); }
+    }
     cx.restore();
   }
   // ---- frame-rate readout + automatic render resolution (Auto: drop supersampling when frames get slow) ----
@@ -822,6 +888,7 @@
     const pressed = I.consume();
     if (pressed.menu) {
       if (UI.mapOpen()) UI.toggleMap(G, false);
+      else if (UI.invOpen()) UI.toggleInv(G, false);
       else if (G.state === 'forge') GW.Forge.UI.close();
       else if (G.state === 'gear') G.closeGear();
       else if (G.state === 'play' && !UI.inDialog()) togglePause(true);
@@ -829,6 +896,7 @@
     }
     UI.tick(dt);
     if (pressed.map && (G.state === 'play' || UI.mapOpen()) && !UI.inDialog()) UI.toggleMap(G);
+    if (pressed.inv && (G.state === 'play' || UI.invOpen()) && !UI.inDialog()) UI.toggleInv(G);
     if (UI.mapOpen() && frame % 10 === 0) UI.drawWorldMap(G);
     if (pressed.gear) { if (G.state === 'gear') G.closeGear(); else if (G.state === 'play' && !UI.inDialog()) openGear(); }
     if (G.state === 'gear') {
@@ -861,7 +929,7 @@
     // hitstop: freeze simulation briefly, keep rendering
     let sdt = dt;
     if (G.hitstop > 0) { G.hitstop -= dt; sdt = dt * 0.05; }
-    if (G.state === 'paused' || G.state === 'dead' || UI.mapOpen()) sdt = 0;
+    if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || UI.mapOpen() || UI.invOpen()) sdt = 0;
 
     if (playing) {
       let input = { mx: 0, mz: 0 };
@@ -890,6 +958,7 @@
         world(sdt);
         // respawn timers
         updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor();
+        if (frame % 15 === 0) explore();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));
         for (const e of G.enemies) if (!e.alive && e.type === 'husk' && G.t - e.diedAt > 5) revive(e);
       }
@@ -943,7 +1012,9 @@
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
+    document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);
+    drawWeather(dt);
     perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {

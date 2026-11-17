@@ -95,7 +95,7 @@
     <button class="btn" id="t-new">New journey</button>
     <button class="btn ghost" id="t-settings">Settings</button>
   </div>
-  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · F make fire · M map</div>
+  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · F make fire · M map · I inventory</div>
 </div>
 
 <!-- ================= MENUS ================= -->
@@ -164,6 +164,7 @@
   </label>
   <div class="s-note" id="o-res-note"></div>
   <label>Show FPS <input type="checkbox" id="o-fps" /></label>
+  <label>Weather (rain, snow, ash) <input type="checkbox" id="o-weather" /></label>
   <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
   <label>Music <input type="range" id="o-mus" min="0" max="1" step="0.05" /></label>
   <button class="btn" id="s-back">Back</button>
@@ -172,6 +173,9 @@
 <div id="death" class="hidden"><div class="dt">YOU FELL</div><div class="ds">the glyphs remember you…</div><button class="btn" id="death-btn">Rise at the campfire</button></div>
 <div id="fade"></div>
 <div id="toast"></div>
+<canvas id="compass" width="720" height="44"></canvas>
+<div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
+<div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
 <div id="worldmap" class="hidden"><canvas id="wm"></canvas><div class="wm-foot">M / Esc to close · wheel to zoom · drag to pan</div></div>
 
 <script src="../js/vendor/three.min.js"></script>

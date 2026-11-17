@@ -58,6 +58,13 @@ button { font-family: var(--mono); color: var(--fg); }
 #worldmap.hidden { display: none; }
 #wm { width: 100vw; height: 100vh; display: block; cursor: grab; }
 #worldmap .wm-foot { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; color: #7a8090; font-size: 11px; letter-spacing: .15em; pointer-events: none; }
+#compass { position: fixed; left: 50%; top: calc(26px + var(--safe-t, 0px)); transform: translateX(-50%); width: 360px; height: 22px; pointer-events: none; z-index: 5; }
+body:not(.playing) #compass { display: none; }
+#travel-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; max-height: 50vh; overflow: auto; }
+#travel-list .btn { text-align: left; }
+#inv-body { font-size: 13px; line-height: 1.7; margin: 8px 0 12px; max-height: 60vh; overflow: auto; min-width: min(420px, 86vw); }
+#inv-body .sec { color: #8a90a0; letter-spacing: .2em; font-size: 11px; margin-top: 10px; }
+#inv-body .row { display: flex; justify-content: space-between; gap: 16px; }
 #fps { position: absolute; left: 50%; top: calc(6px + var(--safe-t, 0px)); transform: translateX(-50%) translateX(-120px); font-size: 11px; color: #9fb0a0; text-shadow: 0 0 4px #000; pointer-events: none; white-space: pre; }
 .fl { position: absolute; font-weight: 700; font-size: 13px; text-shadow: 0 0 3px #000, 0 0 6px #000; white-space: nowrap; will-change: transform; }
 .fl.name { font-weight: 400; font-size: 10px; color: #cfd6e6; opacity: .85; }
