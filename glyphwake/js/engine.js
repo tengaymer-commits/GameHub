@@ -256,12 +256,15 @@
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
+      float xEdge = 0.0;
       if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
-        // dissolve anything between the camera and the hero (roofs, tree tops, walls), dithered, so he is never hidden
+        // inside a building: a clean cut-away. Roof and the walls between you and the camera are sliced off
+        // in a round window around the hero; the cut edge is drawn as a dark band like a section drawing.
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
-        float tt = dot(rr, cd), dp = length(rr - cd * tt);
-        float cut = (1.0 - smoothstep(1.8, 3.6, dp)) * smoothstep(0.6, 1.6, tt);
-        if (cut > 0.0 && th(floor(gl_FragCoord.xy * 0.5)) < cut * 0.85) discard;
+        float tt = dot(rr, cd), dp = length(rr - cd * tt), R = 7.5;
+        bool front = tt > 0.4 || vW.y > uPlayerW.y + 2.6;
+        if (front && dp < R) discard;
+        if (front) xEdge = 1.0 - smoothstep(R, R + 0.5, dp);
       }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
@@ -355,10 +358,12 @@
       if (uFarGrass > 0.0) col += gTint * gGlyph * (0.45 + 0.55 * gShadow + max(L - uAmb - uMoonCol, vec3(0.0)) * 1.5);
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
+      col = mix(col, col * 0.18 + vec3(0.02, 0.025, 0.035), xEdge);
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
-      if (uSil > 0.5) {   // hero behind a wall: a flat silver silhouette (still drawn as character glyphs)
-        float rr = pow(1.0 - max(dot(n, V), 0.0), 2.0);
-        gl_FragColor = vec4(vec3(0.5, 0.58, 0.78) * (0.55 + 0.6 * rr), (outId + 0.5) / 32.0);
+      if (uSil > 0.5) {   // hero behind something: only his outline (the rim), in silver
+        float rr = 1.0 - max(dot(n, V), 0.0);
+        if (rr < 0.55) discard;
+        gl_FragColor = vec4(vec3(0.62, 0.7, 0.92) * (0.6 + 0.8 * rr), (outId + 0.5) / 32.0);
       }
     }`;
 
@@ -380,7 +385,7 @@
         uFarGrass: { value: o.farGrass || 0 },
         uGrassC: { value: new THREE.Vector2() },
         uFill: { value: o.fill !== undefined ? o.fill : (FILL[o.id] || 0) },
-        uTex: { value: o.tex || 0 },
+        uTex: { value: o.tex || 0 }, uSil: { value: 0 },
         uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,

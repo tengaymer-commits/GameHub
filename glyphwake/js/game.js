@@ -658,6 +658,10 @@
         const hits = rc.intersectObjects(G._occ, false); if (hits.length) { any = true; break; }
       }
       if (any) hiddenHold = 1.0;   // stay shown a moment, so edges of roofs don't make it flicker
+      // inside: something solid overhead (a roof) -> cut-away view instead of the outline
+      { _hp.set(P.pos.x, P.pos.y + 2.0, P.pos.z); const up = new THREE.Raycaster(_hp.clone(), new THREE.Vector3(0, 1, 0), 0, 25);
+        const inside = up.intersectObjects(G._occ || [], false).some(h => !(h.object.isInstancedMesh && /kit_(pine|oak|dead)|nat_|^cone|^trunk/.test(h.object.name || '')));
+        G._insideHold = inside ? 0.5 : (G._insideHold || 0) - 0.05; G.heroInside = G._insideHold > 0; }
     }
     hiddenHold -= Math.min(0.1, dt || 0.016); hidden = hiddenHold > 0;
     hiddenK += ((hidden ? 1 : 0) - hiddenK) * Math.min(1, (dt || 0.016) * 10);
@@ -666,7 +670,7 @@
   // second pass over the hero's meshes: drawn only where something is in front of him (depth test 'greater')
   const silMats = new WeakMap();
   function silhouettePass(r, camera) {
-    if (!G.heroHidden || UI.settings.xray) return;
+    if (!G.heroHidden || UI.settings.xray || G.heroInside) return;
     const scene = G.scene, hide = [];
     // render just the hero: temporarily hide every other top-level object
     scene.children.forEach(o => { if (o !== G.player.model && o.visible) { o.visible = false; hide.push(o); } });
@@ -823,7 +827,7 @@
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : Math.max(t * t * (3 - 2 * t), UI.settings.grassAscii || 0); }
     { const S0 = UI.settings, v = (k, d) => S0[k] !== undefined ? S0[k] : d;
       G.R.asciiMat.uniforms.uActorPop.value = v('heroPop', 0.3);
-      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
+      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray || G.heroInside ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));

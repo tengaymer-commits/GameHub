@@ -209,12 +209,12 @@
   const it0Scale = m => new THREE.Vector3().setFromMatrixScale(m).y;
   Batch.prototype.build = function (scene, out, chunk) {
     const CH = chunk || 36, _p = new THREE.Vector3();
-    Object.values(this.groups).forEach(g => {
+    Object.entries(this.groups).forEach(([key, g]) => {
       const chunks = new Map();
       for (const it of g.items) { _p.setFromMatrixPosition(it.m); const k = Math.floor(_p.x / CH) + ',' + Math.floor(_p.z / CH); (chunks.get(k) || chunks.set(k, []).get(k)).push(it); }
       if (!g.geom.boundingSphere) g.geom.computeBoundingSphere();
       for (const items of chunks.values()) {
-        const im = new THREE.InstancedMesh(g.geom, g.mat, items.length);
+        const im = new THREE.InstancedMesh(g.geom, g.mat, items.length); im.name = key;
         items.forEach((it, i) => { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
         im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
         im.computeBoundingSphere(); im.frustumCulled = true; scene.add(im); if (out) out.push(im);
