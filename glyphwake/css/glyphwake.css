@@ -49,6 +49,7 @@ button { font-family: var(--mono); color: var(--fg); }
 #boss-hp { position: relative; height: 8px; border: 1px solid #5a2a2a; background: rgba(0,0,0,.6); }
 #boss-hp i { position: absolute; left: 0; top: 0; bottom: 0; background: #c22; box-shadow: 0 0 10px #f33; transition: width .1s; }
 #boss-hp b { position: absolute; left: 0; top: 0; bottom: 0; background: #e8c070; opacity: .6; transition: width .6s .25s; }
+#boss-hp s { position: absolute; top: -1px; bottom: -1px; width: 2px; margin-left: -1px; background: rgba(0,0,0,.85); z-index: 2; }
 #obj-arrow { position: absolute; left: 0; top: 0; color: var(--gold); font-size: 16px; text-shadow: 0 0 6px #000; transform-origin: 50% 50%; opacity: 0; transition: opacity .3s; }
 #obj-arrow.on { opacity: .85; }
 #obj-dist { display: block; font-size: 9px; text-align: center; color: var(--fg); }

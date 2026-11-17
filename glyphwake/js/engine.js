@@ -15,17 +15,17 @@
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: " .", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 2 grass  */ { ramp: " .,'`:;~^\"*+", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
-    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
+    /* 3 stone  */ { ramp: " :~*uvnaeS0Q$%&B", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.5, flick: 0, letters: 1 },
     /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
     /* 5 leaf   */ { ramp: "  .,;:*&%#@", mode: 0, gain: 2.3, under: 0.24, edge: 0, bright: 1.0, white: 0.04, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
-    /* 8 fire   */ { ramp: " .'^*+#%@", mode: 0, gain: 0.9, under: 0.45, edge: 0, bright: 1.5, white: 0.2, flick: 9 },
+    /* 8 fire   */ { ramp: " .'*+%&$@#&%@$&@", mode: 0, gain: 0.9, under: 0.3, edge: 0, bright: 1.6, white: 0.25, flick: 7, letters: 1 },
     /* 9 flower */ { ramp: " .o*o*O@", mode: 0, gain: 1.6, under: 0.4, edge: 0, bright: 1.4, white: 0.6, flick: 0 },
     /* 10 wood  */ { ramp: " .-=|[#H", mode: 0, gain: 2.4, under: 0.07, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
     /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.4, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
     /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
-    /* 13 ruin  */ { ramp: " .rnuzcsaeqpbdwm", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.15, white: 0.4, flick: 0 },
+    /* 13 ruin  */ { ramp: " -\\|)co0Oo8%@WMD", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.45, flick: 0, letters: 1 },
     /* 14 moss  */ { ramp: " .,:;~*%&", mode: 0, gain: 2.0, under: 0.2, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
     // ---- armour glyph patterns (actors) ----
@@ -42,11 +42,11 @@
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
     /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
     /* 26 flower (dandelion glyphs, always drawn as rendered) */ { ramp: " ", mode: 1, gain: 1.0, under: 0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 27 masonry */ { ramp: "  .:-=+*#%@", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.15, white: 0.15, flick: 0 },
+    /* 27 masonry */ { ramp: " ;=+/(zxwbdpq$Q&", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.2, white: 0.5, flick: 0, letters: 1 },
     /* 28 bark    */ { ramp: " .:;!|lI1H", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.05, white: 0.08, flick: 0 },
     /* 29 thatch  */ { ramp: " .'`/\\^vwW", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.1, white: 0.1, flick: 0 },
     /* 30 planks  */ { ramp: " .-~=+#H", mode: 0, gain: 2.5, under: 0.06, edge: 0, bright: 1.05, white: 0.1, flick: 0 },
-    /* 31 rock    */ { ramp: " .,:;oO0@", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
+    /* 31 rock    */ { ramp: " -;:ocu0OQ8&$%@W", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.45, flick: 0, letters: 1 },
   );
   // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
   [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.3; });
@@ -269,7 +269,9 @@
       vec3 base = vC;
       if (uTex > 0.5 && uUnlit < 0.5) {
         vec3 an = abs(n); vec2 uvc = an.y > max(an.x, an.z) ? vW.xz : (an.x > an.z ? vW.zy : vW.xy);
-        if (uTex > 4.5 && uTex < 5.5) {
+        if (uTex > 8.5) {
+          // hair (tex 9): fur strokes are added after lighting
+        } else if (uTex > 4.5 && uTex < 5.5) {
           vec3 lc = leafClusters(vW, n, uMoonDir);
           base *= mix(vec3(0.85 + 0.15 * dot(lc, vec3(0.333))), lc, 0.6 + 0.4 * uDetail);
         } else {
@@ -296,11 +298,11 @@
         vec2 gp = vW.xz / vec2(0.17, 0.24);
         vec2 gc = floor(gp), gu = fract(gp);
         float r = th(gc * 1.37 + 7.7);
-        float dens = mix(0.5, 0.9, grassy) * (0.75 + 0.4 * n1);
+        float dens = mix(0.22, 0.9, grassy) * (0.75 + 0.4 * n1);
         if (r < dens) {
           float idx = 1.0 + floor(th(gc + 3.1) * 11.0);
-          float row = grassy > 0.5 ? 2.0 : 3.0;    // grass strokes on grassland, faint o 0 8 on bare earth
-          if (grassy <= 0.5) idx = 5.0 + floor(th(gc + 5.3) * 5.0);
+          float row = grassy > 0.5 ? 2.0 : 13.0;   // grass strokes on grassland, faint o 0 O 8 on bare earth
+          if (grassy <= 0.5) idx = 6.0 + floor(th(gc + 5.3) * 5.0);
           vec2 auv = vec2((idx + gu.x) / 16.0, (32.0 - row + (1.0 - gu.y)) / 33.0);
           float gm = texture2D(uAtlas, auv).r;
           float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
@@ -320,6 +322,27 @@
       }
       vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;
       if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
+      bool hair = uTex > 8.5;
+      if (((uTex > 4.5 && uTex < 5.5) || hair) && uUnlit < 0.5) {
+        // foliage / animal fur: short combed strokes over the surface (same language as the grass), dark between them
+        float CEL = hair ? 0.06 : 0.095;
+        vec3 an3 = abs(n);
+        vec2 fp = an3.y > 0.6 || !hair ? vW.xz + vW.y * vec2(0.37, 0.61) : (an3.x > an3.z ? vW.zy : vW.xy) + vec2(0.0, vW.x * 0.21);
+        vec2 g = fp / CEL, gi = floor(g); float m = 0.0, best = 0.0, sp = 0.0;
+        float w = max(fwidth(fp.x), fwidth(fp.y)) * 0.6 + 0.0015;
+        vec2 comb = n.xz * 0.9 + vec2(0.0, 0.45);
+        for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+          vec2 c = gi + vec2(float(x), float(y)), ctr = (c + vec2(th(c + 1.7), th(c + 3.1))) * CEL;
+          vec2 dir = normalize(comb + (vec2(th(c + 5.3), th(c + 6.1)) - 0.5) * 1.4 + 1e-3);
+          float len = (hair ? 0.022 : 0.035) + (hair ? 0.03 : 0.05) * th(c + 8.9);
+          vec2 d = fp - ctr; float t = clamp(dot(d, dir), -len, len); float dist = length(d - dir * t);
+          float k = 1.0 - smoothstep(w * 0.5, w * 1.5, dist);
+          if (k > m) { m = k; best = th(c + 2.2); }
+          if (!hair && th(c * 1.31 + 0.7) > 0.975) sp = max(sp, 1.0 - smoothstep(w * 0.8, w * 2.2, length(d)));
+        }
+        if (hair) col = col * (0.1 + m * (0.9 + 2.2 * best * best)) + vec3(0.5, 0.47, 0.45) * m * step(0.86, best) * 0.35;   // grizzled light tips
+        else col = mix(vec3(dot(col, vec3(0.33))), col, 0.7) * vec3(0.8, 1.0, 0.88) * (0.2 + m * (1.3 + 1.3 * best)) + vec3(0.75, 0.8, 0.72) * sp * (0.25 + 0.75 * uDayLight);
+      }
       if (uFarGrass > 0.0) col += gTint * gGlyph * (0.45 + 0.55 * gShadow + max(L - uAmb - uMoonCol, vec3(0.0)) * 1.5);
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
@@ -357,7 +380,7 @@
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff; uniform float uFarBlend; uniform float uActorPop;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform vec2 uCellT; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff; uniform float uFarBlend; uniform float uActorPop;
     vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
@@ -383,7 +406,7 @@
 
       }
       // separate glyph densities: characters, water & sky, everything else
-      CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : uCell);
+      CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : (uSet3[pid].w > 0.5 ? uCellT : uCell));
       // the glyph grid is anchored to the world: it shifts with the ground as the camera pans
       vec2 go = mod(uGridOff, CS);
       vec2 cell = floor((fc - go) / CS);
@@ -404,6 +427,8 @@
                || int(texture2D(tScene, cc + vec2(qq.x, -qq.y)).a * 32.0) == 2 || int(texture2D(tScene, cc + vec2(-qq.x, qq.y)).a * 32.0) == 2;
         if (cg) { asciiGrass = true; id = 2; }
       }
+      // foliage is drawn as rendered fur strokes, per pixel (like the grass), not as glyphs
+      if ((pid == 5 || pid == 14 || pid == 9) && !actor) { gl_FragColor = vec4(raw * 1.15, 1.0); return; }
       bool scenCell = uSet3[id].z > 0.5;
       if (!actor && !scenCell && uSet[pid].x > 0.5 && uSet[pid].x < 1.5 && !asciiGrass) {
         gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return;
@@ -432,9 +457,11 @@
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
       if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
+      if (S3.w > 0.5) idx = v < 0.16 ? 0.0 : clamp(floor(v * 7.0) + floor(h21(wcell * 0.731 + 2.9 + fl * 1.7) * 9.0), 1.0, 15.0);
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
       if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(wcell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
+      if (S3.w > 0.5 && id != 8) { float rr = h21(wcell * 1.913 + 7.7); row = rr < 0.4 ? row : (rr < 0.7 ? 13.0 : (rr < 0.9 ? 3.0 : 27.0)); }   // letter walls mix three alphabets
       float edgeBoost = 0.0;
       if (actor) {
         float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));
@@ -514,10 +541,10 @@
     this.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const setA = SETS.map(s => new THREE.Vector4(s.mode, s.gain, s.under, s.edge));
     const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, s.actor || 0));
-    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, 0));
+    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, s.letters || 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() }, uFarBlend: { value: 0 }, uActorPop: { value: 0 },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uCellT: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() }, uFarBlend: { value: 0 }, uActorPop: { value: 0 },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
@@ -567,6 +594,7 @@
     this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
     this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
     this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
+    const ct = cellOf(this.glyphT || 9); this.asciiMat.uniforms.uCellT.value.set(ct[0], ct[1]);
     this.asciiMat.uniforms.uOl.value = Math.max(1.5, 1.6 * dpr * Math.min(1.8, z));
   };
   E.Renderer.prototype.pass = function (mat, target) {

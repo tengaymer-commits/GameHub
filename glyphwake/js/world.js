@@ -21,6 +21,8 @@
     meadowFire: { x: -18, z: -42 },
     castle: { x: 55, z: -65 },
     chapel: { x: 18, z: 60 },
+    tower: { x: -10, z: -66 },
+    lair: { x: -55, z: -70 },
   };
   const RIVER_CP = [[-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44]];
   const PATHS = [
@@ -37,6 +39,8 @@
     { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 12, z: -58, r: 30 },
     { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -72, z: 42, r: 26 },
     { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 18, z: 62, r: 12 },
+    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -10, z: -66, r: 10 },
+    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -55, z: -70, r: 16 },
     { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 55, z: -65, r: 17 },
     { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -36, z: 64, r: 13 },
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
@@ -87,6 +91,8 @@
     flatK(L.start.x, L.start.z, 6, 12, 0.3);
     flatK(L.castle.x, L.castle.z, 16, 23, 0.4);
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
+    flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
+    flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
     return h;
   }
 
@@ -138,7 +144,7 @@
   // ---------- world object ----------
   const W = GW.World = {
     SIZE, L, ZONES, WATER_Y,
-    colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], lights: null, fireflies: null,
+    colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], lights: null, fireflies: null,
   };
   W.heightAt = (x, z) => sample(H, x, z);
   W.riverAt = (x, z) => sample(R, x, z);
@@ -218,6 +224,26 @@
     const tMap = new THREE.DataTexture(half, N, N, THREE.RGBAFormat, THREE.HalfFloatType);
     tMap.minFilter = THREE.LinearFilter; tMap.magFilter = THREE.LinearFilter; tMap.needsUpdate = true;
     W.tMap = tMap; GW.LU.uHeightMap.value = tMap; GW.LU.uWorldSize.value = SIZE;
+    // scorch the ground: grass gone (density < 0 marks burnt), terrain turns to ash-dirt
+    W.burn = function (x, z, r) {
+      const ci = Math.round((x + HALF) / SIZE * N - 0.5), cj = Math.round((z + HALF) / SIZE * N - 0.5), rr = Math.ceil(r / SIZE * N) + 1;
+      for (let j = cj - rr; j <= cj + rr; j++) for (let i = ci - rr; i <= ci + rr; i++) {
+        if (i < 0 || j < 0 || i >= N || j >= N) continue;
+        const wx = (i + 0.5) / N * SIZE - HALF, wz = (j + 0.5) / N * SIZE - HALF, d = Math.hypot(wx - x, wz - z);
+        if (d > r + 0.6) continue;
+        const k = j * N + i; G[k] = d < r ? -2 : Math.min(G[k], 0.15);
+        half[k * 4 + 1] = THREE.DataUtils.toHalfFloat(G[k]);
+      }
+      tMap.needsUpdate = true;
+      const tp = W.terrain.geometry.attributes.position, tc = W.terrain.geometry.attributes.color;
+      for (let v = 0; v < tp.count; v++) {
+        const d = Math.hypot(tp.getX(v) - x, tp.getZ(v) - z); if (d > r + 1.2) continue;
+        const f = 1 - ss(r * 0.6, r + 1.2, d), ash = [0.085, 0.06, 0.045];
+        tc.setXYZ(v, GW.lerp(tc.getX(v), ash[0], f), GW.lerp(tc.getY(v), ash[1], f), GW.lerp(tc.getZ(v), ash[2], f));
+      }
+      tc.needsUpdate = true;
+      (W.burns = W.burns || []).push([x, z, r]);
+    };
 
     // ---- terrain ----
     const SEG = 180;
@@ -241,7 +267,7 @@
     tg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     tg.computeVertexNormals();
     const terrain = new THREE.Mesh(tg, GW.mat({ id: ID.GROUND, vertexColors: true, color: 0xffffff, farGrass: 30 }));
-    W.terrainMat = terrain.material;
+    W.terrainMat = terrain.material; W.terrain = terrain;
     terrain.frustumCulled = false; terrain.layers.set(1); terrain.renderOrder = -6; scene.add(terrain);
 
     // ---- water ----
@@ -354,7 +380,7 @@
     const free = (x, z, r) => {
       if (W.riverAt(x, z) < RIVER_W + 1.5 + r) return false;
       if (W.pathAt(x, z) < 2.5 + r) return false;
-      for (const k of ['village', 'start', 'arena', 'castle', 'chapel']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 : k === 'chapel' ? 13 : 18) + r) return false;
+      for (const k of ['village', 'start', 'arena', 'castle', 'chapel', 'tower', 'lair']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 : k === 'chapel' ? 13 : k === 'tower' ? 8 : k === 'lair' ? 17 : 18) + r) return false;
       return !W.blocked(x, z, r + 0.6);
     };
 
@@ -423,6 +449,7 @@
     }
 
     buildChapel(scene);
+    buildTower(scene);
     natureScatter(batch, place, rnd, free);
     kitScatter(scene, batch, place, rnd, free);
     buildCastle(scene);
@@ -434,7 +461,7 @@
 
   // ----- CC0 nature models (Kenney Nature Kit via the asset pack), instanced per material -----
   const NAT_MAT = {
-    leafsDark: { id: ID.LEAF, tex: 5, color: 0x3c7a60, fill: 0.08 }, leafsGreen: { id: ID.LEAF, tex: 5, color: 0x4f8a4c, fill: 0.08 },
+    leafsDark: { id: ID.LEAF, tex: 5, color: 0x3c7a60, fill: 0.08 }, leafsGreen: { id: ID.LEAF, tex: 5, color: 0x4a8a5c, fill: 0.08 },
     leafsFall: { id: ID.LEAF, tex: 5, color: 0xc06a28 }, grass: { id: ID.LEAF, tex: 5, color: 0x2c5a2e },
     woodBark: { id: ID.BARK, tex: 3, color: 0x8a6646, fill: 0.12 }, woodBarkDark: { id: ID.BARK, tex: 3, color: 0x6a5038, fill: 0.12 }, woodBirch: { id: ID.BARK, tex: 3, color: 0xd6d0c2 },
     woodInner: { id: ID.PLANKS, tex: 2, color: 0xb88e5c }, dirt: { id: ID.ROCK, tex: 6, color: 0x7a7e88 }, stone: { id: ID.ROCK, tex: 6, color: 0x8a8e98 },
@@ -507,7 +534,7 @@
     moss: { id: ID.MOSS, tex: 5, color: 0x3e5a36 }, wood: { id: ID.PLANKS, tex: 2, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.PLANKS, tex: 2, color: 0x6a4e38, fill: 0.08 },
     bark: { id: ID.BARK, tex: 3, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.THATCH, tex: 4, color: 0x8a7650, fill: 0.05 }, iron: { id: ID.METAL, tex: 7, color: 0x5a5e66 },
     cloth: { id: ID.PLANKS, color: 0xb8a882 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
-    needle: { id: ID.LEAF, tex: 5, color: 0x50906a, fill: 0.2 }, foliage: { id: ID.LEAF, tex: 5, color: 0x6a9658, fill: 0.2 },
+    needle: { id: ID.LEAF, tex: 5, color: 0x44866a, fill: 0.1 }, foliage: { id: ID.LEAF, tex: 5, color: 0x538c60, fill: 0.1 },
     rock: { id: ID.ROCK, tex: 6, color: 0x9a9ea8, fill: 0.06 },
   };
   const kitCache = {}, kitMats = {};
@@ -567,7 +594,53 @@
     const trees = ['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'];
     for (let k = 0; k < 18; k++) { const a = rnd() * 6.28, r = 4 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r; if (free(x, z, 1)) put(trees[k % 3], x, z, 0.9 + rnd() * 0.4, rnd() * 6.28, 0.4); }
     for (let k = 0; k < 22; k++) { const x = (rnd() - 0.5) * 200, z = (rnd() - 0.5) * 200; if (Math.hypot(x, z) < 100 && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
+    // the Widow's hollow: a ring of dead trees strung with glowing webs
+    { const C = L.lair, anchors = [];
+      for (let k = 0; k < 9; k++) {
+        const a = k / 9 * Math.PI * 2 + 0.2, r = 14 + rnd() * 3, x = C.x + Math.cos(a) * r, z = C.z + Math.sin(a) * r;
+        put(trees[k % 3], x, z, 1.2 + rnd() * 0.4, rnd() * 6.28, 0.5); anchors.push([x, W.heightAt(x, z), z]);
+      }
+      W.lairWebs = buildWebs(scene, C, anchors, rnd);
+    }
     for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210; if (Math.hypot(x, z) < 104 && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.7 + rnd() * 0.9, rnd() * 6.28, 0.85); }
+  }
+
+  // glowing dotted spider webs (thin ribbons drawn with the twinkling star glyphs)
+  function buildWebs(scene, C, anchors, rnd) {
+    const pos = [];
+    const strand = (a, b, w) => {          // flat ribbon from a to b, widened sideways in the horizontal plane + up
+      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], len = Math.hypot(dx, dy, dz) || 1;
+      let sx = -dz / len, sz = dx / len, sy = 0; const sl = Math.hypot(sx, sz); if (sl < 0.2) { sx = 1; sz = 0; } else { sx /= sl; sz /= sl; }
+      const hw = w / 2, o = [sx * hw, 0.35 * hw, sz * hw];
+      const p0 = [a[0] - o[0], a[1] - o[1], a[2] - o[2]], p1 = [a[0] + o[0], a[1] + o[1], a[2] + o[2]], p2 = [b[0] + o[0], b[1] + o[1], b[2] + o[2]], p3 = [b[0] - o[0], b[1] - o[1], b[2] - o[2]];
+      pos.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
+    };
+    const radial = (c, u, v, R, spokes, rings) => {   // web in the plane spanned by u, v
+      const pt = (ang, r) => [c[0] + (u[0] * Math.cos(ang) + v[0] * Math.sin(ang)) * r, c[1] + (u[1] * Math.cos(ang) + v[1] * Math.sin(ang)) * r, c[2] + (u[2] * Math.cos(ang) + v[2] * Math.sin(ang)) * r];
+      const angs = Array.from({ length: spokes }, (_, k) => k / spokes * Math.PI * 2 + (rnd() - 0.5) * 0.3);
+      angs.forEach(a => strand(c, pt(a, R * (0.85 + rnd() * 0.3)), 0.08));
+      for (let r = 1; r <= rings; r++) { const rr = R * r / (rings + 0.5); for (let k = 0; k < spokes; k++) strand(pt(angs[k], rr * (0.9 + rnd() * 0.15)), pt(angs[(k + 1) % spokes] + (k + 1 === spokes ? Math.PI * 2 : 0), rr * (0.9 + rnd() * 0.15)), 0.06); }
+    };
+    // vertical webs strung between neighbouring dead trees
+    for (let k = 0; k < anchors.length; k++) {
+      if (k % 3 === 2) continue;
+      const A = anchors[k], B = anchors[(k + 1) % anchors.length];
+      const c = [(A[0] + B[0]) / 2, Math.max(A[1], B[1]) + 3.2, (A[2] + B[2]) / 2];
+      const ux = B[0] - A[0], uz = B[2] - A[2], ul = Math.hypot(ux, uz) || 1;
+      radial(c, [ux / ul, 0, uz / ul], [0, 1, 0], Math.min(3.4, ul * 0.5), 9, 5);
+      strand([A[0], A[1] + 4.5, A[2]], c, 0.07); strand([B[0], B[1] + 4.5, B[2]], c, 0.07);
+    }
+    // webs over the ground and long guy-lines toward the centre
+    for (let k = 0; k < 6; k++) {
+      const a = rnd() * Math.PI * 2, r = 3 + rnd() * 8, x = C.x + Math.cos(a) * r, z = C.z + Math.sin(a) * r;
+      radial([x, W.heightAt(x, z) + 0.06, z], [1, 0, 0], [0, 0, 1], 1.6 + rnd() * 1.6, 8, 3);
+    }
+    anchors.forEach(A => { if (rnd() < 0.6) strand([A[0], A[1] + 3.5, A[2]], [C.x + (rnd() - 0.5) * 6, W.heightAt(C.x, C.z) + 0.05, C.z + (rnd() - 0.5) * 6], 0.05); });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, GW.mat({ id: ID.STAR, color: 0, emissive: 0xb8c8f0, unlit: true, side: THREE.DoubleSide }));
+    m.frustumCulled = false; scene.add(m);
+    W.lights.add(C.x, W.heightAt(C.x, C.z) + 4, C.z, new THREE.Color(0.4, 0.45, 0.65), 16, 0.3);
+    return m;
   }
 
   // ----- Greymoss Keep (tools/blender/build_castle.py). Local coords: lx east, ly north (= game -z). -----
@@ -649,8 +722,38 @@
     W.lights.add(fx, fy + 0.3, fz - 0.6, new THREE.Color(1.0, 0.56, 0.24), 9.5, 0.9);
   }
 
+  // ----- The Ivy Watch (tools/blender/build_tower.py): walk in the door, come out on the roof -----
+  const TW = { top: 13.1, r: 3.3 };
+  W.tower = TW;
+  function buildTower(scene) {
+    const g = GW.Assets.gltf.tower; if (!g) return;
+    const T = L.tower, base = W.heightAt(T.x, T.z) - 0.05;
+    TW.base = base; TW.x = T.x; TW.z = T.z; TW.topY = base + TW.top;
+    const mats = {
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a92a4, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5a6070, fill: 0.08 }),
+      moss: GW.mat({ id: ID.LEAF, tex: 5, color: 0x5a8a4a, fill: 0.1 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x8a6440, fill: 0.1 }),
+      woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+      gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
+    };
+    mergeByMat(g, mats, mats.cobble, T.x, base, T.z, scene);
+    W.addCollider(T.x, T.z, 3.6, 'tower', 0);                         // the tower body (ground level only)
+    for (let k = 0; k < 28; k++) {                                     // the parapet on the roof, broken on the west
+      const a = k / 28 * Math.PI * 2; if (a > 2.7 && a < 3.5) continue;
+      W.addCollider(T.x + Math.cos(a) * 3.35, T.z - Math.sin(a) * 3.35, 0.4, 'tower', 2);
+    }
+    TW.door = { x: T.x, z: T.z + 4.0 };
+    TW.chest = { x: T.x - 0.6, z: T.z - 1.2 };
+    W.interact.push({ type: 'hatch', x: T.x + 1.6, z: T.z + 0.4, r: 1.3, label: 'Climb down', floor: 2 });
+    W.interact.push({ type: 'chest', x: TW.chest.x, z: TW.chest.z, r: 1.6, label: 'Open the chest', floor: 2, id: 'tower' });
+    W.lights.add(T.x, TW.topY + 2.5, T.z, new THREE.Color(0.35, 0.42, 0.6), 7, 0.4);   // moonlit roof
+  }
+
   // walkable height for a position at a given level; returns { y, lv }
   W.levelAt = function (x, z, lv) {
+    if (lv === 2) {
+      if (TW.base !== undefined && Math.hypot(x - TW.x, z - TW.z) < 3.25) return { y: TW.topY, lv: 2 };
+      return { y: W.groundY(x, z), lv: 0 };               // stepped through the broken parapet: drop
+    }
     if (CL.base === undefined) return { y: W.groundY(x, z), lv: 0 };
     const [lx, ly] = W.castleLocal(x, z);
     const onStair = lx > 6.15 && lx < 7.85 && ly > -0.3 && ly < 8.6;
@@ -743,7 +846,7 @@
   W.updateSky = function (cam) { if (W.sky) { W.sky.position.set(cam.position.x, 0, cam.position.z); W.sky.scale.setScalar(Math.max(1, cam.far / 400 * 0.95)); } };
 
   // ----- pieces -----
-  function campfire(scene, x, z, label) {
+  function campfire(scene, x, z, label, own) {
     const y = W.heightAt(x, z);
     const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
     const wood = GW.mat({ id: ID.WOOD, color: 0x4a3020 }), stone = GW.mat({ id: ID.STONE, color: 0x707480 });
@@ -759,8 +862,11 @@
     W.flames.push(...flames);
     const light = W.lights.add(x, y + 1.6, z, new THREE.Color(1.0, 0.5, 0.18).multiplyScalar(1.6), 15, 1);
     W.addCollider(x, z, 1.0, 'fire');
-    W.interact.push({ type: 'rest', x, z, r: 2.8, label: 'Rest at ' + label, name: label });
-    return { g, light };
+    const rest = { type: 'rest', x, z, r: 2.8, label: 'Rest at ' + label, name: label, own: !!own };
+    W.interact.push(rest);
+    const fire = { x, z, g, light, flames, rest, out: false };
+    W.fires.push(fire);
+    return fire;
   }
   W.campfire = campfire;
 
@@ -939,6 +1045,7 @@
           // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
           float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
+          keep *= step(-0.3, m.g);   // burnt ground: no grass
           // dark earth patches (matching the ground shader's o 0 8 letters): only a few straws survive there
           float thr = 1.0 - 0.32 * uGroundO, pv = vn(wp * 0.11 + 5.0) * 0.7 + vn(wp * 0.37 + 1.7) * 0.3;
           float patchK = smoothstep(thr - 0.05, thr + 0.03, pv) * step(0.01, uGroundO);

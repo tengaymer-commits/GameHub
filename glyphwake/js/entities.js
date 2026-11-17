@@ -165,7 +165,7 @@
     this.cd = { s2: 0, s3: 0, s4: 0 };
     this.weapon = { metal: 'iron', runes: [null, null, null] };
     this.gear = Object.assign({}, GW.Knight.DEFAULT);
-    this.inv = { runes: {}, ingots: {}, armor: { greathelm: 1, knightplate: 1, crimson: 1 } };
+    this.inv = { runes: {}, ingots: {}, kindling: 3, armor: { greathelm: 1, knightplate: 1, crimson: 1 } };
     this.hitSet = new Set(); this.walkPhase = 0; this.hurtT = 0; this.healT = 0;
     this.buildModel(scene);
     this.trail = new Trail(scene, 16);
@@ -196,7 +196,7 @@
     this.trail.color.set(s.trail);
   };
   Player.prototype.need = function () { return Math.round(80 * Math.pow(this.level, 1.6)); };
-  Player.prototype.place = function (x, z) { this.pos.set(x, GW.World.groundY(x, z), z); this.vel.set(0, 0, 0); this.level = 0; };
+  Player.prototype.place = function (x, z) { this.pos.set(x, GW.World.groundY(x, z), z); this.vel.set(0, 0, 0); this.floor = 0; };
   Player.prototype.fwd = function () { return new V3(Math.sin(this.yaw), 0, Math.cos(this.yaw)); };
 
   Player.prototype.update = function (dt, input, G) {
@@ -218,7 +218,8 @@
     this._spd = this.mvel && this.state === 'move' ? Math.hypot(this.mvel.x, this.mvel.z) : 6.2 * (this.moveMul || 1) * ml;
     if (this.state !== 'move' && this.mvel && this.state !== 'roll') this.mvel.multiplyScalar(0.5);
     const wading = W.inWater(this.pos.x, this.pos.z);
-    let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1);
+    if (this.webbed > 0) this.webbed -= dt;
+    let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1) * (this.webbed > 0 ? 0.45 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
 
     // buffer inputs
@@ -348,7 +349,7 @@
     }
     // integrate + collide
     this.pos.x += vx * dt; this.pos.z += vz * dt;
-    W.collide(this.pos, 0.35, this.level || 0);
+    W.collide(this.pos, 0.35, this.floor || 0);
     for (const e of G.enemies) {
       if (!e.alive) continue;
       const dx = this.pos.x - e.pos.x, dz = this.pos.z - e.pos.z, rr = 0.45 + e.radius, d2 = dx * dx + dz * dz;
@@ -358,8 +359,8 @@
       const A = W.L.arena, dx = this.pos.x - A.x, dz = this.pos.z - A.z, d = Math.hypot(dx, dz);
       if (d > 17.5) { this.pos.x = A.x + dx / d * 17.5; this.pos.z = A.z + dz / d * 17.5; }
     }
-    const la = W.levelAt(this.pos.x, this.pos.z, this.level || 0);
-    this.level = la.lv;
+    const la = W.levelAt(this.pos.x, this.pos.z, this.floor || 0);
+    this.floor = la.lv;
     const gy = la.y, falling = gy < this.pos.y - 0.6;
     this.pos.y += (gy - this.pos.y) * Math.min(1, dt * (falling ? 6 : 18));
     this.animate(dt);
@@ -486,6 +487,7 @@
       this.model.position.y = this.pos.y - k * 0.8 * this.T.radius;
       this.model.rotation.z = k * 1.2 * this.dieSide;
       if (this.deadT > 1.2 && this.model.visible) { this.model.visible = false; this.shadow.visible = false; }
+      if (this.legs) this.legs.forEach(g => g.segs.forEach(m => { m.visible = this.model.visible; }));
       return;
     }
     // status effects
@@ -871,6 +873,162 @@
     onDeath(e) { GW.World.lights.remove(e.light); },
   };
   const W_ = { get L() { return GW.World.L; } };
+
+  // ---------------- The Dusk Widow: a giant furry spider (procedural legs, IK walk, three phases) ----------------
+  const UPV = new V3(0, 1, 0), _q = new THREE.Quaternion(), _a = new V3(), _b = new V3(), _d = new V3();
+  const segGeo = new THREE.CylinderGeometry(1, 1, 1, 9, 3); segGeo.translate(0, 0.5, 0);
+  function setSeg(m, A, B, r0) {     // stretch a unit segment mesh from A to B
+    _d.subVectors(B, A); const len = _d.length(); if (len < 1e-4) return;
+    m.position.copy(A); _q.setFromUnitVectors(UPV, _d.multiplyScalar(1 / len)); m.quaternion.copy(_q); m.scale.set(r0, len, r0);
+  }
+  // leg i: hip angle around the body (from the front), rest foot distance
+  const WLEGS = [0.45, 0.95, 1.55, 2.2].flatMap(a => [a, -a]);
+  TYPES.widow = {
+    name: 'DUSK WIDOW', hp: 2300, radius: 2.4, poise: 999, aggro: 15, leash: 999, xp: 900, dmg: 22, speed: 5.2, kind: 'beast', boss: true,
+    build(e) {
+      const fur = e.mat({ id: ID.FLOWER, tex: 9, color: 0x6a5e58, fill: 0.05 }), furDark = e.mat({ id: ID.FLOWER, tex: 9, color: 0x4a4240, fill: 0.04 });
+      const eye = e.mat({ id: ID.FIRE, color: 0, emissive: 0xff3020, unlit: true }), fang = e.mat({ id: ID.BONE, color: 0x2a2220 });
+      const b = e.body = new THREE.Group(); e.model.add(b);
+      const abd = part(b, new THREE.SphereGeometry(1, 28, 20), fur, 0, 2.6, -2.5); abd.scale.set(1.75, 1.45, 2.3); e.abd = abd;
+      const pedicel = part(b, new THREE.SphereGeometry(0.5, 10, 8), furDark, 0, 2.15, -0.5);
+      const ceph = part(b, new THREE.SphereGeometry(1, 22, 16), fur, 0, 2.0, 0.65); ceph.scale.set(1.15, 0.8, 1.35);
+      const head = part(b, new THREE.SphereGeometry(0.62, 16, 12), furDark, 0, 2.05, 1.85); head.scale.set(1, 0.85, 0.9);
+      [[-0.18, 0.2], [0.18, 0.2], [-0.32, 0.08], [0.32, 0.08], [-0.1, 0.32], [0.1, 0.32]].forEach(([x, y]) => part(head, new THREE.SphereGeometry(0.07, 6, 5), eye, x, y, 0.5));
+      e.fangs = [-0.2, 0.2].map(x => { const f = part(head, new THREE.ConeGeometry(0.11, 0.6, 6), fang, x, -0.45, 0.42); f.rotation.x = Math.PI * 0.85; return f; });
+      // legs live in world space (IK), three segments each
+      e.legs = WLEGS.map((ang, i) => {
+        const g = { ang, side: ang > 0 ? 1 : -1, grp: (i % 2) ^ (Math.floor(i / 2) % 2), foot: new V3(), from: new V3(), to: new V3(), t: 1, segs: [] };
+        for (let k = 0; k < 3; k++) { const m = new THREE.Mesh(segGeo, k === 2 ? furDark : fur); m.frustumCulled = false; e.scene.add(m); g.segs.push(m); }
+        return g;
+      });
+      e.eyeMat = eye; e.phase = 1; e._init = false;
+      e.light = GW.World.lights.add(e.pos.x, 3, e.pos.z, new THREE.Color(1.0, 0.25, 0.15).multiplyScalar(0.6), 6, 0.2);
+    },
+    ai(e, c) {
+      const { dt, G, P, dP } = c, T = TYPES.widow, L = W_.L.lair;
+      e.light.p.set(e.pos.x + Math.sin(e.yaw) * 2, e.pos.y + 2.4, e.pos.z + Math.cos(e.yaw) * 2);
+      if (!G.bossActive || G.curBoss !== e) {
+        e.moving = false;
+        const dh = Math.hypot(e.pos.x - L.x, e.pos.z - L.z);
+        if (dh > 1.5) e.moveTo(L.x, L.z, T.speed * 0.6, dt); else e.face(P.pos, dt, 0.5);
+        return;
+      }
+      // you ran away: she goes home and heals
+      if (Math.hypot(P.pos.x - L.x, P.pos.z - L.z) > 42) { G.bossActive = false; G.curBoss = null; G.ui.boss(false); e.hp = e.maxHp; e.phase = 1; e.aggro = false; return; }
+      const ph = e.hp < e.maxHp / 3 ? 3 : e.hp < e.maxHp * 2 / 3 ? 2 : 1, rage = ph === 3 ? 1.3 : ph === 2 ? 1.12 : 1;
+      if (ph > e.phase) {
+        e.phase = ph; e.setState('roar'); GWAudio.sfx('roar'); G.shake(0.7);
+        G.ui.banner('', ph === 2 ? 'THE WIDOW SPINS HER WEB' : 'THE WIDOW IS FRENZIED', 2.4);
+      }
+      switch (e.state) {
+        case 'roar': e.moving = false; if (e.t > 1.3) { e.setState('chase'); e.cool = 0.4; } break;
+        case 'stab':
+          e.moving = false; if (e.t < 0.6 / rage) e.face(P.pos, dt, 3);
+          if (e.t > 0.7 / rage && !e.didHit) { GWAudio.sfx('heavy'); e.strike(G, 5.0, 0.8, T.dmg, { heavy: true }); e.didHit = true; G.shake(0.35);
+            G.parts.dust.burst(e.pos.x + Math.sin(e.yaw) * 4, e.pos.y + 0.2, e.pos.z + Math.cos(e.yaw) * 4, 14, 4, 0x8a8078, 0.7, 1.1, -3, 1); }
+          if (e.t > 1.25 / rage) { e.setState('chase'); e.cool = 0.9 / rage; }
+          break;
+        case 'web':
+          e.moving = false; e.face(P.pos, dt, 5);
+          if (e.t > 0.75 / rage && !e.didHit) {
+            e.didHit = true; GWAudio.sfx('cast');
+            const n = ph === 1 ? 1 : 3;
+            for (let k = 0; k < n; k++) {
+              const a = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z) + (k - (n - 1) / 2) * 0.28;
+              G.spawnProjectile({ from: 'enemy', x: e.pos.x + Math.sin(e.yaw) * 2.6, y: e.pos.y + 1.6, z: e.pos.z + Math.cos(e.yaw) * 2.6, vx: Math.sin(a) * 15, vz: Math.cos(a) * 15, r: 0.6, dmg: T.dmg - 8, color: 0xd8e4ff, life: 1.6, web: true });
+            }
+          }
+          if (e.t > 1.2 / rage) { e.setState('chase'); e.cool = 1.0 / rage; }
+          break;
+        case 'pounce-wind':
+          e.moving = false; e.face(e.jt, dt, 6);
+          if (e.t > 0.8 / rage) { e.setState('pounce'); e.j0 = { x: e.pos.x, z: e.pos.z }; GWAudio.sfx('roar'); }
+          break;
+        case 'pounce': {
+          const k = Math.min(1, e.t / 0.55);
+          e.pos.x = GW.lerp(e.j0.x, e.jt.x, k); e.pos.z = GW.lerp(e.j0.z, e.jt.z, k); e.hop = Math.sin(k * Math.PI) * 4.5;
+          if (k >= 1) {
+            e.hop = 0; GWAudio.sfx('slam'); G.shake(1.0);
+            G.parts.dust.burst(e.pos.x, e.pos.y + 0.3, e.pos.z, 40, 8, 0x8a8078, 0.9, 1.5, -4, 2);
+            if (Math.hypot(P.pos.x - e.pos.x, P.pos.z - e.pos.z) < 4.2) G.hurtPlayer(T.dmg + 8, e.pos, { heavy: true });
+            e.setState('recover');
+          }
+          break;
+        }
+        case 'rain':
+          e.moving = false;
+          if (e.t > 0.4 && !e.didHit) {
+            e.didHit = true; GWAudio.sfx('cast');
+            for (let k = 0; k < 6; k++) {
+              const x = P.pos.x + (k ? (Math.random() - 0.5) * 9 : 0), z = P.pos.z + (k ? (Math.random() - 0.5) * 9 : 0);
+              G.telegraph({ shape: 'circle', x, z, r: 1.8, dur: 1.0 });
+              setTimeout(() => { if (!e.alive) return; G.webBurst(x, z);
+                if (Math.hypot(G.player.pos.x - x, G.player.pos.z - z) < 2.1) { G.hurtPlayer(T.dmg - 6, { x, y: 0, z }, {}); G.player.webbed = 2.2; } }, 1000);
+            }
+          }
+          if (e.t > 1.6) { e.setState('chase'); e.cool = 0.8; }
+          break;
+        case 'recover': e.moving = false; if (e.t > 0.9 / rage) { e.setState('chase'); e.cool = 0.5; } break;
+        default: {
+          if (e.state !== 'chase') e.setState('chase');
+          if (dP > 4.4) e.moveTo(P.pos.x, P.pos.z, T.speed * rage, dt); else { e.moving = false; e.face(P.pos, dt, 3); }
+          if (e.cool <= 0) {
+            const r = Math.random();
+            if (dP < 5.5 && r < 0.6) { e.setState('stab'); G.telegraph({ shape: 'cone', x: e.pos.x, z: e.pos.z, r: 5.0, half: 0.8, dur: 0.7 / rage, follow: e, followYaw: true, yaw: e.yaw }); }
+            else if (ph >= 2 && dP > 6 && r < 0.45) { e.jt = { x: P.pos.x, z: P.pos.z }; e.setState('pounce-wind'); G.telegraph({ shape: 'circle', x: P.pos.x, z: P.pos.z, r: 4.2, dur: 0.8 / rage + 0.55 }); }
+            else if (ph === 3 && r < 0.7) e.setState('rain');
+            else if (dP > 5) e.setState('web');
+            else e.cool = 0.3;
+          }
+        }
+      }
+    },
+    anim(e, dt) {
+      const W = GW.World, cy = Math.cos(e.yaw), sy = Math.sin(e.yaw);
+      e.ph = (e.ph || 0) + dt * (e.moving ? 7 : 1.5);
+      const bob = Math.sin(e.ph * 2) * (e.moving ? 0.08 : 0.03);
+      e.body.position.y = (e.hop || 0) + bob;
+      let pitch = 0; const st = e.state;
+      if (st === 'stab') pitch = e.t < 0.7 ? -0.25 * Math.min(1, e.t / 0.5) : 0.18;
+      if (st === 'roar' || st === 'pounce-wind' || st === 'web') pitch = -0.22;
+      e.body.rotation.x = GW.lerp(e.body.rotation.x, pitch, Math.min(1, dt * 8));
+      e.abd.rotation.x = Math.sin(e.ph * 0.7) * 0.05;
+      e.fangs.forEach((f, i) => { f.rotation.z = (i ? -1 : 1) * (0.15 + 0.2 * Math.max(0, Math.sin(e.t * (st === 'roar' ? 18 : 3)))); });
+      const pulse = 0.8 + 0.3 * Math.sin(e.t * 4) + (e.phase - 1) * 0.35;
+      e.eyeMat.uniforms.uEmissive.value.setRGB(1.0 * pulse, 0.18 * pulse, 0.1 * pulse);
+      // ---- legs: tetrapod gait with 2-bone IK (knees high, like a spider) ----
+      const bodyY = e.pos.y + 2.0 + (e.hop || 0) + bob;
+      const groupStep = Math.floor(e.ph / Math.PI) % 2;
+      for (let i = 0; i < 8; i++) {
+        const g = e.legs[i], a = g.ang + e.yaw;
+        const hx = e.pos.x + Math.sin(e.yaw) * 0.6 + Math.sin(a) * 0.9, hz = e.pos.z + Math.cos(e.yaw) * 0.6 + Math.cos(a) * 0.9;
+        _a.set(hx, bodyY + 0.1, hz);                                           // hip
+        const reach = 4.6 + (Math.abs(g.ang) > 2 ? 0.3 : 0);
+        let rx = e.pos.x + Math.sin(a) * reach, rz = e.pos.z + Math.cos(a) * reach;
+        if (st === 'stab' && i < 2) { const k = e.t < 0.7 ? Math.min(1, e.t / 0.5) : 0; rx += sy * 1.5 * (e.t < 0.7 ? 1 : 0.4); rz += cy * 1.5 * (e.t < 0.7 ? 1 : 0.4); g.lift = 2.6 * k; } else g.lift = 0;
+        if (!e._init) { g.foot.set(rx, W.groundY(rx, rz), rz); g.t = 1; }
+        const off = Math.hypot(g.foot.x - rx, g.foot.z - rz);
+        if (g.t >= 1 && (off > 1.6 || (e.moving && off > 0.7 && g.grp === groupStep)) && !e.hop) { g.from.copy(g.foot); g.to.set(rx, W.groundY(rx, rz), rz); g.t = 0; }
+        if (g.t < 1) {
+          g.t = Math.min(1, g.t + dt * (e.moving ? 6.5 : 4));
+          g.foot.lerpVectors(g.from, g.to, g.t); g.foot.y += Math.sin(g.t * Math.PI) * 0.9;
+        }
+        if (e.hop) { g.foot.set(GW.lerp(g.foot.x, rx, 0.3), GW.lerp(g.foot.y, bodyY - 1.2, 0.3), GW.lerp(g.foot.z, rz, 0.3)); }
+        _b.copy(g.foot); _b.y += g.lift || 0;
+        // knee: solve in the vertical plane through hip and foot
+        const L1 = 3.0, L2 = 3.3, dx = _b.x - _a.x, dz = _b.z - _a.z, h = Math.hypot(dx, dz), dy = _b.y - _a.y;
+        const D = Math.min(L1 + L2 - 0.01, Math.hypot(h, dy));
+        const ca = (L1 * L1 + D * D - L2 * L2) / (2 * L1 * D), base = Math.atan2(dy, h), ang1 = base + Math.acos(GW.clamp(ca, -1, 1));
+        const kx = _a.x + dx / (h || 1) * Math.cos(ang1) * L1, ky = _a.y + Math.sin(ang1) * L1, kz = _a.z + dz / (h || 1) * Math.cos(ang1) * L1;
+        _d.set(kx, ky, kz);
+        const ankle = new V3().lerpVectors(_d, _b, 0.72); ankle.y += 0.25;
+        setSeg(g.segs[0], _a, _d, 0.24); setSeg(g.segs[1], _d, ankle, 0.19); setSeg(g.segs[2], ankle, _b, 0.12);
+        g.segs.forEach(m => { m.visible = e.model.visible; });
+      }
+      e._init = true;
+    },
+    onDeath(e) { GW.World.lights.remove(e.light); },
+  };
 
   // ======================================================================
   // NPCs

@@ -10,7 +10,7 @@
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'interact', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear' };
+  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {
@@ -141,7 +141,7 @@
       const tb = document.querySelector(`.tb[data-act=${k}] i`); if (tb) tb.style.height = (f * 100) + '%';
     }
     UI.hs.potion.querySelector('.c').textContent = P.flasks + '/' + P.maxFlasks;
-    setText('t-pots', String(P.flasks));
+    setText('t-pots', String(P.flasks)); setText('t-kind', String((P.inv && P.inv.kindling) || 0));
   };
 
   // ---------------- floaters ----------------
@@ -303,6 +303,7 @@
   if (!UI.settings.v5) Object.assign(UI.settings, { v5: true, lens: 'flat', hud: 'min' });
   if (!UI.settings.v6) Object.assign(UI.settings, { v6: true, pure: false });
   if (!UI.settings.v7) Object.assign(UI.settings, { v7: true, grassBlend: true });   // ASCII grass read as scanlines
+  if (!UI.settings.v8) Object.assign(UI.settings, { v8: true, glyphT: 10, respawn: false });
   UI.settings.follow = UI.settings.control === 'follow';
   let zoomSaveT = null;
   UI.setZoom = function (z) {
@@ -313,13 +314,16 @@
   UI.applyControl = function () { document.body.classList.toggle('aim', UI.settings.control !== 'follow' && !I.touch); };
   UI.saveSettings = function () { try { localStorage.setItem('glyphwake.settings', JSON.stringify(UI.settings)); } catch (e) { /* ignore */ } };
   // "Source look": matches the reference clips on a 1080p+ PC screen
-  UI.SOURCE_LOOK = { lens: 'flat', camPitch: 0.96, camYaw: 0, zoom: 1.1, glyphA: 4.5, glyph: 6.5, glyphS: 5, grassBlend: true, grassAscii: 0.3,
+  UI.SOURCE_LOOK = { lens: 'flat', camPitch: 0.96, camYaw: 0, zoom: 1.1, glyphA: 4.5, glyph: 6.5, glyphS: 5, glyphT: 12, grassBlend: true, grassAscii: 0.3,
     grassSize: 0.8, flowers: 0.7, swirl: 0.85, heroPop: 0.85, dark: 0.4, groundO: 0.9, farBlend: 0.15, pure: false, control: 'free', follow: false, hud: 'min', res: 'auto' };
   UI.initSettings = function (apply) {
     const S = UI.settings;
     UI._apply = apply;
     const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
+    const rsp = $('o-respawn'), hun = $('o-hunts');
+    rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };
+    hun.checked = S.nightHunts !== false; hun.onchange = () => { S.nightHunts = hun.checked; UI.saveSettings(); };
     pct('heroPop', 0.3); pct('dark', 0); pct('swirl', 0.25); pct('grassAscii', 0); pct('groundO', 0.4);
     $('o-source').onclick = () => {
       Object.assign(S, UI.SOURCE_LOOK); UI.saveSettings(); UI.applyControl(); apply(); UI.initSettings(apply);
@@ -352,6 +356,8 @@
     hd.value = S.hud || 'min'; hd.onchange = () => { S.hud = hd.value; UI.saveSettings(); };
     const ga = $('o-glyphA'), gs = $('o-glyphS');
     ga.value = S.glyphA; $('o-glyphA-v').textContent = S.glyphA + 'px'; gs.value = S.glyphS; $('o-glyphS-v').textContent = S.glyphS + 'px';
+    const gt = $('o-glyphT'); gt.value = S.glyphT || 10; $('o-glyphT-v').textContent = (S.glyphT || 10) + 'px';
+    gt.oninput = () => { S.glyphT = +gt.value; $('o-glyphT-v').textContent = S.glyphT + 'px'; apply(); UI.saveSettings(); };
     ga.oninput = () => { S.glyphA = +ga.value; $('o-glyphA-v').textContent = S.glyphA + 'px'; apply(); UI.saveSettings(); };
     gs.oninput = () => { S.glyphS = +gs.value; $('o-glyphS-v').textContent = S.glyphS + 'px'; apply(); UI.saveSettings(); };
     gl.value = S.glyph; $('o-glyph-v').textContent = S.glyph + 'px'; q.value = S.quality; v.value = S.vol; m.value = S.mus; sh.checked = S.shake; pu.checked = S.pure;

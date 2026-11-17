@@ -107,3 +107,34 @@ silver key on characters ("Hero light") so they read first. Every value stays ad
 lancet and rose windows, buttresses, a half-collapsed roofed nave and a wall torch, just north-east of the
 Waking Stone (`L.chapel` in `js/world.js`). Walls, roofs and tree tops between the camera and the knight
 dissolve (dithered) so he stays visible inside.
+
+## Structures, trees and fire (source pass 2)
+
+- **Letter walls**: stone, masonry, ruin and rock surfaces print dense mixed characters (`$Q&8wdbpq(/…`, three
+  alphabets mixed per cell) on their own, larger glyph grid (Settings → Glyph density → Structures; 12 px in the
+  Source look). Brightness drives colour more than the letter, like the reference.
+- **Trees / ivy / moss**: drawn as combed fur strokes (same language as the grass) instead of glyphs, with dark
+  gaps and the black edge kept. Animal fur (tex 9, set 9) uses the same idea with finer grizzled strokes.
+- **Your own fires**: `F` (or ♨ on touch) spends 1 kindling to build a fire in front of you. It scorches the grass
+  to ash dirt (`W.burn`), is a rest/save point while lit, keeps night hunters out of its light, and burns out
+  after 8 minutes (max 3 at once; saved). Enemies drop kindling.
+
+## Spawning
+
+- *Enemies respawn when you rest* (souls-like) is now a setting, **off** by default.
+- **Camps**: enemies are grouped by home; a fully cleared camp refills after 5 minutes, only while you are 60 m+ away.
+- **Night hunts** (setting, on): after dark, packs of wolves or hollows spawn out of sight 34–44 m away and hunt
+  you. They won't step into firelight, never spawn near fires or in Emberhold, and burn away at dawn.
+
+## Vertical ruins: the Ivy Watch
+
+`tools/blender/build_tower.py` → `assets/models/tower.glb`: an overgrown 13 m round watchtower near Thornwolf
+Meadow. Walk into the door and you come out on the roof (floor 2 in `W.levelAt`); a chest waits there, the hatch
+takes you back down, and the broken west parapet lets you drop off. Floors use `player.floor` (0 ground, 1 castle
+upper floor, 2 tower roof); this is the pattern for the larger ruined castle later.
+
+## Boss: the Dusk Widow
+
+A giant furry spider in the Widow's Hollow (south-west), ringed by dead trees strung with glowing dotted webs.
+Procedural body, 8 legs with 2-bone IK and a tetrapod gait. Three phases (segmented boss bar): leg stab and web
+throw (slows you), then pounce, then web rain. Leave the hollow and she goes home and heals.
