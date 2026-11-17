@@ -149,3 +149,18 @@ throw (slows you), then pounce, then web rain. Leave the hollow and she goes hom
   backgrounds; flame cones are hidden.
 - *Idea for later*: give every category its own small palette (stone greys, wood browns, foliage greens, water
   blues, enemies desaturated, heroes silver-white, loot gold) so things separate at a glance.
+
+## The 8 km world (phase 1–3)
+
+- **Streaming terrain**: height, grass, river/road distance and 6 region weights are computed per 128 m chunk on demand
+  (`computeChunk` in `js/world.js`) and cached; the GPU gets a 1 km window (`W.dataWindow`). Chunks ahead of you are
+  prefetched one per frame. River water follows the land (`RIVER_Y`).
+- **Regions**: the Vale (centre) ringed by Frostmere (N), Highlands (NE), Ashen Barrens (SE), Salt Wastes (S),
+  the Mire (SW) and Duskwood (NW), each with palette, ground, grass, terrain shape and scatter.
+- **Villages**: Hearthwick, Rimehold, Cragmoor, Emberfall, Saltreach, Bogwater, Dimmering. Each has a fire, an anvil,
+  a trader (shop for ◈ shards) and a bounty-giver (clear N camps in the region).
+- **Points of interest**: one per 150 m cell (~1,950 in all), seeded and typed per region: camps, ruins with chests,
+  chests, shrines (5-minute buffs), waystones (fast travel), vistas (reveal the map around), wandering traders,
+  ambushes and elites. Enemies appear when you approach, vanish when you leave, and stay dead once cleared.
+  Enemy level rises with distance from the Vale.
+- **Settings**: render distance (Near / Normal / Far / Very far).
