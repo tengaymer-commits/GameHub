@@ -97,7 +97,7 @@
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uBiomeMap: { value: null },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -109,7 +109,7 @@
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform sampler2D uBiomeMap;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -256,17 +256,34 @@
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
-      float xEdge = 0.0;
+      float xEdge = 0.0, xGhost = 0.0, xLamp = 0.0;
       if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
-        // inside a building: dollhouse view. The roof lifts off, walls on the camera side are cut down to knee
-        // height (doorways show as gaps), far walls stay whole. Cut tops get a dark band like a section drawing.
+        // see-through modes (Settings > Camera > See the hero): 1 roof lift, 2 dollhouse, 3 glyph thinning,
+        // 4 ghost walls, 5 dark outside (roof lift + 2D vignette), 6 lantern reveal
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
-        float tt = dot(rr, cd), dh = length(vW.xz - uPlayerW.xz);
-        if (dh < 16.0) {
-          float roofY = uPlayerW.y + 2.5, kneeY = uPlayerW.y + 0.7;
-          float cutY = tt > 0.3 ? kneeY : roofY;
-          if (vW.y > cutY) discard;
-          xEdge = smoothstep(cutY - 0.22, cutY, vW.y);
+        float tt = dot(rr, cd), dp = length(rr - cd * tt), dh = length(vW.xz - uPlayerW.xz);
+        int md = int(uSeeMode + 0.5);
+        if (md == 1 || md == 2 || md == 5) {
+          if (dh < 16.0) {
+            float roofY = uPlayerW.y + 2.5, kneeY = uPlayerW.y + 0.7;
+            float cutY = (md == 2 && tt > 0.3) ? kneeY : roofY;
+            if (vW.y > cutY) discard;
+            xEdge = smoothstep(cutY - 0.22, cutY, vW.y);
+          }
+        } else if (tt > 0.4) {
+          float R = 3.4, k = 1.0 - smoothstep(R * 0.55, R, dp);
+          vec3 nn = normalize(vN), VV = normalize(uCam - vW);
+          if (md == 3) {          // thin ink: only a sparse scatter of the wall survives, so its letters go light and thin
+            if (k > 0.0 && th(floor(gl_FragCoord.xy / 3.0) + 0.37) < k * 0.82) discard;
+          } else if (md == 4) {   // ghost: faces seen edge-on stay as faint outlines, the rest goes
+            float edge = 1.0 - abs(dot(nn, VV));
+            if (k > 0.0 && edge < 0.82 && th(floor(gl_FragCoord.xy * 0.5) + 0.71) < k * 0.97) discard;
+            xGhost = k;
+          } else if (md == 6) {   // lantern: a warm pool of light dissolves the wall, softest at its rim
+            float k2 = 1.0 - smoothstep(R * 0.8, R * 1.3, dp);
+            if (th(floor(gl_FragCoord.xy * 0.5) + 0.13) < k2 * (0.5 + 0.5 * (1.0 - smoothstep(R * 0.4, R, dp)))) discard;
+            xLamp = k2;
+          }
         }
       }
       vec3 n = normalize(vN);
@@ -362,6 +379,8 @@
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
       col = mix(col, vec3(0.5, 0.52, 0.56), xEdge * 0.85);   // cut wall tops read as a light floor-plan outline
+      col = mix(col, col * 0.22 + vec3(0.08, 0.1, 0.14), xGhost);
+      col += vec3(1.0, 0.62, 0.28) * xLamp * 0.22;
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
       if (uSil > 0.5) {   // hero behind something: only his outline (the rim), in silver
         float rr = 1.0 - max(dot(n, V), 0.0);

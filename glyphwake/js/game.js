@@ -643,7 +643,7 @@
   let hiddenK = 0, hiddenTest = 0, hidden = false, hiddenHold = 0;
   function drawHiddenHero(dt) {
     const P = G.player, C = G.camera, W = GW.World;
-    if (G.state !== 'play' || UI.settings.xray) { hiddenK = 0; return; }
+    if (G.state !== 'play') { hiddenK = 0; return; }
     if (--hiddenTest <= 0) {
       hiddenTest = 3; let any = false;
       // only things within ~30 m of the hero can hide him (the camera is near-orthographic)
@@ -670,7 +670,10 @@
   // second pass over the hero's meshes: drawn only where something is in front of him (depth test 'greater')
   const silMats = new WeakMap();
   function silhouettePass(r, camera) {
-    if (!G.heroHidden || UI.settings.xray || G.heroInside) return;
+    const md = UI.settings.seeMode !== undefined ? UI.settings.seeMode : 2;
+    if (!G.heroHidden) return;
+    if ([3, 4, 6].includes(md)) return;                 // the wall itself opens up around him
+    if (md !== 0 && G.heroInside) return;               // roof modes: he is visible from above
     const scene = G.scene, hide = [];
     // render just the hero: temporarily hide every other top-level object
     scene.children.forEach(o => { if (o !== G.player.model && o.visible) { o.visible = false; hide.push(o); } });
@@ -690,6 +693,18 @@
     scene.background = bg;
     swaps.forEach(([m, mat]) => { m.material = mat; });
     hide.forEach(o => { o.visible = true; });
+  }
+  // ---- 'dark outside' mode: inside a building, everything beyond the room fades to black ----
+  let darkK = 0;
+  function drawDarkOutside() {
+    const md = UI.settings.seeMode !== undefined ? UI.settings.seeMode : 2;
+    darkK += (((md === 5 && G.heroInside && G.state === 'play') ? 1 : 0) - darkK) * 0.08;
+    if (darkK < 0.02 || !fxCx) return;
+    const P = G.player, C = G.camera, v = new THREE.Vector3(P.pos.x, P.pos.y + 1, P.pos.z).project(C), v2 = new THREE.Vector3(P.pos.x + 9, P.pos.y + 1, P.pos.z).project(C);
+    const x = (v.x * 0.5 + 0.5) * fxCv.width, y = (-v.y * 0.5 + 0.5) * fxCv.height, r = Math.max(60, Math.abs(v2.x - v.x) * 0.5 * fxCv.width);
+    const g = fxCx.createRadialGradient(x, y, r * 0.55, x, y, r * 1.25);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(1,2,4,${0.88 * darkK})`);
+    fxCx.fillStyle = g; fxCx.fillRect(0, 0, fxCv.width, fxCv.height);
   }
   // ---- weather: glyph rain in the Vale (comes and goes), snow in Frostmere, drifting ash in the Barrens ----
   const WX = { parts: [], rain: 0, snow: 0, ash: 0 };
@@ -827,7 +842,14 @@
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : Math.max(t * t * (3 - 2 * t), UI.settings.grassAscii || 0); }
     { const S0 = UI.settings, v = (k, d) => S0[k] !== undefined ? S0[k] : d;
       G.R.asciiMat.uniforms.uActorPop.value = v('heroPop', 0.3);
-      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray || G.heroInside ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
+      GW.LU.uGroundO.value = v('groundO', 0.4);
+      const md = S0.seeMode !== undefined ? S0.seeMode : 2; GW.LU.uSeeMode.value = md;
+      // roof modes act when you're inside; the circle modes (thin, ghost, lantern) whenever something hides you
+      GW.LU.uXray.value = md === 0 ? 0 : ([1, 2, 5].includes(md) ? (G.heroInside ? 1 : 0) : (G.heroInside || G.heroHidden ? 1 : 0)); }
+    { const S0 = UI.settings, md = S0.seeMode !== undefined ? S0.seeMode : 2;
+      // lantern mode: the hero carries a small warm light
+      const W = GW.World; if (md === 6 && !G._heroLamp && W.lights) G._heroLamp = W.lights.add(0, -999, 0, new THREE.Color(1.0, 0.62, 0.3), 6, 0.6);
+      if (G._heroLamp) { if (md === 6) G._heroLamp.p.set(G.player.pos.x, G.player.pos.y + 2.2, G.player.pos.z); else { W.lights.remove(G._heroLamp); G._heroLamp = null; } } GW.LU.uSwirl.value = S0.swirl !== undefined ? S0.swirl : 0.25; }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
@@ -1027,6 +1049,7 @@
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);
     drawWeather(dt);
+    drawDarkOutside();
     perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {

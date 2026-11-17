@@ -414,7 +414,7 @@
     UI._apply = apply;
     const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
-    const xr = $('o-xray'); xr.checked = !!S.xray; xr.onchange = () => { S.xray = xr.checked; UI.saveSettings(); };
+    const see = $('o-see'); see.value = String(S.seeMode !== undefined ? S.seeMode : 2); see.onchange = () => { S.seeMode = +see.value; UI.saveSettings(); };
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');

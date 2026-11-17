@@ -330,7 +330,17 @@ body.touch #hotbar { display: none; }
     <select id="o-hud"><option value="min">Minimal: bars show in combat</option><option value="full">Full: always visible</option></select>
   </label>
   <label>Camera distance <input type="range" id="o-zoom" min="0.35" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
-  <label>See-through walls around the hero (x-ray) <input type="checkbox" id="o-xray" /></label>
+  <label>See the hero inside / behind things
+    <select id="o-see">
+      <option value="2">Dollhouse: roof off, near walls knee-high</option>
+      <option value="1">Roof lift: roof off, walls stay</option>
+      <option value="3">Thin ink: walls print sparse, light glyphs</option>
+      <option value="4">Ghost walls: faint outlines only</option>
+      <option value="5">Dark outside: roof off, the world beyond dims</option>
+      <option value="6">Lantern: a warm pool of light dissolves walls</option>
+      <option value="0">Outline only: never cut anything</option>
+    </select>
+  </label>
   <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
   <label>Screen shake <input type="checkbox" id="o-shake" /></label>
   <div class="s-sec">World</div>
@@ -5713,7 +5723,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uBiomeMap: { value: null },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -5725,7 +5735,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform sampler2D uBiomeMap;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -5872,17 +5882,34 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
-      float xEdge = 0.0;
+      float xEdge = 0.0, xGhost = 0.0, xLamp = 0.0;
       if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
-        // inside a building: dollhouse view. The roof lifts off, walls on the camera side are cut down to knee
-        // height (doorways show as gaps), far walls stay whole. Cut tops get a dark band like a section drawing.
+        // see-through modes (Settings > Camera > See the hero): 1 roof lift, 2 dollhouse, 3 glyph thinning,
+        // 4 ghost walls, 5 dark outside (roof lift + 2D vignette), 6 lantern reveal
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
-        float tt = dot(rr, cd), dh = length(vW.xz - uPlayerW.xz);
-        if (dh < 16.0) {
-          float roofY = uPlayerW.y + 2.5, kneeY = uPlayerW.y + 0.7;
-          float cutY = tt > 0.3 ? kneeY : roofY;
-          if (vW.y > cutY) discard;
-          xEdge = smoothstep(cutY - 0.22, cutY, vW.y);
+        float tt = dot(rr, cd), dp = length(rr - cd * tt), dh = length(vW.xz - uPlayerW.xz);
+        int md = int(uSeeMode + 0.5);
+        if (md == 1 || md == 2 || md == 5) {
+          if (dh < 16.0) {
+            float roofY = uPlayerW.y + 2.5, kneeY = uPlayerW.y + 0.7;
+            float cutY = (md == 2 && tt > 0.3) ? kneeY : roofY;
+            if (vW.y > cutY) discard;
+            xEdge = smoothstep(cutY - 0.22, cutY, vW.y);
+          }
+        } else if (tt > 0.4) {
+          float R = 3.4, k = 1.0 - smoothstep(R * 0.55, R, dp);
+          vec3 nn = normalize(vN), VV = normalize(uCam - vW);
+          if (md == 3) {          // thin ink: only a sparse scatter of the wall survives, so its letters go light and thin
+            if (k > 0.0 && th(floor(gl_FragCoord.xy / 3.0) + 0.37) < k * 0.82) discard;
+          } else if (md == 4) {   // ghost: faces seen edge-on stay as faint outlines, the rest goes
+            float edge = 1.0 - abs(dot(nn, VV));
+            if (k > 0.0 && edge < 0.82 && th(floor(gl_FragCoord.xy * 0.5) + 0.71) < k * 0.97) discard;
+            xGhost = k;
+          } else if (md == 6) {   // lantern: a warm pool of light dissolves the wall, softest at its rim
+            float k2 = 1.0 - smoothstep(R * 0.8, R * 1.3, dp);
+            if (th(floor(gl_FragCoord.xy * 0.5) + 0.13) < k2 * (0.5 + 0.5 * (1.0 - smoothstep(R * 0.4, R, dp)))) discard;
+            xLamp = k2;
+          }
         }
       }
       vec3 n = normalize(vN);
@@ -5978,6 +6005,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
       col = mix(col, vec3(0.5, 0.52, 0.56), xEdge * 0.85);   // cut wall tops read as a light floor-plan outline
+      col = mix(col, col * 0.22 + vec3(0.08, 0.1, 0.14), xGhost);
+      col += vec3(1.0, 0.62, 0.28) * xLamp * 0.22;
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
       if (uSil > 0.5) {   // hero behind something: only his outline (the rim), in silver
         float rr = 1.0 - max(dot(n, V), 0.0);
@@ -9904,7 +9933,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     UI._apply = apply;
     const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
-    const xr = $('o-xray'); xr.checked = !!S.xray; xr.onchange = () => { S.xray = xr.checked; UI.saveSettings(); };
+    const see = $('o-see'); see.value = String(S.seeMode !== undefined ? S.seeMode : 2); see.onchange = () => { S.seeMode = +see.value; UI.saveSettings(); };
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');
@@ -10606,7 +10635,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   let hiddenK = 0, hiddenTest = 0, hidden = false, hiddenHold = 0;
   function drawHiddenHero(dt) {
     const P = G.player, C = G.camera, W = GW.World;
-    if (G.state !== 'play' || UI.settings.xray) { hiddenK = 0; return; }
+    if (G.state !== 'play') { hiddenK = 0; return; }
     if (--hiddenTest <= 0) {
       hiddenTest = 3; let any = false;
       // only things within ~30 m of the hero can hide him (the camera is near-orthographic)
@@ -10633,7 +10662,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // second pass over the hero's meshes: drawn only where something is in front of him (depth test 'greater')
   const silMats = new WeakMap();
   function silhouettePass(r, camera) {
-    if (!G.heroHidden || UI.settings.xray || G.heroInside) return;
+    const md = UI.settings.seeMode !== undefined ? UI.settings.seeMode : 2;
+    if (!G.heroHidden) return;
+    if ([3, 4, 6].includes(md)) return;                 // the wall itself opens up around him
+    if (md !== 0 && G.heroInside) return;               // roof modes: he is visible from above
     const scene = G.scene, hide = [];
     // render just the hero: temporarily hide every other top-level object
     scene.children.forEach(o => { if (o !== G.player.model && o.visible) { o.visible = false; hide.push(o); } });
@@ -10653,6 +10685,18 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     scene.background = bg;
     swaps.forEach(([m, mat]) => { m.material = mat; });
     hide.forEach(o => { o.visible = true; });
+  }
+  // ---- 'dark outside' mode: inside a building, everything beyond the room fades to black ----
+  let darkK = 0;
+  function drawDarkOutside() {
+    const md = UI.settings.seeMode !== undefined ? UI.settings.seeMode : 2;
+    darkK += (((md === 5 && G.heroInside && G.state === 'play') ? 1 : 0) - darkK) * 0.08;
+    if (darkK < 0.02 || !fxCx) return;
+    const P = G.player, C = G.camera, v = new THREE.Vector3(P.pos.x, P.pos.y + 1, P.pos.z).project(C), v2 = new THREE.Vector3(P.pos.x + 9, P.pos.y + 1, P.pos.z).project(C);
+    const x = (v.x * 0.5 + 0.5) * fxCv.width, y = (-v.y * 0.5 + 0.5) * fxCv.height, r = Math.max(60, Math.abs(v2.x - v.x) * 0.5 * fxCv.width);
+    const g = fxCx.createRadialGradient(x, y, r * 0.55, x, y, r * 1.25);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(1,2,4,${0.88 * darkK})`);
+    fxCx.fillStyle = g; fxCx.fillRect(0, 0, fxCv.width, fxCv.height);
   }
   // ---- weather: glyph rain in the Vale (comes and goes), snow in Frostmere, drifting ash in the Barrens ----
   const WX = { parts: [], rain: 0, snow: 0, ash: 0 };
@@ -10790,7 +10834,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : Math.max(t * t * (3 - 2 * t), UI.settings.grassAscii || 0); }
     { const S0 = UI.settings, v = (k, d) => S0[k] !== undefined ? S0[k] : d;
       G.R.asciiMat.uniforms.uActorPop.value = v('heroPop', 0.3);
-      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray || G.heroInside ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
+      GW.LU.uGroundO.value = v('groundO', 0.4);
+      const md = S0.seeMode !== undefined ? S0.seeMode : 2; GW.LU.uSeeMode.value = md;
+      // roof modes act when you're inside; the circle modes (thin, ghost, lantern) whenever something hides you
+      GW.LU.uXray.value = md === 0 ? 0 : ([1, 2, 5].includes(md) ? (G.heroInside ? 1 : 0) : (G.heroInside || G.heroHidden ? 1 : 0)); }
+    { const S0 = UI.settings, md = S0.seeMode !== undefined ? S0.seeMode : 2;
+      // lantern mode: the hero carries a small warm light
+      const W = GW.World; if (md === 6 && !G._heroLamp && W.lights) G._heroLamp = W.lights.add(0, -999, 0, new THREE.Color(1.0, 0.62, 0.3), 6, 0.6);
+      if (G._heroLamp) { if (md === 6) G._heroLamp.p.set(G.player.pos.x, G.player.pos.y + 2.2, G.player.pos.z); else { W.lights.remove(G._heroLamp); G._heroLamp = null; } } GW.LU.uSwirl.value = S0.swirl !== undefined ? S0.swirl : 0.25; }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
@@ -10990,6 +11041,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);
     drawWeather(dt);
+    drawDarkOutside();
     perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {
