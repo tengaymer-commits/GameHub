@@ -48,6 +48,7 @@
       const isNew = !P.inv.armor[key]; P.inv.armor[key] = 1;
       UI.toast(`<span style="color:#${it.color.toString(16).padStart(6, '0')}">${GW.Knight.pattern(it.set)}</span> ${it.name}${isNew ? ' · <span style="color:#ffcf6a">open Gear to wear it</span>' : ''}`, 4);
     }
+    else if (kind === 'shards') { const amt = key; P.inv.shards = (P.inv.shards || 0) + amt; UI.float('+' + amt + ' ◈', P.pos, { color: '#9fd8ff', size: 11, y: 2.9, life: 1.1 }); if (arguments[2] !== true) UI.toast(`<span style="color:#9fd8ff">◈</span> ${amt} shards`, 2); return; }
     else if (kind === 'kindling') { P.inv.kindling = (P.inv.kindling || 0) + n; UI.toast(`<span style="color:#e09040">♨</span> Kindling${n > 1 ? ' ×' + n : ''} · <span style="color:#ffcf6a">F to make a fire</span>`, 3); }
     else { P.inv.ingots[key] = (P.inv.ingots[key] || 0) + n; const M = GW.Forge.METALS[key]; UI.toast(`<span style="color:#${M.color.toString(16).padStart(6, '0')}">${M.glyph}</span> ${M.name} ingot${n > 1 ? ' ×' + n : ''}`, 3); }
     GWAudio.sfx('pickup');
@@ -69,6 +70,7 @@
   // ---------------- dialogue ----------------
   const MARA = 'MARA · LAMPLIGHTER', HESK = 'HESK · GLYPHSMITH';
   function talk(npc) {
+    if (npc.kind === 'villager') { if (npc.role === 'trader') return UI.dialog([{ who: npc.name, text: ['Shards for goods, goods for shards. The world is simple here.', 'Kindling, flasks, a rune or two. Have a look.', 'Mind the roads after dark.'][Math.floor(Math.random() * 3)] }], () => openShop(npc.region, npc.name)); return bountyTalk(npc); }
     const id = QUESTS[G.stage].id;
     if (npc.kind === 'elder') {
       if (id === 'meet') return UI.dialog([
@@ -118,6 +120,14 @@
     G.player = new GW.Player(scene);
     const Lw = GW.World.L;
     G.npcs.push(new GW.NPC(scene, 'elder', Lw.elder.x, Lw.elder.z), new GW.NPC(scene, 'smith', Lw.smith.x, Lw.smith.z));
+    // a trader and a quest-giver in every region village
+    const VNAMES = { vale: ['Odo', 'Wenna'], frost: ['Halvard', 'Sigrun'], high: ['Brannoc', 'Ilsa'], ash: ['Cindra', 'Garrow'], salt: ['Tamsin', 'Oren'], mire: ['Mother Reed', 'Fenwick'], dusk: ['Lumen', 'Sorrel'] };
+    const VCOL = { vale: 0x5a6a4a, frost: 0x6a7a90, high: 0x6a6a52, ash: 0x7a4a34, salt: 0x9a8a6a, mire: 0x4a5034, dusk: 0x34485a };
+    for (const h of GW.World.HUBS) {
+      const c = Lw[h.at], nm = VNAMES[h.id];
+      G.npcs.push(new GW.NPC(scene, 'villager', c.x + 5, c.z - 4, { role: 'trader', region: h.id, name: nm[0] + ', the trader', col: VCOL[h.id] }));
+      G.npcs.push(new GW.NPC(scene, 'villager', c.x - 5, c.z - 3, { role: 'quest', region: h.id, name: nm[1] + ', who keeps the bounties', col: VCOL[h.id] }));
+    }
     spawnAll();
     G.player.place(Lw.start.x, Lw.start.z + 5);
     UI.initInput(G); UI.buildHotbar(); UI.initMinimap();
@@ -174,10 +184,6 @@
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
     [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700], [900, 600], [-900, 700], [600, 1100], [-1000, -200]].forEach(([x, z]) => pack('wolf', x, z, 3));
-    // the six regions: a ring of camps around each hub (region enemies come in a later phase)
-    const ring = (c, type, n, r0) => { for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + 0.4, r = r0 + (k % 2) * 220; pack(type, c.x + Math.cos(a) * r, c.z + Math.sin(a) * r, n); } };
-    ring(Lw.abbey, 'wolf', 4, 260); ring(Lw.high, 'wolf', 4, 240); ring(Lw.cinder, 'hollow', 3, 230);
-    ring(Lw.salt, 'hollow', 3, 260); ring(Lw.mire, 'hollow', 3, 240); ring(Lw.dusk, 'wolf', 4, 250);
     [[-20, -20], [20, 15]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.cinder.x + dx, Lw.cinder.z + dz, { x: Lw.cinder.x, z: Lw.cinder.z }));
     [[-10, 20], [10, -20]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.abbey.x + dx, Lw.abbey.z + dz, { x: Lw.abbey.x, z: Lw.abbey.z }));
     // group everything into camps (enemies whose homes lie within 20 m share one)
@@ -266,9 +272,13 @@
     for (const f of GW.World.fires || []) { if (f.out) continue; const d = Math.hypot(x - f.x, z - f.z); if (d < bd) { bd = d; best = f; } }
     return best;
   };
-  G.spawnEnemy = function (type, x, z, home, temp) {
+  G.spawnEnemy = function (type, x, z, home, temp, lvl, elite) {
     const e = new GW.Enemy(G.scene, type, x, z, home);
     e.temp = !!temp; if (temp) { e.aggro = true; }
+    // level rings: farther from the Vale = tougher; elites are much tougher
+    e.lvl = lvl || 1; const hk = (1 + 0.22 * (e.lvl - 1)) * (elite ? 3 : 1);
+    e.maxHp = e.hp = Math.round(e.T.hp * hk); e.dmgMul = (1 + 0.12 * (e.lvl - 1)) * (elite ? 1.4 : 1); e.elite = !!elite;
+    if (elite) e.model.scale.setScalar(1.25);
     G.enemies.push(e); return e;
   };
 
@@ -282,7 +292,8 @@
         const d = loadData();
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
-          G.opened = d.opened || {}; G.discovered = d.discovered || {}; if (d.fog) fogUnpack(d.fog);
+          G.opened = d.opened || {}; G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {};
+          if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
           P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
@@ -341,8 +352,7 @@
       UI.banner('rested at', it.name.toUpperCase(), 2.4);
       save();
       // fast travel between fires you have found
-      const list = GW.World.fires.filter(f => !f.out && !f.rest.own && G.discovered[f.rest.name] && f.rest !== it)
-        .map(f => ({ name: f.rest.name, x: f.x, z: f.z, rest: f.rest, dist: Math.round(Math.hypot(f.x - it.x, f.z - it.z)) })).sort((a, b) => a.dist - b.dist);
+      const list = travelList(it.x, it.z, it);
       if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); }
     });
   }
@@ -350,7 +360,7 @@
     fade(() => {
       const P = G.player; P.place(f.x, f.z + 2.4); P.yaw = Math.PI; G.snapCam = true;
       G.respawn = { x: f.x, z: f.z }; GW.World._streamBudget = 99; GW.World.terrainRefresh(false, f.x, f.z);
-      UI.banner('you travel to', f.name.toUpperCase(), 2.6); save();
+      UI.banner('you travel to', f.name.replace(/^[▲◊] /, '').toUpperCase(), 2.6); save();
     });
   }
   // ---- exploration: fog of war, discovered fires, compass, regions ----
@@ -439,6 +449,7 @@
         }
       }
     }
+    if (G.buff && G.buff.kind === 'might' && G.t < G.buff.until) dmg *= 1.25;
     dmg = Math.max(1, Math.round(dmg));
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
     const col = o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
@@ -487,8 +498,9 @@
     G.parts.spark.burst(e.pos.x, e.pos.y + 1, e.pos.z, 18, 5, e.T.kind === 'undead' ? 0x80c0ff : 0xffb060, 0.8, 1, -4, 2);
     if (e.T.onDeath) e.T.onDeath(e);
     if (e.type === 'husk') { count('husk'); if (QUESTS[G.stage].id !== 'wake') gainXP(1); else gainXP(e.T.xp); return; }
-    gainXP(e.T.xp * (1 + P.ws.xp));
+    gainXP(e.T.xp * (1 + P.ws.xp) * (1 + 0.15 * ((e.lvl || 1) - 1)) * (e.elite ? 3 : 1));
     count(e.type);
+    give('shards', Math.round((2 + (e.lvl || 1)) * (e.elite ? 5 : 1)), true);
     // drops
     const luck = 1 + P.ws.xp;
     const drops = { wolf: [['rune', ['ember', 'frost', 'venom', 'swift'], 0.12], ['ingot', ['bronze'], 0.12]],
@@ -528,6 +540,7 @@
   }
   G.hurtPlayer = function (dmg, from, o) {
     o = o || {};
+    if (G.buff && G.buff.kind === 'ward' && G.t < G.buff.until) dmg *= 0.75;
     const P = G.player;
     if (P.state === 'dead') return;
     if (P.iframe > 0) {
@@ -607,6 +620,94 @@
     else if (it.type === 'npc') talk(it.npc);
     else if (it.type === 'hatch') { const T = GW.World.tower; fade(() => { G.player.place(T.door.x, T.door.z + 0.8); G.player.yaw = 0; G.snapCam = true; }); }
     else if (it.type === 'chest') openChest(it);
+    else if (it.type === 'shrine') { const kinds = [['might', 'Shrine of Might: +25% damage'], ['ward', 'Shrine of Warding: -25% damage taken'], ['swift', 'Shrine of the Wind: +15% speed']], k = kinds[it.poi.seed % 3];
+      G.buff = { kind: k[0], until: G.t + 300 }; GWAudio.sfx('socket'); UI.banner('for five minutes', k[1].toUpperCase(), 2.6); G.parts.spark.burst(it.x, G.player.pos.y + 1, it.z, 30, 4, 0x9fd8ff, 0.8, 1.2, -2, 2); }
+    else if (it.type === 'waystone') { const p = it.poi, nm = GW.World.REGIONS[p.region].name.replace('THE ', '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' waystone ' + p.id;
+      if (!G.waystones[p.id]) { G.waystones[p.id] = { x: p.x, z: p.z + 2.6, name: nm }; UI.toast('<span style="color:#9fd8ff">◊</span> Waystone attuned', 2.5); save(); }
+      const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
+    else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); }
+    else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
+  }
+  // ---------------- travel targets: found fires and attuned waystones ----------------
+  function travelList(x, z, exclude) {
+    const out = GW.World.fires.filter(f => !f.out && !f.rest.own && G.discovered[f.rest.name] && f.rest !== exclude).map(f => ({ name: '▲ ' + f.rest.name, x: f.x, z: f.z }));
+    for (const id in G.waystones) { const w = G.waystones[id]; if (Math.hypot(w.x - x, w.z - z) > 6) out.push({ name: '◊ ' + w.name, x: w.x, z: w.z }); }
+    return out.map(f => Object.assign(f, { dist: Math.round(Math.hypot(f.x - x, f.z - z)) })).sort((a, b) => a.dist - b.dist);
+  }
+  function revealFog(x, z, R) {
+    const S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N;
+    for (let j = Math.max(0, Math.floor((z - R + S / 2) / FC)); j <= Math.min(FN - 1, Math.floor((z + R + S / 2) / FC)); j++)
+      for (let i = Math.max(0, Math.floor((x - R + S / 2) / FC)); i <= Math.min(FN - 1, Math.floor((x + R + S / 2) / FC)); i++)
+        if (Math.hypot((i + 0.5) * FC - S / 2 - x, (j + 0.5) * FC - S / 2 - z) < R) G.fog[j * FN + i] = 1;
+    // places inside become known
+    for (const p of GW.World.poisNear(x, z, R)) if (p.type !== 'ambush') G.poiSeen[p.id] = p.type;
+  }
+  // ---------------- shards: the trader's shop ----------------
+  function openShop(region, who) {
+    const P = G.player, F = GW.Forge;
+    const runeKeys = Object.keys(F.RUNES), metalKeys = Object.keys(F.METALS).filter(k => k !== 'iron');
+    const armorLeft = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
+    const items = [
+      { label: '♨ Kindling', cost: 8, buy: () => give('kindling', 'kindling') },
+      { label: '♥ Refill flasks', cost: 12, ok: () => P.flasks < P.maxFlasks, buy: () => { P.flasks = P.maxFlasks; } },
+      { label: '♥ Extra flask (+1 max)', cost: 60 + 40 * (P.extraFlasks || 0), ok: () => (P.extraFlasks || 0) < 3, buy: () => { P.extraFlasks = (P.extraFlasks || 0) + 1; P.maxFlasks++; P.flasks++; } },
+      { label: '✶ A rune (random)', cost: 45, buy: () => give('rune', runeKeys[Math.floor(Math.random() * runeKeys.length)]) },
+      { label: '▬ An ingot (random)', cost: 35, buy: () => give('ingot', metalKeys[Math.floor(Math.random() * metalKeys.length)]) },
+      { label: '⛨ Armour piece (random)', cost: 140, ok: () => armorLeft.length > 0, buy: () => give('armor', armorLeft[Math.floor(Math.random() * armorLeft.length)]) },
+    ];
+    G.state = 'shop';
+    UI.showShop(who, P.inv.shards || 0, items, it => {
+      if ((P.inv.shards || 0) < it.cost || (it.ok && !it.ok())) { GWAudio.sfx('ui'); return false; }
+      P.inv.shards -= it.cost; it.buy(); GWAudio.sfx('pickup'); save(); return P.inv.shards;
+    }, () => { G.state = 'play'; });
+  }
+  // ---------------- bounties: clear camps in the region ----------------
+  function bountyTalk(npc) {
+    const r = npc.region, R = GW.World.REGIONS[r], b = G.bounty[r] || (G.bounty[r] = { tier: 0, need: 0, done: 0 });
+    if (!b.need) {
+      b.need = 3 + b.tier; b.done = 0;
+      return UI.dialog([{ who: npc.name, text: `Camps are spreading through ${R.name.toLowerCase()}. Break ${b.need} of them and come back. I pay in shards and in things worth more.` }], () => { UI.toast(`Bounty: clear ${b.need} camps in ${R.name}`, 3); save(); });
+    }
+    if (b.done < b.need) return UI.dialog([{ who: npc.name, text: `${b.done} of ${b.need} camps broken. The rest are still out there. Your map marks them once you have seen them.` }]);
+    const reward = 80 + b.tier * 50;
+    return UI.dialog([{ who: npc.name, text: 'Good work. The roads breathe easier. Take this.' }], () => {
+      give('shards', reward); const P = G.player, armorLeft = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
+      if (armorLeft.length) give('armor', armorLeft[Math.floor(Math.random() * armorLeft.length)]); else give('rune', 'thirst');
+      gainXP(150 + b.tier * 100); b.tier++; b.need = 0; b.done = 0; save();
+    });
+  }
+  // ---------------- points of interest: enemies appear as you approach, vanish when you leave ----------------
+  G.cleared = {}; G.poiSeen = {}; G.poiLive = {}; G.waystones = {}; G.bounty = {};
+  const POI_ENEMY = { vale: ['wolf', 'hollow'], frost: ['wolf'], high: ['wolf', 'hollow'], ash: ['hollow'], salt: ['hollow'], mire: ['hollow', 'wolf'], dusk: ['wolf', 'wisp'] };
+  function poiTick() {
+    const P = G.player, W = GW.World;
+    for (const p of W.poisNear(P.pos.x, P.pos.z, 115)) {
+      const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z);
+      if (d < 60 && p.type !== 'ambush' && !G.poiSeen[p.id]) G.poiSeen[p.id] = p.type;
+      if (!['camp', 'elite', 'ambush'].includes(p.type) || G.cleared[p.id] || G.poiLive[p.id]) continue;
+      if (p.type === 'ambush' && d > 26) continue;
+      const pool = POI_ENEMY[p.region] || POI_ENEMY.vale, R = GW.rand(p.seed + 7), list = [];
+      const n = p.type === 'elite' ? 1 : p.type === 'ambush' ? 3 : 3 + Math.floor(R() * 2);
+      for (let k = 0; k < n; k++) {
+        const a = k / n * Math.PI * 2 + R(), r = p.type === 'ambush' ? 9 : 3;
+        const ex = (p.type === 'ambush' ? P.pos.x : p.x) + Math.cos(a) * r, ez = (p.type === 'ambush' ? P.pos.z : p.z) + Math.sin(a) * r;
+        const e = G.spawnEnemy(pool[Math.floor(R() * pool.length)], ex, ez, { x: p.x, z: p.z }, false, p.lvl, p.type === 'elite');
+        e.poi = p.id; if (p.type === 'ambush') e.aggro = true; list.push(e);
+      }
+      if (p.type === 'ambush') UI.toast('Ambush!', 1.5);
+      G.poiLive[p.id] = { p, list };
+    }
+    for (const id in G.poiLive) {
+      const L = G.poiLive[id], d = Math.hypot(L.p.x - P.pos.x, L.p.z - P.pos.z);
+      if (L.list.every(e => !e.alive)) {
+        G.cleared[id] = true; delete G.poiLive[id];
+        if (L.p.type !== 'ambush') { UI.toast(L.p.type === 'elite' ? 'Elite slain' : 'Camp broken', 2); const b = G.bounty[L.p.region]; if (b && b.need && b.done < b.need) { b.done++; if (b.done >= b.need) UI.toast('Bounty complete: return to the village', 3); } }
+        save(); continue;
+      }
+      if (d > 240) { L.list.forEach(e => { if (e.alive) { e.alive = false; G.scene.remove(e.model); G.scene.remove(e.shadow); if (e.ring) G.scene.remove(e.ring); if (e.T.onDeath) e.T.onDeath(e); } }); G.enemies = G.enemies.filter(e => !L.list.includes(e)); delete G.poiLive[id]; }
+    }
+    // shrine of the wind
+    P.buffMove = G.buff && G.buff.kind === 'swift' && G.t < G.buff.until ? 1.15 : 1;
   }
   // ---- vertical ruins: walking into the tower door takes you to the roof ----
   G.opened = {};
@@ -621,6 +722,14 @@
     G.opened[it.id] = true; save();
     const P = G.player, y = P.pos.y, at = new V3(it.x, y, it.z);
     GWAudio.sfx('quest'); G.parts.spark.burst(it.x, y + 0.6, it.z, 30, 4, 0xffd070, 0.8, 1, -3, 2);
+    if (it.poi) {   // wilderness chests: shards and a random find
+      const p = it.poi, R = GW.rand(p.seed + 3), F = GW.Forge, rk = Object.keys(F.RUNES), mk = Object.keys(F.METALS).filter(k => k !== 'iron');
+      give('shards', 14 + p.lvl * 5 + Math.floor(R() * 10));
+      const loot = [['kindling', 'kindling'], R() < 0.5 ? ['rune', rk[Math.floor(R() * rk.length)]] : ['ingot', mk[Math.floor(R() * mk.length)]]];
+      const left = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
+      if (left.length && R() < (p.type === 'elite' ? 0.6 : 0.15)) loot.push(['armor', left[Math.floor(R() * left.length)]]);
+      loot.forEach(([k, key]) => spawnPickup(k, key, at, y)); return;
+    }
     const armor = ['night', 'scale', 'sallet', 'hauberk'].find(k => !P.inv.armor[k]);
     const loot = [['kindling', 'kindling'], ['kindling', 'kindling'], ['rune', 'storm'], ['ingot', 'duskglass']];
     if (armor) loot.push(['armor', armor]);
@@ -631,7 +740,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
@@ -968,7 +1077,7 @@
     // hitstop: freeze simulation briefly, keep rendering
     let sdt = dt;
     if (G.hitstop > 0) { G.hitstop -= dt; sdt = dt * 0.05; }
-    if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || UI.mapOpen() || UI.invOpen()) sdt = 0;
+    if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || G.state === 'shop' || UI.mapOpen() || UI.invOpen()) sdt = 0;
 
     if (playing) {
       let input = { mx: 0, mz: 0 };
@@ -998,6 +1107,7 @@
         // respawn timers
         updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor();
         if (frame % 15 === 0) explore();
+        if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));
         for (const e of G.enemies) if (!e.alive && e.type === 'husk' && G.t - e.diedAt > 5) revive(e);
       }
@@ -1021,7 +1131,7 @@
         }
       }
       if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', 'Wanderer', lp, 'name', '#e8e4d8'); }
-      for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), e.T.name, lp, 'name', e.aggro ? '#ff9a8a' : '#c8ccd8'); }
+      for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), (e.elite ? 'Elite ' : '') + e.T.name + ((e.lvl || 1) > 1 ? ' · lv ' + e.lvl : ''), lp, 'name', e.elite ? '#ffb040' : e.aggro ? '#ff9a8a' : '#c8ccd8'); }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       { const B = G.curBoss || G.boss; if (G.bossActive && B.alive) UI.boss(true, B.T.name, B.hp, B.maxHp); }
       G.saveT += dt; if (G.saveT > 20) { G.saveT = 0; save(); UI.saveSettings(); }

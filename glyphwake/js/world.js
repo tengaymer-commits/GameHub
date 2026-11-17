@@ -36,7 +36,19 @@
     salt: { x: 0, z: 2600 },          // S  the Salt Wastes
     mire: { x: -2250, z: 1300 },      // SW the Mire
     dusk: { x: -2250, z: -1300 },     // NW Duskwood
+    vfrost: { x: -150, z: -2552 },    // villages beside the two landmark hubs
+    vash: { x: 2250, z: 1348 },
   };
+  // one village per region (plus Hearthwick at the crossroads)
+  const HUBS = [
+    { id: 'vale', name: 'Hearthwick', at: 'hearth' },
+    { id: 'frost', name: 'Rimehold', at: 'vfrost' },
+    { id: 'high', name: 'Cragmoor', at: 'high' },
+    { id: 'ash', name: 'Emberfall', at: 'vash' },
+    { id: 'salt', name: 'Saltreach', at: 'salt' },
+    { id: 'mire', name: 'Bogwater', at: 'mire' },
+    { id: 'dusk', name: 'Dimmering', at: 'dusk' },
+  ];
   const RIVER_CP = [[-3950, 260], [-3400, 120], [-2800, 220], [-2200, 60], [-1600, 120], [-1100, -20], [-700, 40], [-420, -50], [-260, -30], [-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44], [260, -110], [420, -150], [700, -190], [1100, -260], [1600, -180], [2100, -420], [2700, -380], [3300, -560], [3950, -500]];
   const PATHS = [
     [[0, 76], [1, 60], [-1, 46], [0, 38]],
@@ -75,6 +87,12 @@
     { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 2250, z: 1300, r: 24 },
     { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -2600, r: 24 },
     { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
+    { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -150, z: -2552, r: 30 },
+    { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 2250, z: -1300, r: 30 },
+    { name: 'EMBERFALL', sub: 'they rebuild between the fires', x: 2250, z: 1348, r: 30 },
+    { name: 'SALTREACH', sub: 'water is worth more than gold', x: 0, z: 2600, r: 30 },
+    { name: 'BOGWATER', sub: 'houses on stilts, people on edge', x: -2250, z: 1300, r: 30 },
+    { name: 'DIMMERING', sub: 'lamps lit at noon', x: -2250, z: -1300, r: 30 },
   ];
   // regions (biomes): name, subtitle, banner colour
   const REGIONS = {
@@ -148,7 +166,7 @@
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
-    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
     flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
     return h;
   }
@@ -305,7 +323,7 @@
 
   // ---------- world object ----------
   const W = GW.World = {
-    SIZE, L, ZONES, WATER_Y, BIOMES,
+    SIZE, L, ZONES, WATER_Y, BIOMES, HUBS,
     colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], occluders: [], lights: null, fireflies: null,
   };
   W.heightAt = (x, z) => sample('H', x, z);
@@ -816,11 +834,13 @@
       }
       W.lairWebs = buildWebs(scene, C, anchors, rnd);
     }
-    // ---- Hearthwick: the crossroads village ----
-    { const V = L.hearth;
+    // ---- villages: huts in a ring, well, lanterns, carts and fence, tinted per region ----
+    const HUT_TINT = { vale: [1, 1, 1], frost: [0.95, 1.0, 1.1], high: [0.85, 0.9, 0.85], ash: [0.75, 0.62, 0.55], salt: [1.15, 1.08, 0.95], mire: [0.6, 0.65, 0.5], dusk: [0.55, 0.65, 0.75] };
+    for (const h of HUBS) {
+      const V = L[h.at], t = HUT_TINT[h.id], tint = () => new THREE.Color(t[0], t[1], t[2]).multiplyScalar(0.88 + rnd() * 0.24);
       for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2 + 0.3, r = 15 + (k % 2) * 4; if (Math.abs(GW.angDiff(a, -Math.PI * 0.75)) < 0.35 || Math.abs(GW.angDiff(a, Math.PI * 0.15)) < 0.3) continue;
-        put('kit_hut', V.x + Math.cos(a) * r, V.z + Math.sin(a) * r, 1.2 + rnd() * 0.15, -a - Math.PI / 2, 1.9); }
-      put('kit_well', V.x + 6, V.z + 5, 1.1, 0.4, 1.0);
+        put('kit_hut', V.x + Math.cos(a) * r, V.z + Math.sin(a) * r, 1.2 + rnd() * 0.15, -a - Math.PI / 2, 1.9, tint()); }
+      put('kit_well', V.x - 6, V.z + 5, 1.1, 0.4, 1.0);
       [[-5, 7, 0.3], [7, -6, 2.0], [-9, -4, 4.2]].forEach(([dx, dz, a]) => lantern(V.x + dx, V.z + dz, a));
       put('kit_cart', V.x - 11, V.z + 9, 1.1, 2.4, 1.1);
       [[10, 9], [10.6, 9.8], [11.4, 9.1]].forEach(([dx, dz]) => put('kit_barrel', V.x + dx, V.z + dz, 1, rnd() * 6, 0.35));
@@ -878,7 +898,14 @@
 
   // ----- hubs & landmarks beyond the Vale: reuse the chapel/tower models with region palettes -----
   function buildHubs(scene) {
-    campfire(scene, L.hearth.x, L.hearth.z, 'Hearthwick');
+    for (const h of HUBS) {
+      const c = L[h.at]; campfire(scene, c.x, c.z, h.name);
+      // a smith's anvil in every village
+      const ax = c.x + 7, az = c.z + 6, ay = W.heightAt(ax, az), metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.WOOD, color: 0x3a2818 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
+      W.addCollider(ax, az, 0.8, 'anvil'); W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
+    }
     // Cinder Watch: the watchtower model, charred, with fires
     const tg = GW.Assets.gltf.tower;
     if (tg) {
@@ -890,7 +917,7 @@
         gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
       }, null, C.x, base, C.z, scene);
       W.addCollider(C.x, C.z, 3.6, 'tower');
-      campfire(scene, C.x + 7, C.z + 7, 'Cinder Watch');
+      campfire(scene, C.x - 9, C.z + 3, 'Cinder Watch');
       torch(scene, C.x - 2.2, C.z + 4.2, 2.2); torch(scene, C.x + 2.2, C.z + 4.2, 2.2);
     }
     // Rimeglass Abbey: the chapel model in frost-pale stone, by the frozen mere
@@ -907,7 +934,7 @@
       seg(-6.3, 0.55, -1.6, 0.55, 0.6); seg(1.6, 0.55, 6.3, 0.55, 0.6);
       [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55, 'chapel'));
       seg(-5.45, 1.2, -5.45, 12.6, 0.55); seg(5.45, 1.2, 5.45, 12.6, 0.55); seg(-5.45, 12.65, 5.45, 12.65, 0.55);
-      campfire(scene, A.x + 3, A.z + 12, 'Rimeglass Abbey');
+      campfire(scene, A.x - 12, A.z + 10, 'Rimeglass Abbey');
     }
     // the frozen mere: a sheet of dark ice
     { const F = L.frostLake, y = W.heightAt(F.x, F.z) + 0.04;
@@ -936,9 +963,61 @@
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
     if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
-    for (const c of [L.hearth, L.cinder, L.abbey]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
+    for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
+    if (W.poisNear(x, z, 13 + r).length) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
+  }
+  // ---------- points of interest: one per 150 m cell (most cells), seeded, typed by region ----------
+  const POI_CELL = 150, poiCache = new Map();
+  const POI_W = {
+    vale: { camp: 0.26, ruin: 0.14, chest: 0.14, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08 },
+    frost: { camp: 0.3, ruin: 0.12, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09 },
+    high: { camp: 0.24, ruin: 0.2, chest: 0.12, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08 },
+    ash: { camp: 0.32, ruin: 0.16, chest: 0.1, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1 },
+    salt: { camp: 0.22, ruin: 0.18, chest: 0.16, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06 },
+    mire: { camp: 0.28, ruin: 0.14, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08 },
+    dusk: { camp: 0.26, ruin: 0.16, chest: 0.12, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08 },
+  };
+  W.poiAt = function (i, j) {
+    const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
+    let p = null;
+    const r0 = hsh(i * 3.1 + 0.7, j * 1.7 - 2.3);
+    const x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 90, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 90;
+    const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
+      && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
+      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && sample('R', x, z) > 14 && sample('P', x, z) > 9;
+    if (ok) {
+      const region = W.regionAt(x, z), w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
+      for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
+      const lvl = 1 + Math.floor(Math.hypot(x, z) / 280);
+      p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };
+    }
+    poiCache.set(key, p); return p;
+  };
+  W.poisNear = function (x, z, r) {
+    const out = [];
+    for (let i = Math.floor((x - r) / POI_CELL) - 1; i <= Math.floor((x + r) / POI_CELL) + 1; i++) for (let j = Math.floor((z - r) / POI_CELL) - 1; j <= Math.floor((z + r) / POI_CELL) + 1; j++) {
+      const p = W.poiAt(i, j); if (p && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
+    }
+    return out;
+  };
+  W.POI_CELL = POI_CELL;
+  // props + interactables for one point of interest (built with the chunk that contains it)
+  function buildPOI(p, kit, cols, inter) {
+    const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
+    const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
+    switch (p.type) {
+      case 'camp': ring(3, 7, (x, z) => kit('kit_hut', x, z, 0.65, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); break;
+      case 'ruin': ring(4 + Math.floor(R() * 3), 6 + R() * 3, (x, z) => kit(R() < 0.5 ? 'kit_arch' : (R() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b'), x, z, 0.9 + R() * 0.3, 0.6, bio)); chest(p.x, p.z); break;
+      case 'chest': ring(3, 2.4, (x, z) => kit('kit_rock_a', x, z, 0.35 + R() * 0.2, 0.6, bio)); chest(p.x, p.z); break;
+      case 'shrine': kit('kit_shrine', p.x, p.z, 1, 0.7, bio); inter.push({ type: 'shrine', x: p.x, z: p.z + 1.6, r: 2.4, label: 'Pray at the shrine', poi: p }); break;
+      case 'waystone': kit('kit_pillar_b', p.x, p.z, 1.6, 0.7, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
+      case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
+      case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
+      case 'elite': ring(5, 6, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
+      default: break;   // ambush: nothing to see until it is too late
+    }
   }
   function genChunk(ci, cj, scene) {
     const rnd = GW.rand(((ci * 7919 + cj * 104729) >>> 0) % 2147483646 + 1);
@@ -955,7 +1034,10 @@
       natParts(name).forEach((p, i) => batch.add('nat_' + name + i, p.geo, natMat(p.mn), place(x, y, z, ry, s), new THREE.Color(1, 1, 1).multiplyScalar(0.85 + rnd() * 0.3)));
       if (col) cols.push(W.addCollider(x, z, col, 'rock'));
     };
-    const x0 = ci * CHK, z0 = cj * CHK;
+    const x0 = ci * CHK, z0 = cj * CHK, inter = [];
+    // points of interest whose centre lies in this chunk
+    for (const p of W.poisNear(x0 + CHK / 2, z0 + CHK / 2, CHK)) if (p.x >= x0 && p.x < x0 + CHK && p.z >= z0 && p.z < z0 + CHK) buildPOI(p, (n, x, z, s, col, bio, tint) => kit(n, x, z, s, col, bio, tint), cols, inter);
+    inter.forEach(it => W.interact.push(it));
     for (let k = 0; k < 90; k++) {
       const x = x0 + rnd() * CHK, z = z0 + rnd() * CHK;
       const forest = vnoise(x * 0.011, z * 0.011), bio = W.regionAt(x, z), roll = rnd();
@@ -983,7 +1065,7 @@
       }
     }
     const meshes = []; batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
-    return { meshes, cols };
+    return { meshes, cols, inter };
   }
   W.stream = function (px, pz, scene, budget) {
     const ci0 = Math.floor(px / CHK), cj0 = Math.floor(pz / CHK), n = Math.ceil(LOAD_R / CHK);
@@ -999,7 +1081,8 @@
     for (const [key, c] of chunks) {
       const [ci, cj] = key.split(',').map(Number), cx = (ci + 0.5) * CHK, cz = (cj + 0.5) * CHK;
       if (Math.hypot(cx - px, cz - pz) < DROP_R) continue;
-      if (c) { c.meshes.forEach(m => { scene.remove(m); m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider); }
+      if (c) { c.meshes.forEach(m => { scene.remove(m); m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider);
+        if (c.inter && c.inter.length) W.interact = W.interact.filter(it => !c.inter.includes(it)); }
       chunks.delete(key);
     }
   };

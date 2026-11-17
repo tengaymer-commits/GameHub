@@ -203,12 +203,23 @@
     $('travel-stay').onclick = () => { $('travel').classList.add('hidden'); pick(null); };
     $('travel').classList.remove('hidden');
   };
+  UI.showShop = function (who, shards, items, buy, close) {
+    $('shop-who').textContent = who.toUpperCase();
+    const draw = sh => { $('shop-shards').textContent = sh; const el = $('shop-list'); el.innerHTML = '';
+      items.forEach(it => { const b = document.createElement('button'); const can = sh >= it.cost && (!it.ok || it.ok());
+        b.className = 'btn' + (can ? '' : ' off'); b.innerHTML = `<span>${it.label}</span><span style="color:#9fd8ff">${it.cost} ◈</span>`;
+        b.onclick = () => { const r = buy(it); if (r !== false) draw(r); }; el.appendChild(b); }); };
+    draw(shards);
+    $('shop-close').onclick = () => { $('shop').classList.add('hidden'); close(); };
+    $('shop').classList.remove('hidden');
+  };
+  UI.shopOpen = () => !$('shop').classList.contains('hidden');
   UI.invOpen = () => !$('inv').classList.contains('hidden');
   UI.toggleInv = function (G, on) {
     const open = on === undefined ? !UI.invOpen() : on; $('inv').classList.toggle('hidden', !open); if (!open) return;
     const P = G.player, F = GW.Forge, K = GW.Knight, inv = P.inv, hex = c => '#' + c.toString(16).padStart(6, '0');
     const row = (l, r) => `<div class="row"><span>${l}</span><span>${r}</span></div>`;
-    let h = '<div class="sec">CARRIED</div>' + row('♥ Flasks', P.flasks + ' / ' + P.maxFlasks) + row('<span style="color:#e09040">♨</span> Kindling', inv.kindling || 0) + row('⚔ Blade', F.weaponName(P.weapon));
+    let h = '<div class="sec">CARRIED</div>' + row('<span style="color:#9fd8ff">◈</span> Shards', inv.shards || 0) + row('♥ Flasks', P.flasks + ' / ' + P.maxFlasks) + row('<span style="color:#e09040">♨</span> Kindling', inv.kindling || 0) + row('⚔ Blade', F.weaponName(P.weapon));
     const runes = Object.entries(inv.runes).filter(([, n]) => n > 0);
     h += '<div class="sec">RUNES</div>' + (runes.length ? runes.map(([k, n]) => row(`<span style="color:${hex(F.RUNES[k].color)}">${F.RUNES[k].g}</span> ${F.RUNES[k].name}`, '×' + n)).join('') : row('·', ''));
     const ing = Object.entries(inv.ingots).filter(([, n]) => n > 0);
@@ -361,11 +372,23 @@
     for (const f of W.fires) { if (!seen(f.x, f.z)) continue; const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
     for (const it of W.interact) { if (it.type === 'chest' && !(G.opened || {})[it.id]) { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffd860'; g.fillText('■', x, y); } if (it.type === 'forge') { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffcf6a'; g.fillText('π', x, y); } }
     for (const e of G.enemies) if (e.alive && e.T.boss && seen(e.pos.x, e.pos.z)) { const [x, y] = to(e.pos.x, e.pos.z); g.fillStyle = '#ff4040'; g.fillText('Ω', x, y); }
+    // points of interest you have seen
+    if (G.poiSeen && WM.zoom > 2.2) {
+      const ICON = { camp: ['x', '#d07060'], ruin: ['#', '#a8acb8'], chest: ['■', '#ffd860'], shrine: ['†', '#9fd8ff'], waystone: ['◊', '#9fd8ff'], vista: ['^', '#e8e0c8'], wanderer: ['@', '#e0c080'], elite: ['!', '#ffb040'] };
+      g.font = 'bold 12px ui-monospace, Menlo, monospace';
+      for (const id in G.poiSeen) {
+        const [i, j] = id.split(',').map(Number), p = W.poiAt(i, j); if (!p || !ICON[p.type]) continue;
+        const [x, y] = to(p.x, p.z); if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
+        const done = (G.cleared && G.cleared[id]) || (G.opened && G.opened['poi:' + id]);
+        g.globalAlpha = done ? 0.35 : 1; g.fillStyle = ICON[p.type][1]; g.fillText(ICON[p.type][0], x, y);
+      }
+      g.globalAlpha = 1;
+    }
     const obj = G.objective(); if (obj) { const [x, y] = to(obj.x, obj.z); g.fillStyle = '#ffd860'; g.fillText('◆', x, y); }
     const P = G.player, [x, y] = to(P.pos.x, P.pos.z);
     g.save(); g.translate(x, y); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 8; g.fillText('▲', 0, 0); g.restore();
     g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left'; g.fillStyle = '#8a90a0';
-    ['▲ fire / rest', '■ chest', 'Ω boss', '◆ objective', 'π forge'].forEach((s, i) => g.fillText(s, 16, 20 + i * 16));
+    ['▲ fire / rest', '■ chest', 'Ω boss', '◆ objective', 'π forge', 'x camp', '# ruin', '† shrine', '◊ waystone', '^ vista', '@ wanderer', '! elite'].forEach((s, i) => g.fillText(s, 16, 20 + i * 16));
   };
   (function mapInput() {
     const c = document.getElementById('wm'); if (!c) return;

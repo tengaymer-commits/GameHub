@@ -219,7 +219,7 @@
     if (this.state !== 'move' && this.mvel && this.state !== 'roll') this.mvel.multiplyScalar(0.5);
     const wading = W.inWater(this.pos.x, this.pos.z);
     if (this.webbed > 0) this.webbed -= dt;
-    let speed = 6.2 * (this.moveMul || 1) * (wading ? 0.55 : 1) * (this.webbed > 0 ? 0.45 : 1);
+    let speed = 6.2 * (this.moveMul || 1) * (this.buffMove || 1) * (wading ? 0.55 : 1) * (this.webbed > 0 ? 0.45 : 1);
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
 
     // buffer inputs
@@ -559,7 +559,7 @@
     if (d > range + 0.45) return false;
     if (half < Math.PI && Math.abs(GW.angDiff(this.yaw, Math.atan2(dx, dz))) > half) return false;
     this.didHit = true;
-    G.hurtPlayer(dmg, this.pos, opts);
+    G.hurtPlayer(dmg * (this.dmgMul || 1), this.pos, opts);
     return true;
   };
   GW.Enemy = Enemy; GW.ETYPES = TYPES;
@@ -1036,11 +1036,21 @@
   // ======================================================================
   // NPCs
   // ======================================================================
-  function NPC(scene, kind, x, z) {
+  function NPC(scene, kind, x, z, o) {
+    o = o || {}; this.role = o.role; this.region = o.region;
     this.kind = kind; this.pos = new V3(x, GW.World.heightAt(x, z), z); this.yaw = 0; this.t = Math.random() * 5;
     const g = this.model = new THREE.Group(); scene.add(g); g.position.copy(this.pos);
     shadow(scene, 0.7).position.set(x, this.pos.y + 0.03, z);
-    if (kind === 'elder') {
+    if (kind === 'villager') {
+      // traders and quest-givers in the region villages: robe, hood, a pack or a staff
+      this.name = o.name;
+      const robe = GW.mat({ id: ID.CLOTH, color: o.col || 0x5a4a3a, rim: 0.4 }), skin = GW.mat({ id: ID.BODY, color: 0xc0a088 }), wood = GW.mat({ id: ID.WOOD, color: 0x5a3e26 });
+      part(g, new THREE.ConeGeometry(0.55, 1.6, 10), robe, 0, 0.8, 0);
+      part(g, new THREE.SphereGeometry(0.19, 8, 6), skin, 0, 1.75, 0.03);
+      part(g, new THREE.ConeGeometry(0.28, 0.45, 10), robe, 0, 1.95, -0.03);
+      if (o.role === 'trader') { part(g, box(0.5, 0.6, 0.3), wood, 0, 1.25, -0.35); }
+      else part(g, new THREE.CylinderGeometry(0.04, 0.05, 2.0, 5), wood, -0.42, 1.0, 0.15);
+    } else if (kind === 'elder') {
       this.name = 'Mara, the Lamplighter';
       const robe = GW.mat({ id: ID.CLOTH, color: 0x3a4a6a, rim: 0.4 }), skin = GW.mat({ id: ID.BODY, color: 0xc8b098 }), wood = GW.mat({ id: ID.WOOD, color: 0x5a3e26 }), lamp = GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffc070, unlit: true });
       part(g, new THREE.ConeGeometry(0.6, 1.7, 10), robe, 0, 0.85, 0);
