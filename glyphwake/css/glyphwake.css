@@ -54,6 +54,10 @@ button { font-family: var(--mono); color: var(--fg); }
 #obj-arrow.on { opacity: .85; }
 #obj-dist { display: block; font-size: 9px; text-align: center; color: var(--fg); }
 #floaters { position: absolute; inset: 0; overflow: hidden; }
+#worldmap { position: fixed; inset: 0; background: rgba(2,3,6,.92); z-index: 40; display: flex; align-items: center; justify-content: center; }
+#worldmap.hidden { display: none; }
+#wm { width: 100vw; height: 100vh; display: block; cursor: grab; }
+#worldmap .wm-foot { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; color: #7a8090; font-size: 11px; letter-spacing: .15em; pointer-events: none; }
 #fps { position: absolute; left: 50%; top: calc(6px + var(--safe-t, 0px)); transform: translateX(-50%) translateX(-120px); font-size: 11px; color: #9fb0a0; text-shadow: 0 0 4px #000; pointer-events: none; white-space: pre; }
 .fl { position: absolute; font-weight: 700; font-size: 13px; text-shadow: 0 0 3px #000, 0 0 6px #000; white-space: nowrap; will-change: transform; }
 .fl.name { font-weight: 400; font-size: 10px; color: #cfd6e6; opacity: .85; }

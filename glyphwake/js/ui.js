@@ -10,7 +10,7 @@
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear' };
+  const KEYMAP = { Space: 'roll', ShiftLeft: 'roll', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'gear', KeyM: 'map' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {
@@ -271,6 +271,51 @@
     g.save(); g.translate(64, 64); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.fillText('▲', 0, 0); g.restore();
   };
 
+  // ---------------- world map (M) ----------------
+  const WM = { open: false, zoom: 1, cx: 0, cz: 0, drag: null };
+  UI.mapOpen = () => WM.open;
+  UI.toggleMap = function (G, on) {
+    WM.open = on === undefined ? !WM.open : on;
+    $('worldmap').classList.toggle('hidden', !WM.open);
+    if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 1.6; UI.drawWorldMap(G); }
+  };
+  UI.drawWorldMap = function (G) {
+    if (!WM.open || !mapImg) return;
+    const c = $('wm'), dpr = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
+    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#030408'; g.fillRect(0, 0, w, h);
+    const W = GW.World, S = W.SIZE, px = Math.min(w, h) * 0.9 / S * WM.zoom;   // screen px per metre
+    const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
+    const [ox, oy] = to(-S / 2, -S / 2);
+    g.imageSmoothingEnabled = true; g.globalAlpha = 0.85; g.drawImage(mapImg, ox, oy, S * px, S * px); g.globalAlpha = 1;
+    g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const z of W.ZONES) {
+      const [x, y] = to(z.x, z.z);
+      g.strokeStyle = 'rgba(200,200,210,.18)'; g.setLineDash([2, 4]); g.beginPath(); g.arc(x, y, z.r * px, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+      g.font = `600 ${Math.round(GW.clamp(10 * WM.zoom, 10, 15))}px ui-monospace, Menlo, monospace`; g.fillStyle = '#c8ccd8';
+      g.fillText(z.name, x, y - z.r * px - 8);
+    }
+    g.font = 'bold 14px ui-monospace, Menlo, monospace';
+    for (const f of W.fires) { const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
+    for (const it of W.interact) { if (it.type === 'chest' && !(G.opened || {})[it.id]) { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffd860'; g.fillText('■', x, y); } if (it.type === 'forge') { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffcf6a'; g.fillText('π', x, y); } }
+    for (const e of G.enemies) if (e.alive && e.T.boss) { const [x, y] = to(e.pos.x, e.pos.z); g.fillStyle = '#ff4040'; g.fillText('Ω', x, y); }
+    const obj = G.objective(); if (obj) { const [x, y] = to(obj.x, obj.z); g.fillStyle = '#ffd860'; g.fillText('◆', x, y); }
+    const P = G.player, [x, y] = to(P.pos.x, P.pos.z);
+    g.save(); g.translate(x, y); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 8; g.fillText('▲', 0, 0); g.restore();
+    g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left'; g.fillStyle = '#8a90a0';
+    ['▲ fire / rest', '■ chest', 'Ω boss', '◆ objective', 'π forge'].forEach((s, i) => g.fillText(s, 16, 20 + i * 16));
+  };
+  (function mapInput() {
+    const c = document.getElementById('wm'); if (!c) return;
+    c.addEventListener('wheel', e => { WM.zoom = GW.clamp(WM.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.8, 6); UI.drawWorldMap(GW.G); e.preventDefault(); }, { passive: false });
+    c.addEventListener('pointerdown', e => { WM.drag = { x: e.clientX, y: e.clientY, cx: WM.cx, cz: WM.cz }; c.setPointerCapture(e.pointerId); });
+    c.addEventListener('pointermove', e => { if (!WM.drag) return; const S = GW.World.SIZE, px = Math.min(innerWidth, innerHeight) * 0.9 / S * WM.zoom;
+      WM.cx = WM.drag.cx - (e.clientX - WM.drag.x) / px; WM.cz = WM.drag.cz - (e.clientY - WM.drag.y) / px; UI.drawWorldMap(GW.G); });
+    c.addEventListener('pointerup', () => { WM.drag = null; });
+  })();
+
   // ---------------- title logo ----------------
   UI.makeLogo = function (word) {
     const c = document.createElement('canvas'), w = 120, h = 20; c.width = w; c.height = h;
@@ -321,6 +366,7 @@
     UI._apply = apply;
     const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
+    const xr = $('o-xray'); xr.checked = !!S.xray; xr.onchange = () => { S.xray = xr.checked; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };

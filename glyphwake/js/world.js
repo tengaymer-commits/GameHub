@@ -134,6 +134,7 @@
   };
   // instances are split into 36 m chunks with real bounds, so off-screen trees/props are skipped
   // by the main, shadow and reflection passes instead of always being drawn
+  const it0Scale = m => new THREE.Vector3().setFromMatrixScale(m).y;
   Batch.prototype.build = function (scene) {
     const CH = 36, _p = new THREE.Vector3();
     Object.values(this.groups).forEach(g => {
@@ -145,6 +146,7 @@
         items.forEach((it, i) => { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
         im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
         im.computeBoundingSphere(); im.frustumCulled = true; scene.add(im);
+        if (g.geom.boundingSphere.radius * (it0Scale(items[0].m)) > 0.9) W.occluders.push(im);   // big enough to hide the hero
       }
     });
   };
@@ -152,7 +154,7 @@
   // ---------- world object ----------
   const W = GW.World = {
     SIZE, L, ZONES, WATER_Y,
-    colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], lights: null, fireflies: null,
+    colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], occluders: [], lights: null, fireflies: null,
   };
   W.heightAt = (x, z) => sample(H, x, z);
   W.riverAt = (x, z) => sample(R, x, z);
@@ -677,6 +679,7 @@
       geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
       merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
       const m = new THREE.Mesh(merged, cmat[mn] || cmat.cobble); m.position.set(L.castle.x, base, L.castle.z); m.frustumCulled = false; scene.add(m);
+      if (mn !== 'void') { merged.computeBoundingSphere(); m.updateMatrixWorld(); W.occluders.push(m); }
     }
     CL.base = base;
     // ---- colliders (level 0 = ground, 1 = upper floor; undefined = both) ----
@@ -710,6 +713,7 @@
       geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
       merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
       const m = new THREE.Mesh(merged, mats[mn] || fallback); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m);
+      if (mn !== 'void') { merged.computeBoundingSphere(); m.updateMatrixWorld(); W.occluders.push(m); }
     }
   }
   function buildChapel(scene) {

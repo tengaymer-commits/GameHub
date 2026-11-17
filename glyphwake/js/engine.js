@@ -97,7 +97,7 @@
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -109,7 +109,7 @@
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -256,7 +256,7 @@
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
-      if (uTex > 0.5 && uPlayerW.y > -900.0) {
+      if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
         // dissolve anything between the camera and the hero (roofs, tree tops, walls), dithered, so he is never hidden
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
         float tt = dot(rr, cd), dp = length(rr - cd * tt);

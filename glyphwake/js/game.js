@@ -122,6 +122,8 @@
     G.player.place(Lw.start.x, Lw.start.z + 5);
     UI.initInput(G); UI.buildHotbar(); UI.initMinimap();
     GW.Forge.UI.init(); GW.Knight.UI.init(G);
+    $('p-map').onclick = () => { togglePause(false); UI.toggleMap(G, true); };
+    $('minimap-wrap').onclick = () => { if (G.state === 'play') UI.toggleMap(G, true); };
     $('p-gear').onclick = () => openGear(); $('gear-btn').onclick = () => openGear();
     UI.initSettings(applySettings);
     $('logo').textContent = UI.makeLogo('GLYPHWAKE');
@@ -596,6 +598,34 @@
   // ---------------- camera ----------------
   const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3(), _snapP = new V3();
   G.gridOff = new THREE.Vector2(0, 0);
+  // ---- hero behind a wall or tree: a dotted silver silhouette drawn through it (x-ray is optional now) ----
+  const _rc = new THREE.Raycaster(), _hp = new THREE.Vector3(), _dir = new THREE.Vector3();
+  let hiddenK = 0, hiddenTest = 0, hidden = false;
+  function drawHiddenHero() {
+    const P = G.player, C = G.camera, W = GW.World;
+    if (G.state !== 'play' || UI.settings.xray) { hiddenK = 0; return; }
+    if (--hiddenTest <= 0) {
+      hiddenTest = 4; hidden = false;
+      for (const hgt of [0.9, 1.7]) {
+        _hp.set(P.pos.x, P.pos.y + hgt, P.pos.z); _dir.subVectors(_hp, C.position); const dist = _dir.length(); _dir.normalize();
+        _rc.set(C.position, _dir); _rc.far = dist - 0.6; _rc.near = 0;
+        if (_rc.intersectObjects(W.occluders || [], false).length) { hidden = true; break; }
+      }
+    }
+    hiddenK += ((hidden ? 1 : 0) - hiddenK) * 0.2;
+    if (hiddenK < 0.03 || !fxCx) return;
+    const dpr = fxCv.width / innerWidth, cx = fxCx;
+    const pr = (y) => { _hp.set(P.pos.x, P.pos.y + y, P.pos.z).project(C); return [(_hp.x * 0.5 + 0.5) * fxCv.width, (-_hp.y * 0.5 + 0.5) * fxCv.height]; };
+    const [fx, fy] = pr(0), [hx, hy] = pr(1.9), hgt = Math.max(8, fy - hy), wid = hgt * 0.32;
+    cx.save(); cx.globalAlpha = hiddenK * (0.75 + 0.25 * Math.sin(G.t * 4));
+    cx.strokeStyle = '#e6ecff'; cx.shadowColor = '#b8c8ff'; cx.shadowBlur = 6 * dpr; cx.lineWidth = 1.4 * dpr; cx.setLineDash([2 * dpr, 3 * dpr]);
+    // capsule silhouette: head + body
+    cx.beginPath(); cx.arc(hx, hy + wid * 0.55, wid * 0.42, 0, Math.PI * 2); cx.stroke();
+    cx.beginPath(); cx.moveTo(fx - wid * 0.45, fy); cx.lineTo(fx - wid * 0.62, hy + wid * 1.25); cx.quadraticCurveTo(hx, hy + wid * 0.85, fx + wid * 0.62, hy + wid * 1.25); cx.lineTo(fx + wid * 0.45, fy); cx.stroke();
+    // a ring at the feet
+    cx.setLineDash([1.5 * dpr, 2.5 * dpr]); cx.beginPath(); cx.ellipse(fx, fy, wid * 1.1, wid * 0.45, 0, 0, Math.PI * 2); cx.stroke();
+    cx.restore();
+  }
   // ---- frame-rate readout + automatic render resolution (Auto: drop supersampling when frames get slow) ----
   const PF = { ema: 1 / 60, slowT: 0, fastT: 0, cool: 0, shown: 0, acc: 0, n: 0 };
   function perfGovernor(dt) {
@@ -705,7 +735,7 @@
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : Math.max(t * t * (3 - 2 * t), UI.settings.grassAscii || 0); }
     { const S0 = UI.settings, v = (k, d) => S0[k] !== undefined ? S0[k] : d;
       G.R.asciiMat.uniforms.uActorPop.value = v('heroPop', 0.3);
-      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uSwirl.value = v('swirl', 0.25); }
+      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
@@ -777,12 +807,15 @@
     GW.LU.uTime.value = G.t;
     const pressed = I.consume();
     if (pressed.menu) {
-      if (G.state === 'forge') GW.Forge.UI.close();
+      if (UI.mapOpen()) UI.toggleMap(G, false);
+      else if (G.state === 'forge') GW.Forge.UI.close();
       else if (G.state === 'gear') G.closeGear();
       else if (G.state === 'play' && !UI.inDialog()) togglePause(true);
       else if (G.state === 'paused') togglePause(false);
     }
     UI.tick(dt);
+    if (pressed.map && (G.state === 'play' || UI.mapOpen()) && !UI.inDialog()) UI.toggleMap(G);
+    if (UI.mapOpen() && frame % 10 === 0) UI.drawWorldMap(G);
     if (pressed.gear) { if (G.state === 'gear') G.closeGear(); else if (G.state === 'play' && !UI.inDialog()) openGear(); }
     if (G.state === 'gear') {
       const U = GW.Knight.UI, C = G.camera;
@@ -814,7 +847,7 @@
     // hitstop: freeze simulation briefly, keep rendering
     let sdt = dt;
     if (G.hitstop > 0) { G.hitstop -= dt; sdt = dt * 0.05; }
-    if (G.state === 'paused' || G.state === 'dead') sdt = 0;
+    if (G.state === 'paused' || G.state === 'dead' || UI.mapOpen()) sdt = 0;
 
     if (playing) {
       let input = { mx: 0, mz: 0 };
@@ -896,6 +929,7 @@
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
+    drawHiddenHero();
     perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {
