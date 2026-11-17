@@ -183,7 +183,7 @@
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex; uniform float uSil;
     float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
     float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -356,6 +356,10 @@
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
+      if (uSil > 0.5) {   // hero behind a wall: a flat silver silhouette (still drawn as character glyphs)
+        float rr = pow(1.0 - max(dot(n, V), 0.0), 2.0);
+        gl_FragColor = vec4(vec3(0.5, 0.58, 0.78) * (0.55 + 0.6 * rr), (outId + 0.5) / 32.0);
+      }
     }`;
 
   const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.0, 13: 0.0, 6: 0.15, 22: 0.06 };
@@ -673,6 +677,7 @@
     if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;
     r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
     r.render(scene, camera);
+    if (fx && fx.silhouette) { const ac = r.autoClear; r.autoClear = false; fx.silhouette(r, camera); r.autoClear = ac; }
     this.asciiMat.uniforms.tScene.value = T.scene.texture;
     this.pass(this.asciiMat, T.ascii);
     this.brightMat.uniforms.tIn.value = T.ascii.texture; this.pass(this.brightMat, T.b1);

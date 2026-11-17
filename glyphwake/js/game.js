@@ -661,23 +661,31 @@
     }
     hiddenHold -= Math.min(0.1, dt || 0.016); hidden = hiddenHold > 0;
     hiddenK += ((hidden ? 1 : 0) - hiddenK) * Math.min(1, (dt || 0.016) * 10);
-    if (hiddenK < 0.03 || !fxCx) return;
-    const dpr = fxCv.width / innerWidth, cx = fxCx;
-    const pr = (y) => { _hp.set(P.pos.x, P.pos.y + y, P.pos.z).project(C); return [(_hp.x * 0.5 + 0.5) * fxCv.width, (-_hp.y * 0.5 + 0.5) * fxCv.height]; };
-    const [fx, fy] = pr(0), [hx, hy] = pr(1.9), hgt = Math.max(8, fy - hy), wid = hgt * 0.32;
-    cx.save(); cx.globalAlpha = hiddenK;
-    const shape = () => {
-      cx.beginPath(); cx.arc(hx, hy + wid * 0.55, wid * 0.42, 0, Math.PI * 2);
-      cx.moveTo(fx - wid * 0.45, fy); cx.lineTo(fx - wid * 0.62, hy + wid * 1.25); cx.quadraticCurveTo(hx, hy + wid * 0.85, fx + wid * 0.62, hy + wid * 1.25); cx.lineTo(fx + wid * 0.45, fy); cx.closePath();
-    };
-    // a dark cut-out so the wall's letters don't swallow it, then a bright pulsing edge
-    shape(); cx.fillStyle = 'rgba(4,6,10,0.72)'; cx.fill();
-    cx.lineJoin = 'round';
-    shape(); cx.strokeStyle = 'rgba(0,0,0,0.9)'; cx.lineWidth = 4 * dpr; cx.stroke();
-    const pulse = 0.7 + 0.3 * Math.sin(G.t * 4);
-    shape(); cx.strokeStyle = `rgba(235,240,255,${pulse})`; cx.shadowColor = '#c8d4ff'; cx.shadowBlur = 8 * dpr; cx.lineWidth = 2.2 * dpr; cx.setLineDash([4 * dpr, 2.5 * dpr]); cx.stroke();
-    cx.setLineDash([2 * dpr, 3 * dpr]); cx.lineWidth = 1.5 * dpr; cx.beginPath(); cx.ellipse(fx, fy, wid * 1.2, wid * 0.48, 0, 0, Math.PI * 2); cx.stroke();
-    cx.restore();
+    G.heroHidden = hiddenK > 0.3;
+  }
+  // second pass over the hero's meshes: drawn only where something is in front of him (depth test 'greater')
+  const silMats = new WeakMap();
+  function silhouettePass(r, camera) {
+    if (!G.heroHidden || UI.settings.xray) return;
+    const scene = G.scene, hide = [];
+    // render just the hero: temporarily hide every other top-level object
+    scene.children.forEach(o => { if (o !== G.player.model && o.visible) { o.visible = false; hide.push(o); } });
+    const swaps = [];
+    G.player.model.traverse(m => {
+      if (!m.isMesh || !m.material || !m.material.uniforms) return;
+      let s = silMats.get(m.material);
+      if (!s) {
+        s = new THREE.ShaderMaterial({ uniforms: Object.assign({}, m.material.uniforms, { uSil: { value: 1 } }), vertexShader: m.material.vertexShader, fragmentShader: m.material.fragmentShader,
+          side: m.material.side, vertexColors: m.material.vertexColors, depthFunc: THREE.GreaterDepth, depthWrite: false });
+        silMats.set(m.material, s);
+      }
+      swaps.push([m, m.material]); m.material = s;
+    });
+    const bg = scene.background; scene.background = null;
+    r.render(scene, camera);
+    scene.background = bg;
+    swaps.forEach(([m, mat]) => { m.material = mat; });
+    hide.forEach(o => { o.visible = true; });
   }
   // ---- weather: glyph rain in the Vale (comes and goes), snow in Frostmere, drifting ash in the Barrens ----
   const WX = { parts: [], rain: 0, snow: 0, ash: 0 };
@@ -904,7 +912,7 @@
       if (!U.drag) U.ang += dt * 0.25;
       G.player.animate(0.016);
       const p = G.player.pos, r = window.innerWidth < 640 ? 6.4 : 3.8;
-      C.aspect = G.R.aspect; C.fov = 40; C.updateProjectionMatrix();
+      C.aspect = G.R.aspect; C.fov = 40; C.near = 0.1; C.far = 300; C.updateProjectionMatrix();
       C.position.set(p.x + Math.sin(U.ang) * r, p.y + 1.6, p.z + Math.cos(U.ang) * r);
       C.lookAt(p.x, p.y + 1.0, p.z);
       const fr = U.freeRect(); C.setViewOffset(window.innerWidth, window.innerHeight, window.innerWidth / 2 - fr.cx, window.innerHeight / 2 - fr.cy, window.innerWidth, window.innerHeight);
@@ -1008,7 +1016,7 @@
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
+    G.R.render(G.scene, G.camera, { silhouette: G.state === 'play' ? silhouettePass : null, gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
