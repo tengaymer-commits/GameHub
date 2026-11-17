@@ -877,9 +877,10 @@
   // ---------------- The Dusk Widow: a giant furry spider (procedural legs, IK walk, three phases) ----------------
   const UPV = new V3(0, 1, 0), _q = new THREE.Quaternion(), _a = new V3(), _b = new V3(), _d = new V3();
   const segGeo = new THREE.CylinderGeometry(1, 1, 1, 9, 3); segGeo.translate(0, 0.5, 0);
-  function setSeg(m, A, B, r0) {     // stretch a unit segment mesh from A to B
-    _d.subVectors(B, A); const len = _d.length(); if (len < 1e-4) return;
-    m.position.copy(A); _q.setFromUnitVectors(UPV, _d.multiplyScalar(1 / len)); m.quaternion.copy(_q); m.scale.set(r0, len, r0);
+  const _sd = new V3();
+  function setSeg(m, A, B, r0) {     // stretch a unit segment mesh from A to B (own scratch vector: A/B may be the shared temps)
+    _sd.subVectors(B, A); const len = _sd.length(); if (len < 1e-4) return;
+    m.position.copy(A); _q.setFromUnitVectors(UPV, _sd.multiplyScalar(1 / len)); m.quaternion.copy(_q); m.scale.set(r0, len, r0);
   }
   // leg i: hip angle around the body (from the front), rest foot distance
   const WLEGS = [0.45, 0.95, 1.55, 2.2].flatMap(a => [a, -a]);

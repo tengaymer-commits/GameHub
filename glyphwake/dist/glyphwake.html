@@ -5799,7 +5799,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }`;
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
-    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex; uniform float uSil;
     float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
     float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -5972,6 +5972,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
+      if (uSil > 0.5) {   // hero behind a wall: a flat silver silhouette (still drawn as character glyphs)
+        float rr = pow(1.0 - max(dot(n, V), 0.0), 2.0);
+        gl_FragColor = vec4(vec3(0.5, 0.58, 0.78) * (0.55 + 0.6 * rr), (outId + 0.5) / 32.0);
+      }
     }`;
 
   const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.0, 13: 0.0, 6: 0.15, 22: 0.06 };
@@ -6289,6 +6293,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;
     r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
     r.render(scene, camera);
+    if (fx && fx.silhouette) { const ac = r.autoClear; r.autoClear = false; fx.silhouette(r, camera); r.autoClear = ac; }
     this.asciiMat.uniforms.tScene.value = T.scene.texture;
     this.pass(this.asciiMat, T.ascii);
     this.brightMat.uniforms.tIn.value = T.ascii.texture; this.pass(this.brightMat, T.b1);
@@ -9033,9 +9038,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------------- The Dusk Widow: a giant furry spider (procedural legs, IK walk, three phases) ----------------
   const UPV = new V3(0, 1, 0), _q = new THREE.Quaternion(), _a = new V3(), _b = new V3(), _d = new V3();
   const segGeo = new THREE.CylinderGeometry(1, 1, 1, 9, 3); segGeo.translate(0, 0.5, 0);
-  function setSeg(m, A, B, r0) {     // stretch a unit segment mesh from A to B
-    _d.subVectors(B, A); const len = _d.length(); if (len < 1e-4) return;
-    m.position.copy(A); _q.setFromUnitVectors(UPV, _d.multiplyScalar(1 / len)); m.quaternion.copy(_q); m.scale.set(r0, len, r0);
+  const _sd = new V3();
+  function setSeg(m, A, B, r0) {     // stretch a unit segment mesh from A to B (own scratch vector: A/B may be the shared temps)
+    _sd.subVectors(B, A); const len = _sd.length(); if (len < 1e-4) return;
+    m.position.copy(A); _q.setFromUnitVectors(UPV, _sd.multiplyScalar(1 / len)); m.quaternion.copy(_q); m.scale.set(r0, len, r0);
   }
   // leg i: hip angle around the body (from the front), rest foot distance
   const WLEGS = [0.45, 0.95, 1.55, 2.2].flatMap(a => [a, -a]);
@@ -10610,23 +10616,31 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     hiddenHold -= Math.min(0.1, dt || 0.016); hidden = hiddenHold > 0;
     hiddenK += ((hidden ? 1 : 0) - hiddenK) * Math.min(1, (dt || 0.016) * 10);
-    if (hiddenK < 0.03 || !fxCx) return;
-    const dpr = fxCv.width / innerWidth, cx = fxCx;
-    const pr = (y) => { _hp.set(P.pos.x, P.pos.y + y, P.pos.z).project(C); return [(_hp.x * 0.5 + 0.5) * fxCv.width, (-_hp.y * 0.5 + 0.5) * fxCv.height]; };
-    const [fx, fy] = pr(0), [hx, hy] = pr(1.9), hgt = Math.max(8, fy - hy), wid = hgt * 0.32;
-    cx.save(); cx.globalAlpha = hiddenK;
-    const shape = () => {
-      cx.beginPath(); cx.arc(hx, hy + wid * 0.55, wid * 0.42, 0, Math.PI * 2);
-      cx.moveTo(fx - wid * 0.45, fy); cx.lineTo(fx - wid * 0.62, hy + wid * 1.25); cx.quadraticCurveTo(hx, hy + wid * 0.85, fx + wid * 0.62, hy + wid * 1.25); cx.lineTo(fx + wid * 0.45, fy); cx.closePath();
-    };
-    // a dark cut-out so the wall's letters don't swallow it, then a bright pulsing edge
-    shape(); cx.fillStyle = 'rgba(4,6,10,0.72)'; cx.fill();
-    cx.lineJoin = 'round';
-    shape(); cx.strokeStyle = 'rgba(0,0,0,0.9)'; cx.lineWidth = 4 * dpr; cx.stroke();
-    const pulse = 0.7 + 0.3 * Math.sin(G.t * 4);
-    shape(); cx.strokeStyle = `rgba(235,240,255,${pulse})`; cx.shadowColor = '#c8d4ff'; cx.shadowBlur = 8 * dpr; cx.lineWidth = 2.2 * dpr; cx.setLineDash([4 * dpr, 2.5 * dpr]); cx.stroke();
-    cx.setLineDash([2 * dpr, 3 * dpr]); cx.lineWidth = 1.5 * dpr; cx.beginPath(); cx.ellipse(fx, fy, wid * 1.2, wid * 0.48, 0, 0, Math.PI * 2); cx.stroke();
-    cx.restore();
+    G.heroHidden = hiddenK > 0.3;
+  }
+  // second pass over the hero's meshes: drawn only where something is in front of him (depth test 'greater')
+  const silMats = new WeakMap();
+  function silhouettePass(r, camera) {
+    if (!G.heroHidden || UI.settings.xray) return;
+    const scene = G.scene, hide = [];
+    // render just the hero: temporarily hide every other top-level object
+    scene.children.forEach(o => { if (o !== G.player.model && o.visible) { o.visible = false; hide.push(o); } });
+    const swaps = [];
+    G.player.model.traverse(m => {
+      if (!m.isMesh || !m.material || !m.material.uniforms) return;
+      let s = silMats.get(m.material);
+      if (!s) {
+        s = new THREE.ShaderMaterial({ uniforms: Object.assign({}, m.material.uniforms, { uSil: { value: 1 } }), vertexShader: m.material.vertexShader, fragmentShader: m.material.fragmentShader,
+          side: m.material.side, vertexColors: m.material.vertexColors, depthFunc: THREE.GreaterDepth, depthWrite: false });
+        silMats.set(m.material, s);
+      }
+      swaps.push([m, m.material]); m.material = s;
+    });
+    const bg = scene.background; scene.background = null;
+    r.render(scene, camera);
+    scene.background = bg;
+    swaps.forEach(([m, mat]) => { m.material = mat; });
+    hide.forEach(o => { o.visible = true; });
   }
   // ---- weather: glyph rain in the Vale (comes and goes), snow in Frostmere, drifting ash in the Barrens ----
   const WX = { parts: [], rain: 0, snow: 0, ash: 0 };
@@ -10853,7 +10867,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (!U.drag) U.ang += dt * 0.25;
       G.player.animate(0.016);
       const p = G.player.pos, r = window.innerWidth < 640 ? 6.4 : 3.8;
-      C.aspect = G.R.aspect; C.fov = 40; C.updateProjectionMatrix();
+      C.aspect = G.R.aspect; C.fov = 40; C.near = 0.1; C.far = 300; C.updateProjectionMatrix();
       C.position.set(p.x + Math.sin(U.ang) * r, p.y + 1.6, p.z + Math.cos(U.ang) * r);
       C.lookAt(p.x, p.y + 1.0, p.z);
       const fr = U.freeRect(); C.setViewOffset(window.innerWidth, window.innerHeight, window.innerWidth / 2 - fr.cx, window.innerHeight / 2 - fr.cy, window.innerWidth, window.innerHeight);
@@ -10957,7 +10971,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.hurtFx = Math.max(0, G.hurtFx - dt * 1.5);
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
-    G.R.render(G.scene, G.camera, { gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
+    G.R.render(G.scene, G.camera, { silhouette: G.state === 'play' ? silhouettePass : null, gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
