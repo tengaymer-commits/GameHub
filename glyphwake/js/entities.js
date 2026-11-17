@@ -1007,7 +1007,9 @@
         let rx = e.pos.x + Math.sin(a) * reach, rz = e.pos.z + Math.cos(a) * reach;
         if (st === 'stab' && i < 2) { const k = e.t < 0.7 ? Math.min(1, e.t / 0.5) : 0; rx += sy * 1.5 * (e.t < 0.7 ? 1 : 0.4); rz += cy * 1.5 * (e.t < 0.7 ? 1 : 0.4); g.lift = 2.6 * k; } else g.lift = 0;
         if (!e._init) { g.foot.set(rx, W.groundY(rx, rz), rz); g.t = 1; }
-        const off = Math.hypot(g.foot.x - rx, g.foot.z - rz);
+        let off = Math.hypot(g.foot.x - rx, g.foot.z - rz);
+        // a foot left far behind (fast moves, knock-back, a pounce) snaps back under the body instead of stretching the leg
+        if (off > 4.5 || Math.hypot(g.foot.x - _a.x, g.foot.z - _a.z) > 6.4) { g.foot.set(rx, W.groundY(rx, rz), rz); g.t = 1; off = 0; }
         if (g.t >= 1 && (off > 1.6 || (e.moving && off > 0.7 && g.grp === groupStep)) && !e.hop) { g.from.copy(g.foot); g.to.set(rx, W.groundY(rx, rz), rz); g.t = 0; }
         if (g.t < 1) {
           g.t = Math.min(1, g.t + dt * (e.moving ? 6.5 : 4));
