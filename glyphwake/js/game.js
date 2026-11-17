@@ -596,6 +596,22 @@
   // ---------------- camera ----------------
   const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3(), _snapP = new V3();
   G.gridOff = new THREE.Vector2(0, 0);
+  // ---- frame-rate readout + automatic render resolution (Auto: drop supersampling when frames get slow) ----
+  const PF = { ema: 1 / 60, slowT: 0, fastT: 0, cool: 0, shown: 0, acc: 0, n: 0 };
+  function perfGovernor(dt) {
+    const R = G.R, S = UI.settings; if (!(dt > 0) || dt > 0.5) return;
+    PF.ema += (dt - PF.ema) * 0.05; PF.acc += dt; PF.n++;
+    if (PF.acc > 0.5) {
+      const el = $('fps'), fps = PF.n / PF.acc;
+      if (el) el.textContent = S.showFps === false ? '' : `${Math.round(fps)} fps · ${Math.round(PF.acc / PF.n * 1000)} ms · ${R.W}×${R.H} (${R.ss}×)`;
+      PF.acc = 0; PF.n = 0;
+    }
+    if ((S.res || 'auto') !== 'auto' || G.state !== 'play') { R.ssLimit = 0; return; }
+    PF.cool -= dt;
+    if (PF.ema > 1 / 45) { PF.slowT += dt; PF.fastT = 0; } else if (PF.ema < 1 / 57) { PF.fastT += dt; PF.slowT = 0; } else { PF.slowT = PF.fastT = 0; }
+    if (PF.slowT > 1.5 && R.ss > 1) { R.ssLimit = R.ss - 1; R.resize(); PF.slowT = 0; PF.cool = 30; PF.ema = 1 / 50; if (UI.resNote) UI.resNote(); }
+    else if (PF.fastT > 6 && PF.cool <= 0 && R.ss < R.ssCap) { R.ssLimit = R.ss + 1; R.resize(); PF.fastT = 0; PF.cool = 10; PF.ema = 1 / 50; if (UI.resNote) UI.resNote(); }
+  }
   // ---- fire: pure fire-coloured ASCII drawn over the frame (no glyph cell backgrounds, no dark lines) ----
   const FIRE_CH = '@%&$#*8%&@^*', EMBER_CH = "*'.^`+";
   let fxCv = null, fxCx = null;
@@ -880,6 +896,7 @@
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
+    perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {
       let fd = 99; for (const it of GW.World.interact) if (it.type === 'rest') fd = Math.min(fd, Math.hypot(it.x - focus.x, it.z - focus.z));

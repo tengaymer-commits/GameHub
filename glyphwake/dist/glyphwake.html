@@ -65,6 +65,7 @@ button { font-family: var(--mono); color: var(--fg); }
 #obj-arrow.on { opacity: .85; }
 #obj-dist { display: block; font-size: 9px; text-align: center; color: var(--fg); }
 #floaters { position: absolute; inset: 0; overflow: hidden; }
+#fps { position: absolute; left: 50%; top: calc(6px + var(--safe-t, 0px)); transform: translateX(-50%) translateX(-120px); font-size: 11px; color: #9fb0a0; text-shadow: 0 0 4px #000; pointer-events: none; white-space: pre; }
 .fl { position: absolute; font-weight: 700; font-size: 13px; text-shadow: 0 0 3px #000, 0 0 6px #000; white-space: nowrap; will-change: transform; }
 .fl.name { font-weight: 400; font-size: 10px; color: #cfd6e6; opacity: .85; }
 .fl.ehp { font-size: 8px; letter-spacing: -1px; color: #d44; font-weight: 400; }
@@ -213,6 +214,7 @@ body.touch #hotbar { display: none; }
   <div id="boss-bar" class="hidden"><div id="boss-name"></div><div id="boss-hp"><i></i><b></b><s style="left:33.3%"></s><s style="left:66.6%"></s></div></div>
   <div id="obj-arrow">▲<span id="obj-dist"></span></div>
   <div id="floaters"></div>
+  <div id="fps"></div>
   <div id="interact" class="hidden"></div>
   <div id="bottom">
     <div id="xp"><i id="xp-fill"></i><span id="xp-text"></span></div>
@@ -345,6 +347,7 @@ body.touch #hotbar { display: none; }
     <select id="o-res"><option value="auto">Auto (sharp glyphs)</option><option value="1">1× (fastest)</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="2.5">2.5×</option><option value="3">3×</option><option value="4">4× (sharpest, strong GPU)</option></select>
   </label>
   <div class="s-note" id="o-res-note"></div>
+  <label>Show FPS <input type="checkbox" id="o-fps" /></label>
   <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
   <label>Music <input type="range" id="o-mus" min="0" max="1" step="0.05" /></label>
   <button class="btn" id="s-back">Back</button>
@@ -6162,7 +6165,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const cap = [2.5e6, 6e6, 20e6][this.quality];
     // a whole-number supersampling factor, so whole-screen-pixel camera steps are whole render pixels too
     const ssMax = Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))) / native;
-    const ss = Math.max(1, Math.floor(ssMax + 0.15));
+    this.ssCap = Math.max(1, Math.floor(ssMax + 0.15));
+    const ss = Math.max(1, Math.min(this.ssCap, this.ssLimit || 99));
     const dpr = native * ss;
     this.dpr = dpr; this.ss = ss;
     this.r.setPixelRatio(native); this.r.setSize(w, h, false);
@@ -9522,6 +9526,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     UI._apply = apply;
     const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
+    const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };
     hun.checked = S.nightHunts !== false; hun.onchange = () => { S.nightHunts = hun.checked; UI.saveSettings(); };
@@ -10174,6 +10179,22 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------------- camera ----------------
   const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3(), _snapP = new V3();
   G.gridOff = new THREE.Vector2(0, 0);
+  // ---- frame-rate readout + automatic render resolution (Auto: drop supersampling when frames get slow) ----
+  const PF = { ema: 1 / 60, slowT: 0, fastT: 0, cool: 0, shown: 0, acc: 0, n: 0 };
+  function perfGovernor(dt) {
+    const R = G.R, S = UI.settings; if (!(dt > 0) || dt > 0.5) return;
+    PF.ema += (dt - PF.ema) * 0.05; PF.acc += dt; PF.n++;
+    if (PF.acc > 0.5) {
+      const el = $('fps'), fps = PF.n / PF.acc;
+      if (el) el.textContent = S.showFps === false ? '' : `${Math.round(fps)} fps · ${Math.round(PF.acc / PF.n * 1000)} ms · ${R.W}×${R.H} (${R.ss}×)`;
+      PF.acc = 0; PF.n = 0;
+    }
+    if ((S.res || 'auto') !== 'auto' || G.state !== 'play') { R.ssLimit = 0; return; }
+    PF.cool -= dt;
+    if (PF.ema > 1 / 45) { PF.slowT += dt; PF.fastT = 0; } else if (PF.ema < 1 / 57) { PF.fastT += dt; PF.slowT = 0; } else { PF.slowT = PF.fastT = 0; }
+    if (PF.slowT > 1.5 && R.ss > 1) { R.ssLimit = R.ss - 1; R.resize(); PF.slowT = 0; PF.cool = 30; PF.ema = 1 / 50; if (UI.resNote) UI.resNote(); }
+    else if (PF.fastT > 6 && PF.cool <= 0 && R.ss < R.ssCap) { R.ssLimit = R.ss + 1; R.resize(); PF.fastT = 0; PF.cool = 10; PF.ema = 1 / 50; if (UI.resNote) UI.resNote(); }
+  }
   // ---- fire: pure fire-coloured ASCII drawn over the frame (no glyph cell backgrounds, no dark lines) ----
   const FIRE_CH = '@%&$#*8%&@^*', EMBER_CH = "*'.^`+";
   let fxCv = null, fxCx = null;
@@ -10458,6 +10479,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
+    perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {
       let fd = 99; for (const it of GW.World.interact) if (it.type === 'rest') fd = Math.min(fd, Math.hypot(it.x - focus.x, it.z - focus.z));

@@ -568,7 +568,8 @@
     const cap = [2.5e6, 6e6, 20e6][this.quality];
     // a whole-number supersampling factor, so whole-screen-pixel camera steps are whole render pixels too
     const ssMax = Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))) / native;
-    const ss = Math.max(1, Math.floor(ssMax + 0.15));
+    this.ssCap = Math.max(1, Math.floor(ssMax + 0.15));
+    const ss = Math.max(1, Math.min(this.ssCap, this.ssLimit || 99));
     const dpr = native * ss;
     this.dpr = dpr; this.ss = ss;
     this.r.setPixelRatio(native); this.r.setSize(w, h, false);
