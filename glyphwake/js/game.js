@@ -599,31 +599,38 @@
   const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3(), _snapP = new V3();
   G.gridOff = new THREE.Vector2(0, 0);
   // ---- hero behind a wall or tree: a dotted silver silhouette drawn through it (x-ray is optional now) ----
-  const _rc = new THREE.Raycaster(), _hp = new THREE.Vector3(), _dir = new THREE.Vector3();
-  let hiddenK = 0, hiddenTest = 0, hidden = false;
-  function drawHiddenHero() {
+  const _hp = new THREE.Vector3(), _dir = new THREE.Vector3();
+  let hiddenK = 0, hiddenTest = 0, hidden = false, hiddenHold = 0;
+  function drawHiddenHero(dt) {
     const P = G.player, C = G.camera, W = GW.World;
     if (G.state !== 'play' || UI.settings.xray) { hiddenK = 0; return; }
     if (--hiddenTest <= 0) {
-      hiddenTest = 4; hidden = false;
-      for (const hgt of [0.9, 1.7]) {
+      hiddenTest = 3; let any = false;
+      for (const hgt of [0.4, 0.9, 1.4, 1.85]) {
         _hp.set(P.pos.x, P.pos.y + hgt, P.pos.z); _dir.subVectors(_hp, C.position); const dist = _dir.length(); _dir.normalize();
-        _rc.set(C.position, _dir); _rc.far = dist - 0.6; _rc.near = 0;
-        if (_rc.intersectObjects(W.occluders || [], false).length) { hidden = true; break; }
+        const rc = new THREE.Raycaster(C.position.clone(), _dir.clone(), 0, dist - 0.6);
+        const hits = rc.intersectObjects(W.occluders || [], false); if (hits.length) { any = true; break; }
       }
+      if (any) hiddenHold = 1.0;   // stay shown a moment, so edges of roofs don't make it flicker
     }
-    hiddenK += ((hidden ? 1 : 0) - hiddenK) * 0.2;
+    hiddenHold -= Math.min(0.1, dt || 0.016); hidden = hiddenHold > 0;
+    hiddenK += ((hidden ? 1 : 0) - hiddenK) * Math.min(1, (dt || 0.016) * 10);
     if (hiddenK < 0.03 || !fxCx) return;
     const dpr = fxCv.width / innerWidth, cx = fxCx;
     const pr = (y) => { _hp.set(P.pos.x, P.pos.y + y, P.pos.z).project(C); return [(_hp.x * 0.5 + 0.5) * fxCv.width, (-_hp.y * 0.5 + 0.5) * fxCv.height]; };
     const [fx, fy] = pr(0), [hx, hy] = pr(1.9), hgt = Math.max(8, fy - hy), wid = hgt * 0.32;
-    cx.save(); cx.globalAlpha = hiddenK * (0.75 + 0.25 * Math.sin(G.t * 4));
-    cx.strokeStyle = '#e6ecff'; cx.shadowColor = '#b8c8ff'; cx.shadowBlur = 6 * dpr; cx.lineWidth = 1.4 * dpr; cx.setLineDash([2 * dpr, 3 * dpr]);
-    // capsule silhouette: head + body
-    cx.beginPath(); cx.arc(hx, hy + wid * 0.55, wid * 0.42, 0, Math.PI * 2); cx.stroke();
-    cx.beginPath(); cx.moveTo(fx - wid * 0.45, fy); cx.lineTo(fx - wid * 0.62, hy + wid * 1.25); cx.quadraticCurveTo(hx, hy + wid * 0.85, fx + wid * 0.62, hy + wid * 1.25); cx.lineTo(fx + wid * 0.45, fy); cx.stroke();
-    // a ring at the feet
-    cx.setLineDash([1.5 * dpr, 2.5 * dpr]); cx.beginPath(); cx.ellipse(fx, fy, wid * 1.1, wid * 0.45, 0, 0, Math.PI * 2); cx.stroke();
+    cx.save(); cx.globalAlpha = hiddenK;
+    const shape = () => {
+      cx.beginPath(); cx.arc(hx, hy + wid * 0.55, wid * 0.42, 0, Math.PI * 2);
+      cx.moveTo(fx - wid * 0.45, fy); cx.lineTo(fx - wid * 0.62, hy + wid * 1.25); cx.quadraticCurveTo(hx, hy + wid * 0.85, fx + wid * 0.62, hy + wid * 1.25); cx.lineTo(fx + wid * 0.45, fy); cx.closePath();
+    };
+    // a dark cut-out so the wall's letters don't swallow it, then a bright pulsing edge
+    shape(); cx.fillStyle = 'rgba(4,6,10,0.72)'; cx.fill();
+    cx.lineJoin = 'round';
+    shape(); cx.strokeStyle = 'rgba(0,0,0,0.9)'; cx.lineWidth = 4 * dpr; cx.stroke();
+    const pulse = 0.7 + 0.3 * Math.sin(G.t * 4);
+    shape(); cx.strokeStyle = `rgba(235,240,255,${pulse})`; cx.shadowColor = '#c8d4ff'; cx.shadowBlur = 8 * dpr; cx.lineWidth = 2.2 * dpr; cx.setLineDash([4 * dpr, 2.5 * dpr]); cx.stroke();
+    cx.setLineDash([2 * dpr, 3 * dpr]); cx.lineWidth = 1.5 * dpr; cx.beginPath(); cx.ellipse(fx, fy, wid * 1.2, wid * 0.48, 0, 0, Math.PI * 2); cx.stroke();
     cx.restore();
   }
   // ---- frame-rate readout + automatic render resolution (Auto: drop supersampling when frames get slow) ----
@@ -929,7 +936,7 @@
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
     drawFireGlyphs();
-    drawHiddenHero();
+    drawHiddenHero(dt);
     perfGovernor(dt);
     // audio
     if (GWAudio.ctx) {
