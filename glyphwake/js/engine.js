@@ -258,13 +258,16 @@
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
       float xEdge = 0.0;
       if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
-        // inside a building: a clean cut-away. Roof and the walls between you and the camera are sliced off
-        // in a round window around the hero; the cut edge is drawn as a dark band like a section drawing.
+        // inside a building: dollhouse view. The roof lifts off, walls on the camera side are cut down to knee
+        // height (doorways show as gaps), far walls stay whole. Cut tops get a dark band like a section drawing.
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
-        float tt = dot(rr, cd), dp = length(rr - cd * tt), R = 3.6;
-        bool front = tt > 0.4 || vW.y > uPlayerW.y + 2.6;
-        if (front && dp < R) discard;
-        if (front) xEdge = 1.0 - smoothstep(R, R + 0.35, dp);
+        float tt = dot(rr, cd), dh = length(vW.xz - uPlayerW.xz);
+        if (dh < 16.0) {
+          float roofY = uPlayerW.y + 2.5, kneeY = uPlayerW.y + 0.7;
+          float cutY = tt > 0.3 ? kneeY : roofY;
+          if (vW.y > cutY) discard;
+          xEdge = smoothstep(cutY - 0.22, cutY, vW.y);
+        }
       }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
@@ -358,7 +361,7 @@
       if (uFarGrass > 0.0) col += gTint * gGlyph * (0.45 + 0.55 * gShadow + max(L - uAmb - uMoonCol, vec3(0.0)) * 1.5);
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
-      col = mix(col, col * 0.18 + vec3(0.02, 0.025, 0.035), xEdge);
+      col = mix(col, vec3(0.5, 0.52, 0.56), xEdge * 0.85);   // cut wall tops read as a light floor-plan outline
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
       if (uSil > 0.5) {   // hero behind something: only his outline (the rim), in silver
         float rr = 1.0 - max(dot(n, V), 0.0);
