@@ -97,7 +97,7 @@
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uBiomeMap: { value: null },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -109,7 +109,7 @@
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform sampler2D uBiomeMap;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -297,6 +297,11 @@
         // dark patches in the meadow where the earth shows as dim blue-grey o 0 8 letters (as in the reference)
         grassy *= 1.0 - step(1.0 - 0.32 * uGroundO, tn(vW.xz * 0.11 + 5.0) * 0.7 + tn(vW.xz * 0.37 + 1.7) * 0.3) * step(0.01, uGroundO);
         base = vec3(0.02, 0.06, 0.045) * (0.8 + 0.4 * n2);
+        vec4 bm = texture2D(uBiomeMap, vW.xz / uWorldSize + 0.5);
+        grassy *= (1.0 - bm.g) * (1.0 - 0.6 * bm.r);
+        base = mix(base, vec3(0.045, 0.04, 0.037) * (0.8 + 0.4 * n2), bm.r);              // ash
+        base = mix(base, vec3(0.16, 0.19, 0.24) * (0.8 + 0.4 * n2), bm.g);                // snow
+        if (vC.b > 0.45 && vC.r < 0.36) base = vec3(0.1, 0.14, 0.2) * (0.9 + 0.2 * n2);   // frozen mere: dark glassy ice
         vec2 gp = vW.xz / vec2(0.17, 0.24);
         vec2 gc = floor(gp), gu = fract(gp);
         float r = th(gc * 1.37 + 7.7);
@@ -310,6 +315,8 @@
           float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
           gGlyph = gm * (1.0 - smoothstep(0.22, 0.55, px));
           gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.1, 0.11, 0.15) * (0.7 + 0.6 * th(gc + 2.0));
+          gTint = mix(gTint, vec3(0.2, 0.16, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm.r);
+          gTint = mix(gTint, vec3(0.26, 0.31, 0.4) * (0.7 + 0.6 * th(gc + 2.0)), bm.g);
         }
       }
       if (uTex > 0.5 && uUnlit < 0.5) {

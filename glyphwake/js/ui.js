@@ -258,7 +258,7 @@
   UI.initMinimap = function () { mapImg = GW.World.mapCanvas(); };
   UI.drawMinimap = function (G) {
     const c = $('minimap'), g = c.getContext('2d'), P = G.player;
-    const S = GW.World.SIZE, scale = 512 / S, span = 64; // world units shown
+    const S = GW.World.SIZE, scale = mapImg.width / S, span = 80; // world units shown
     g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
     const sx = (P.pos.x + S / 2) * scale - span * scale / 2, sz = (P.pos.z + S / 2) * scale - span * scale / 2;
     g.drawImage(mapImg, sx, sz, span * scale, span * scale, 0, 0, 128, 128);

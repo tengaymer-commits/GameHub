@@ -170,6 +170,13 @@
     G.widow = G.spawnEnemy('widow', Lw.lair.x, Lw.lair.z);
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
     [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
+    // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
+    const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
+    [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
+    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700]].forEach(([x, z]) => pack('wolf', x, z, 4));
+    [[800, -50], [1050, -120], [900, 250], [1150, 160], [720, 380]].forEach(([x, z]) => pack('hollow', x, z, 3));
+    [[960, 40], [1000, 75]].forEach(([x, z]) => G.spawnEnemy('hollow', x, z, { x: GW.World.L.cinder.x, z: GW.World.L.cinder.z }));
+    [[-160, -960], [-140, -1000]].forEach(([x, z]) => G.spawnEnemy('hollow', x, z, { x: GW.World.L.abbey.x, z: GW.World.L.abbey.z }));
     // group everything into camps (enemies whose homes lie within 20 m share one)
     G.camps = [];
     for (const e of G.enemies) {
@@ -196,7 +203,7 @@
       for (const e of hunters) { e.hp = 1; G.hitEnemy(e, 99, { dot: 'burn' }); }      // dawn burns them away
       G.huntT = 40 + Math.random() * 40; return;
     }
-    const safe = G.nearFire(P.pos.x, P.pos.z, 9) || GW.World.ZONES.some(z => (z.name === 'EMBERHOLD' || z.name === 'THE WAKING STONE') && Math.hypot(P.pos.x - z.x, P.pos.z - z.z) < z.r);
+    const safe = G.nearFire(P.pos.x, P.pos.z, 9) || GW.World.ZONES.some(z => (z.name === 'EMBERHOLD' || z.name === 'THE WAKING STONE' || z.name === 'HEARTHWICK') && Math.hypot(P.pos.x - z.x, P.pos.z - z.z) < z.r);
     for (const e of hunters) {
       // they hunt you, but won't step into firelight
       const f = G.nearFire(e.pos.x, e.pos.z, 8);
@@ -210,7 +217,7 @@
     // spawn behind the edge of the view, in the dark
     for (let tries = 0; tries < 12; tries++) {
       const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 10, x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r;
-      if (Math.abs(x) > 120 || Math.abs(z) > 120 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
+      if (Math.abs(x) > 1200 || Math.abs(z) > 1200 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
       const type = Math.random() < 0.65 ? 'wolf' : 'hollow', n = type === 'wolf' ? 3 : 2;
       for (let k = 0; k < n; k++) { const e = G.spawnEnemy(type, x + Math.cos(k * 2.1) * 1.8, z + Math.sin(k * 2.1) * 1.8, { x: P.pos.x, z: P.pos.z }, true); e.hunter = true; e.aggro = false; }
       if (type === 'wolf') GWAudio.sfx('howl');

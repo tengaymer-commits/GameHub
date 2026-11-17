@@ -2,7 +2,9 @@
 (function () {
   'use strict';
   const GW = window.GW, ID = GW.ID;
-  const SIZE = 260, N = 256, HALF = SIZE / 2;
+  // 2.6 km world, data maps at 2 m per texel; the old Vale is the centre
+  const SIZE = 2600, N = 1300, HALF = SIZE / 2;
+  const CORE = 135;   // the hand-made Vale: |x|,|z| < CORE is scattered once at load, the rest streams in chunks
 
   // ---------- layout ----------
   const L = {
@@ -23,14 +25,25 @@
     chapel: { x: 18, z: 60 },
     tower: { x: -10, z: -66 },
     lair: { x: -55, z: -70 },
+    // ---- beyond the Vale ----
+    hearth: { x: 380, z: -380 },      // Hearthwick: the village hub on the crossroads
+    cinder: { x: 980, z: 60 },        // Cinder Watch, in the Ashen Barrens (east)
+    abbey: { x: -150, z: -980 },      // Rimeglass Abbey, in Frostmere (north)
+    frostLake: { x: 90, z: -900 },
   };
-  const RIVER_CP = [[-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44]];
+  const RIVER_CP = [[-1290, 40], [-1050, -20], [-820, 60], [-600, 20], [-420, -50], [-260, -30], [-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44], [260, -110], [420, -150], [560, -120], [700, -190], [880, -260], [1060, -230], [1290, -300]];
   const PATHS = [
     [[0, 76], [1, 60], [-1, 46], [0, 38]],
     [[0, 18], [-3, 4], [-4, -13], [2, -30], [8, -45], [12, -58], [8, -80], [3, -96], [2, -104]],
     [[-12, 31], [-30, 34], [-48, 30], [-60, 38], [-70, 42]],
     [[12, 31], [32, 27], [52, 33], [70, 36]],
     [[14, -58], [30, -54], [44, -51], [55, -51], [55, -56]],
+    // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
+    [[55, -56], [110, -120], [190, -190], [280, -290], [380, -370]],
+    [[380, -370], [520, -330], [680, -250], [820, -120], [930, 20], [975, 52]],
+    [[380, -390], [330, -520], [240, -660], [90, -790], [-40, -900], [-140, -965]],
+    [[-70, 42], [-160, 60], [-300, 110], [-480, 90], [-700, 160]],
+    [[2, -104], [-20, -200], [-90, -330], [-200, -460], [-300, -620]],
   ];
   const ZONES = [
     { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 78, r: 14 },
@@ -45,7 +58,17 @@
     { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -36, z: 64, r: 13 },
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
     { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 2, z: -108, r: 22 },
+    { name: 'HEARTHWICK', sub: 'the crossroads village', x: 380, z: -380, r: 30 },
+    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 980, z: 60, r: 24 },
+    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -980, r: 24 },
+    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 90, z: -900, r: 70 },
   ];
+  // regions (biomes): name, subtitle, banner colour
+  const REGIONS = {
+    vale: { name: 'THE VALE OF NINEFOLD', sub: 'green, and still', col: '#9fd0b0' },
+    ash: { name: 'THE ASHEN BARRENS', sub: 'the ground is warm', col: '#e0a070' },
+    frost: { name: 'FROSTMERE', sub: 'breath turns to glass', col: '#bcd4f0' },
+  };
 
   // ---------- math helpers ----------
   const ss = (a, b, x) => { const t = GW.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -80,11 +103,28 @@
   const RIVER_W = 4.2;
   const WATER_Y = -0.55;
 
+  // value noise (JS twin of the shaders' tn)
+  const hsh = (i, j) => { const s = Math.sin(i * 41.3 + j * 289.1) * 43758.5453; return s - Math.floor(s); };
+  function vnoise(x, z) {
+    const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+    return GW.lerp(GW.lerp(hsh(i, j), hsh(i + 1, j), u), GW.lerp(hsh(i, j + 1), hsh(i + 1, j + 1), u), v);
+  }
+  // biome weights (0..1): ash to the east, frost to the north, the Vale elsewhere
+  function biomeRaw(x, z) {
+    const wob = (vnoise(x * 0.004, z * 0.004) - 0.5) * 160;
+    const frost = ss(-430, -640, z + wob);
+    const ash = ss(500, 720, x + wob * 0.8) * (1 - frost);
+    return [ash, frost];
+  }
   function rawHeight(x, z) {
     let h = 0.5 * Math.sin(x * 0.05) * Math.cos(z * 0.045) + 0.35 * Math.sin(x * 0.13 + 1.3) * Math.sin(z * 0.11 + 0.7)
       + 0.12 * Math.sin(x * 0.4 + z * 0.3);
     const r = Math.hypot(x, z);
-    h += ss(98, 128, r) * 5;
+    h += ss(98, 128, r) * 2.2 * (1 - ss(150, 220, r));   // the old forest rise around the Vale, softened
+    // rolling land beyond the Vale; mountains at the world's edge
+    const far = ss(150, 340, r);
+    h += far * ((vnoise(x * 0.0032, z * 0.0032) - 0.5) * 16 + (vnoise(x * 0.011 + 7, z * 0.011 + 3) - 0.5) * 5);
+    h += ss(1120, 1290, Math.max(Math.abs(x), Math.abs(z))) * 45;
     const flatK = (cx, cz, r0, r1, to) => { const d = Math.hypot(x - cx, z - cz); h = GW.lerp(to, h, ss(r0, r1, d)); };
     flatK(L.village.x, L.village.z, 12, 20, 0.15);
     flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
@@ -93,16 +133,45 @@
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
+    flatK(L.hearth.x, L.hearth.z, 30, 55, h0At(L.hearth));
+    flatK(L.cinder.x, L.cinder.z, 22, 40, h0At(L.cinder));
+    flatK(L.abbey.x, L.abbey.z, 24, 44, h0At(L.abbey));
+    flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
     return h;
+  }
+
+  // base level for flattened hubs (the rolling-land height at their centre, without flattening)
+  const _h0 = {};
+  function h0At(c) {
+    const k = c.x + ',' + c.z; if (_h0[k] !== undefined) return _h0[k];
+    const r = Math.hypot(c.x, c.z), far = ss(150, 340, r);
+    return (_h0[k] = far * ((vnoise(c.x * 0.0032, c.z * 0.0032) - 0.5) * 16 + (vnoise(c.x * 0.011 + 7, c.z * 0.011 + 3) - 0.5) * 5));
   }
 
   // ---------- bake ----------
   const H = new Float32Array(N * N), G = new Float32Array(N * N), R = new Float32Array(N * N), P = new Float32Array(N * N);
+  const BA = new Float32Array(N * N), BF = new Float32Array(N * N);
+  // distance to polylines, rasterised only in a band around each segment (fast at 1300^2)
+  function bandDist(out, polys, band) {
+    out.fill(band);
+    const cellW = SIZE / N;
+    for (const poly of polys) for (let s = 0; s < poly.length - 1; s++) {
+      const a = poly[s], b = poly[s + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1e-6;
+      const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - band + HALF) / cellW)), i1 = Math.min(N - 1, Math.ceil((Math.max(a[0], b[0]) + band + HALF) / cellW));
+      const j0 = Math.max(0, Math.floor((Math.min(a[1], b[1]) - band + HALF) / cellW)), j1 = Math.min(N - 1, Math.ceil((Math.max(a[1], b[1]) + band + HALF) / cellW));
+      for (let j = j0; j <= j1; j++) { const z = (j + 0.5) * cellW - HALF; for (let i = i0; i <= i1; i++) {
+        const x = (i + 0.5) * cellW - HALF; let t = ((x - a[0]) * dx + (z - a[1]) * dz) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const px = a[0] + dx * t - x, pz = a[1] + dz * t - z, d = Math.sqrt(px * px + pz * pz), k = j * N + i;
+        if (d < out[k]) out[k] = d;
+      } }
+    }
+  }
   function bake() {
+    bandDist(R, [RIVER], 60); bandDist(P, PATHP, 30);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const x = (i + 0.5) / N * SIZE - HALF, z = (j + 0.5) / N * SIZE - HALF;
-      const rd = polyDist(RIVER, x, z).d;
-      let pd = 1e9; for (const p of PATHP) pd = Math.min(pd, polyDist(p, x, z).d);
+      const k0 = j * N + i, rd = R[k0], pd = P[k0];
+      const [ba, bf] = biomeRaw(x, z); BA[k0] = ba; BF[k0] = bf;
       let h = rawHeight(x, z);
       const carve = GW.clamp(1 - rd / (RIVER_W + 1.6), 0, 1);
       h -= 1.9 * Math.pow(carve, 0.8);
@@ -115,8 +184,11 @@
       const ad = Math.hypot(x - L.arena.x, z - L.arena.z);
       g *= GW.lerp(0.35, 1, ss(10, 18, ad));
       g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
+      g *= GW.lerp(1, 0.55, ba) * GW.lerp(1, 0.6, bf);                                  // dry, sparse ash grass; thin snow grass
+      for (const c of [L.hearth, L.cinder, L.abbey]) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - c.x, z - c.z)));
+      if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;               // the frozen mere
       const k = j * N + i;
-      H[k] = h; G[k] = GW.clamp(g, 0, 1); R[k] = rd; P[k] = pd;
+      H[k] = h; G[k] = GW.clamp(g, 0, 1);
     }
   }
   function sample(arr, x, z) {
@@ -135,7 +207,7 @@
   // instances are split into 36 m chunks with real bounds, so off-screen trees/props are skipped
   // by the main, shadow and reflection passes instead of always being drawn
   const it0Scale = m => new THREE.Vector3().setFromMatrixScale(m).y;
-  Batch.prototype.build = function (scene) {
+  Batch.prototype.build = function (scene, out) {
     const CH = 36, _p = new THREE.Vector3();
     Object.values(this.groups).forEach(g => {
       const chunks = new Map();
@@ -145,7 +217,7 @@
         const im = new THREE.InstancedMesh(g.geom, g.mat, items.length);
         items.forEach((it, i) => { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
         im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
-        im.computeBoundingSphere(); im.frustumCulled = true; scene.add(im);
+        im.computeBoundingSphere(); im.frustumCulled = true; scene.add(im); if (out) out.push(im);
         if (g.geom.boundingSphere.radius * (it0Scale(items[0].m)) > 0.9) W.occluders.push(im);   // big enough to hide the hero
       }
     });
@@ -158,6 +230,9 @@
   };
   W.heightAt = (x, z) => sample(H, x, z);
   W.riverAt = (x, z) => sample(R, x, z);
+  W.biomeAt = (x, z) => ({ ash: sample(BA, x, z), frost: sample(BF, x, z) });
+  W.regionAt = (x, z) => { const b = W.biomeAt(x, z); return b.frost > 0.5 ? 'frost' : b.ash > 0.5 ? 'ash' : 'vale'; };
+  W.REGIONS = REGIONS; W.CORE = CORE;
   W.pathAt = (x, z) => sample(P, x, z);
   W.inWater = (x, z) => sample(R, x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
   W.onBridge = (x, z) => {
@@ -188,6 +263,11 @@
     }
     return c;
   };
+  W.removeCollider = function (c) {
+    const i0 = Math.floor((c.x - c.r) / CELL), i1 = Math.floor((c.x + c.r) / CELL), j0 = Math.floor((c.z - c.r) / CELL), j1 = Math.floor((c.z + c.r) / CELL);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const a = W.grid.get(i * 1000 + j); if (a) { const k = a.indexOf(c); if (k >= 0) a.splice(k, 1); } }
+    const k = W.colliders.indexOf(c); if (k >= 0) W.colliders.splice(k, 1);
+  };
   // push a circle out of colliders; returns true if touched
   W.collide = function (p, r, lv) {
     lv = lv || 0;
@@ -201,8 +281,9 @@
         if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2), k = (rr - d) / d; p.x += dx * k; p.z += dz * k; hit = true; }
       }
     }
-    const d = Math.hypot(p.x, p.z), lim = 112;
-    if (d > lim) { p.x *= lim / d; p.z *= lim / d; hit = true; }
+    const lim = 1250;   // the mountains at the world's edge
+    if (Math.abs(p.x) > lim) { p.x = Math.sign(p.x) * lim; hit = true; }
+    if (Math.abs(p.z) > lim) { p.z = Math.sign(p.z) * lim; hit = true; }
     return hit;
   };
   W.blocked = function (x, z, r) {
@@ -215,6 +296,7 @@
   };
 
   W.build = function (scene, opts) {
+    W.scene = scene;
     bake();
     W.lights = new GW.Lights();
     const rnd = GW.rand(1337);
@@ -234,6 +316,12 @@
     const tMap = new THREE.DataTexture(half, N, N, THREE.RGBAFormat, THREE.HalfFloatType);
     tMap.minFilter = THREE.LinearFilter; tMap.magFilter = THREE.LinearFilter; tMap.needsUpdate = true;
     W.tMap = tMap; GW.LU.uHeightMap.value = tMap; GW.LU.uWorldSize.value = SIZE;
+    // biome map: r = ash, g = frost
+    const bio = new Uint8Array(N * N * 4);
+    for (let k = 0; k < N * N; k++) { bio[k * 4] = Math.round(BA[k] * 255); bio[k * 4 + 1] = Math.round(BF[k] * 255); bio[k * 4 + 3] = 255; }
+    const tBio = new THREE.DataTexture(bio, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
+    tBio.minFilter = THREE.LinearFilter; tBio.magFilter = THREE.LinearFilter; tBio.needsUpdate = true;
+    GW.LU.uBiomeMap.value = tBio;
     // scorch the ground: grass gone (density < 0 marks burnt), terrain turns to ash-dirt
     W.burn = function (x, z, r) {
       const ci = Math.round((x + HALF) / SIZE * N - 0.5), cj = Math.round((z + HALF) / SIZE * N - 0.5), rr = Math.ceil(r / SIZE * N) + 1;
@@ -245,40 +333,43 @@
         half[k * 4 + 1] = THREE.DataUtils.toHalfFloat(G[k]);
       }
       tMap.needsUpdate = true;
-      const tp = W.terrain.geometry.attributes.position, tc = W.terrain.geometry.attributes.color;
-      for (let v = 0; v < tp.count; v++) {
-        const d = Math.hypot(tp.getX(v) - x, tp.getZ(v) - z); if (d > r + 1.2) continue;
-        const f = 1 - ss(r * 0.6, r + 1.2, d), ash = [0.085, 0.06, 0.045];
-        tc.setXYZ(v, GW.lerp(tc.getX(v), ash[0], f), GW.lerp(tc.getY(v), ash[1], f), GW.lerp(tc.getZ(v), ash[2], f));
-      }
-      tc.needsUpdate = true;
       (W.burns = W.burns || []).push([x, z, r]);
+      W.terrainRefresh(true);
     };
 
-    // ---- terrain ----
-    const SEG = 180;
-    const tg = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG); tg.rotateX(-Math.PI / 2);
-    const pos = tg.attributes.position, cols = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i);
-      pos.setY(i, W.heightAt(x, z));
-      const rd = W.riverAt(x, z), pd = W.pathAt(x, z), g = sample(G, x, z);
-      let c = [0.07, 0.12, 0.065];
-      const n = 0.8 + 0.4 * Math.sin(x * 0.7) * Math.sin(z * 0.9);
-      c = c.map(v => v * n);
-      const dirt = [0.2, 0.16, 0.11];
-      const pf = 1 - ss(0.8, 2.6, pd);
-      c = c.map((v, k) => GW.lerp(v, dirt[k], Math.max(pf, (1 - g) * 0.6)));
-      const bed = [0.06, 0.08, 0.11];
-      const bf = 1 - ss(RIVER_W - 0.5, RIVER_W + 0.8, rd);
-      c = c.map((v, k) => GW.lerp(v, bed[k], bf));
-      cols[i * 3] = c[0]; cols[i * 3 + 1] = c[1]; cols[i * 3 + 2] = c[2];
-    }
-    tg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-    tg.computeVertexNormals();
+    // ---- terrain: a 640 m window of 2 m quads that follows you (re-centred on a 32 m grid, so vertices stay put) ----
+    const TSPAN = 640, TSEG = 320, tg = new THREE.PlaneGeometry(TSPAN, TSPAN, TSEG, TSEG); tg.rotateX(-Math.PI / 2);
+    tg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(tg.attributes.position.count * 3), 3));
+    const gridXZ = Float32Array.from({ length: tg.attributes.position.count * 2 }, (_, k) => k % 2 ? tg.attributes.position.getZ(k >> 1) : tg.attributes.position.getX(k >> 1));
     const terrain = new THREE.Mesh(tg, GW.mat({ id: ID.GROUND, vertexColors: true, color: 0xffffff, farGrass: 30 }));
     W.terrainMat = terrain.material; W.terrain = terrain;
     terrain.frustumCulled = false; terrain.layers.set(1); terrain.renderOrder = -6; scene.add(terrain);
+    const groundCol = (x, z) => {
+      const rd = sample(R, x, z), pd = sample(P, x, z), g = sample(G, x, z), ba = sample(BA, x, z), bf = sample(BF, x, z);
+      const n = 0.8 + 0.4 * Math.sin(x * 0.7) * Math.sin(z * 0.9);
+      let c = [0.07 * n, 0.12 * n, 0.065 * n];
+      const dirt = [0.2, 0.16, 0.11], pf = 1 - ss(0.8, 2.6, pd);
+      c = c.map((v, k) => GW.lerp(v, dirt[k], Math.max(pf, (1 - Math.max(0, g)) * 0.6)));
+      const ashC = [0.11 * n, 0.095 * n, 0.085 * n], snowC = [0.42 * n, 0.47 * n, 0.55 * n];
+      c = c.map((v, k) => GW.lerp(GW.lerp(v, ashC[k], ba * (1 - pf * 0.5)), snowC[k], bf * (1 - pf * 0.6)));
+      if (g < -1) c = [0.085, 0.06, 0.045];                                         // scorched by a fire
+      if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 74) c = [0.32, 0.42, 0.52]; // the frozen mere
+      const bed = [0.06, 0.08, 0.11], bfr = 1 - ss(RIVER_W - 0.5, RIVER_W + 0.8, rd);
+      return c.map((v, k) => GW.lerp(v, bed[k], bfr));
+    };
+    W.terrainRefresh = function (force, px, pz) {
+      const cx = px === undefined ? (W._tc || [0, 0])[0] : Math.round(px / 32) * 32, cz = pz === undefined ? (W._tc || [0, 0])[1] : Math.round(pz / 32) * 32;
+      if (!force && W._tc && W._tc[0] === cx && W._tc[1] === cz) return;
+      W._tc = [cx, cz];
+      const pos = tg.attributes.position, col = tg.attributes.color;
+      for (let i = 0; i < pos.count; i++) {
+        const x = gridXZ[i * 2] + cx, z = gridXZ[i * 2 + 1] + cz;
+        pos.setXYZ(i, x, W.heightAt(x, z), z);
+        const c = groundCol(x, z); col.setXYZ(i, c[0], c[1], c[2]);
+      }
+      pos.needsUpdate = true; col.needsUpdate = true; tg.computeVertexNormals();
+    };
+    W.terrainRefresh(true, L.start.x, L.start.z);
 
     // ---- water ----
     W.waterMat = buildWater(scene);
@@ -461,6 +552,7 @@
 
     buildChapel(scene);
     buildTower(scene);
+    buildHubs(scene);
     natureScatter(batch, place, rnd, free);
     kitScatter(scene, batch, place, rnd, free);
     buildCastle(scene);
@@ -614,6 +706,24 @@
       }
       W.lairWebs = buildWebs(scene, C, anchors, rnd);
     }
+    // ---- Hearthwick: the crossroads village ----
+    { const V = L.hearth;
+      for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2 + 0.3, r = 15 + (k % 2) * 4; if (Math.abs(GW.angDiff(a, -Math.PI * 0.75)) < 0.35 || Math.abs(GW.angDiff(a, Math.PI * 0.15)) < 0.3) continue;
+        put('kit_hut', V.x + Math.cos(a) * r, V.z + Math.sin(a) * r, 1.2 + rnd() * 0.15, -a - Math.PI / 2, 1.9); }
+      put('kit_well', V.x + 6, V.z + 5, 1.1, 0.4, 1.0);
+      [[-5, 7, 0.3], [7, -6, 2.0], [-9, -4, 4.2]].forEach(([dx, dz, a]) => lantern(V.x + dx, V.z + dz, a));
+      put('kit_cart', V.x - 11, V.z + 9, 1.1, 2.4, 1.1);
+      [[10, 9], [10.6, 9.8], [11.4, 9.1]].forEach(([dx, dz]) => put('kit_barrel', V.x + dx, V.z + dz, 1, rnd() * 6, 0.35));
+      [[-12, -9], [-12.8, -8.4]].forEach(([dx, dz]) => put('kit_crate', V.x + dx, V.z + dz, 1, rnd() * 6, 0.45));
+      for (let k = 0; k < 18; k++) { const a = k / 18 * Math.PI * 2; if (k % 6 === 0) continue; put('kit_fence', V.x + Math.cos(a) * 27, V.z + Math.sin(a) * 27, 1, -a + Math.PI / 2, 0); }
+    }
+    // ---- Cinder Watch: burnt huts and dead trees around the burning tower ----
+    { const C = L.cinder;
+      for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + 0.6, r = 13 + rnd() * 5; put('kit_hut', C.x + Math.cos(a) * r, C.z + Math.sin(a) * r, 1.1, rnd() * 6, 1.8, new THREE.Color(0.55, 0.47, 0.42)); }
+      for (let k = 0; k < 12; k++) { const a = rnd() * 6.28, r = 20 + rnd() * 14; put(trees[k % 3], C.x + Math.cos(a) * r, C.z + Math.sin(a) * r, 1 + rnd() * 0.5, rnd() * 6.28, 0.4, new THREE.Color(0.35, 0.3, 0.28)); }
+    }
+    // ---- Rimeglass Abbey: lanterns along the frozen approach ----
+    { const A = L.abbey; [[-4, 14, 0], [4, 14, 3.1], [-4, 22, 0], [4, 22, 3.1]].forEach(([dx, dz, a]) => lantern(A.x + dx, A.z + dz, a)); }
     const nearCamp = (x, z) => [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 26);
     for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210, s = 0.4 + rnd() * 0.45; if (Math.hypot(x, z) < 104 && !nearCamp(x, z) && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, s, rnd() * 6.28, 0.85); }
   }
@@ -655,6 +765,117 @@
     W.lights.add(C.x, W.heightAt(C.x, C.z) + 4, C.z, new THREE.Color(0.4, 0.45, 0.65), 16, 0.3);
     return m;
   }
+
+  // ----- hubs & landmarks beyond the Vale: reuse the chapel/tower models with region palettes -----
+  function buildHubs(scene) {
+    campfire(scene, L.hearth.x, L.hearth.z, 'Hearthwick');
+    // Cinder Watch: the watchtower model, charred, with fires
+    const tg = GW.Assets.gltf.tower;
+    if (tg) {
+      const C = L.cinder, base = W.heightAt(C.x, C.z) - 0.05;
+      mergeByMat(tg, {
+        cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x6a625c, fill: 0.08 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x3a3532, fill: 0.06 }),
+        moss: GW.mat({ id: ID.FIRE, color: 0, emissive: 0x7a2a08, unlit: true }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x3a2a20 }),
+        woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x2a2018 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+        gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
+      }, null, C.x, base, C.z, scene);
+      W.addCollider(C.x, C.z, 3.6, 'tower');
+      campfire(scene, C.x + 7, C.z + 7, 'Cinder Watch');
+      torch(scene, C.x - 2.2, C.z + 4.2, 2.2); torch(scene, C.x + 2.2, C.z + 4.2, 2.2);
+    }
+    // Rimeglass Abbey: the chapel model in frost-pale stone, by the frozen mere
+    const cg = GW.Assets.gltf.chapel;
+    if (cg) {
+      const A = L.abbey, base = W.heightAt(A.x, A.z) - 0.05;
+      mergeByMat(cg, {
+        cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0xa8b4c4, fill: 0.14 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x6a7686, fill: 0.08 }),
+        moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0xc8d8e8, fill: 0.12 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+      }, null, A.x, base, A.z, scene);
+      const tw = (lx, ly) => [A.x + lx, A.z - ly];
+      const seg = (x0, y0, x1, y1, r) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
+        for (let i = 0; i <= n; i++) { const t = i / n; W.addCollider(...tw(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t), r, 'chapel'); } };
+      seg(-6.3, 0.55, -1.6, 0.55, 0.6); seg(1.6, 0.55, 6.3, 0.55, 0.6);
+      [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55, 'chapel'));
+      seg(-5.45, 1.2, -5.45, 12.6, 0.55); seg(5.45, 1.2, 5.45, 12.6, 0.55); seg(-5.45, 12.65, 5.45, 12.65, 0.55);
+      campfire(scene, A.x + 3, A.z + 12, 'Rimeglass Abbey');
+    }
+    // the frozen mere: a sheet of dark ice
+    { const F = L.frostLake, y = W.heightAt(F.x, F.z) + 0.04;
+      const ice = new THREE.Mesh(new THREE.CircleGeometry(73, 64).rotateX(-Math.PI / 2), GW.mat({ id: ID.WATER, color: 0x5a7088, rim: 0.3 }));
+      ice.position.set(F.x, y, F.z); ice.layers.set(1); ice.renderOrder = -5.9; scene.add(ice); }
+  }
+
+  // ----- the wilderness beyond the Vale: generated per 96 m chunk as you approach, dropped when far -----
+  const CHK = 96, LOAD_R = 230, DROP_R = 330, chunks = new Map();
+  const BIO_MAT = {
+    frost: { needle: 0xb4c4d0, foliage: 0xbcc8d0, bark: 0x5a5550, rock: 0xb8c0cc, stone: 0xb0b8c4 },
+    ash: { needle: 0x4a4038, foliage: 0x4a4038, bark: 0x2e2a28, rock: 0x55524f, stone: 0x5a5654 },
+  };
+  const bioMats = {};
+  function kitMatB(mn, bio) {
+    const over = BIO_MAT[bio] && BIO_MAT[bio][mn]; if (!over) return kitMat(mn);
+    const k = mn + '@' + bio; return bioMats[k] || (bioMats[k] = GW.mat(Object.assign({ side: THREE.DoubleSide }, KIT_MAT[mn], { color: over })));
+  }
+  function chunkFree(x, z, r) {
+    if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
+    if (Math.max(Math.abs(x), Math.abs(z)) > 1230) return false;
+    if (sample(R, x, z) < RIVER_W + 1.5 + r || sample(P, x, z) < 3.2 + r) return false;
+    for (const c of [L.hearth, L.cinder, L.abbey]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
+    if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
+    return !W.blocked(x, z, r + 0.6);
+  }
+  function genChunk(ci, cj, scene) {
+    const rnd = GW.rand(((ci * 7919 + cj * 104729) >>> 0) % 2147483646 + 1);
+    const batch = new Batch(), cols = [];
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const place = (x, y, z, ry, s) => { q.setFromAxisAngle(up, ry); m4.compose(v3.set(x, y, z), q, s3.set(s, s, s)); return m4; };
+    const kit = (name, x, z, s, col, bio, tint) => {
+      const y = W.heightAt(x, z) - 0.05, ry = rnd() * 6.28;
+      kitParts(name).forEach((p, i) => batch.add(name + i + bio, p.geo, kitMatB(p.mn, bio), place(x, y, z, ry, s), tint || new THREE.Color(1, 1, 1).multiplyScalar(0.82 + rnd() * 0.3)));
+      if (col) cols.push(W.addCollider(x, z, col * s, 'tree'));
+    };
+    const nat = (name, x, z, s, col) => {
+      const y = W.heightAt(x, z) - 0.05 * s, ry = rnd() * 6.28;
+      natParts(name).forEach((p, i) => batch.add('nat_' + name + i, p.geo, natMat(p.mn), place(x, y, z, ry, s), new THREE.Color(1, 1, 1).multiplyScalar(0.85 + rnd() * 0.3)));
+      if (col) cols.push(W.addCollider(x, z, col, 'rock'));
+    };
+    const x0 = ci * CHK, z0 = cj * CHK;
+    for (let k = 0; k < 90; k++) {
+      const x = x0 + rnd() * CHK, z = z0 + rnd() * CHK;
+      const forest = vnoise(x * 0.011, z * 0.011), bio = W.regionAt(x, z), roll = rnd();
+      if (bio === 'ash') {
+        if (roll < 0.1) { if (chunkFree(x, z, 1)) kit(['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'][k % 3], x, z, 0.8 + rnd() * 0.6, 0.4, 'ash', new THREE.Color(0.4, 0.35, 0.32)); }
+        else if (roll < 0.16) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.5 + rnd() * 0.9, 0.85, 'ash'); }
+      } else if (bio === 'frost') {
+        if (roll < (forest > 0.58 ? 0.75 : 0.05)) { if (chunkFree(x, z, 1)) kit(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][k % 3], x, z, 0.85 + rnd() * 0.5, 0.4, 'frost'); }
+        else if (roll < 0.85 && roll > 0.8) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.5 + rnd() * 0.8, 0.85, 'frost'); }
+      } else {
+        if (roll < (forest > 0.6 ? 0.8 : forest > 0.45 ? 0.12 : 0.03)) { if (chunkFree(x, z, 1)) kit(rnd() < 0.4 ? ['kit_oak_a', 'kit_oak_b'][k % 2] : ['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][k % 3], x, z, 0.8 + rnd() * 0.5, 0.4, 'vale'); }
+        else if (roll > 0.97) { if (chunkFree(x, z, 1.5)) { const r2 = rnd(); if (r2 < 0.4) nat('log', x, z, 2.6 + rnd(), 0.9); else if (r2 < 0.7) nat('stump', x, z, 3 + rnd(), 0.45); else nat('bush_large', x, z, 2 + rnd() * 2, 0); } }
+        else if (roll > 0.955) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.45 + rnd() * 0.6, 0.85, 'vale'); }
+      }
+    }
+    const meshes = []; batch.build(scene, meshes);
+    return { meshes, cols };
+  }
+  W.stream = function (px, pz, scene, budget) {
+    const ci0 = Math.floor(px / CHK), cj0 = Math.floor(pz / CHK), n = Math.ceil(LOAD_R / CHK);
+    let made = 0;
+    for (let dj = -n; dj <= n && made < (budget || 1); dj++) for (let di = -n; di <= n && made < (budget || 1); di++) {
+      const ci = ci0 + di, cj = cj0 + dj, key = ci + ',' + cj;
+      if (chunks.has(key)) continue;
+      const cx = (ci + 0.5) * CHK, cz = (cj + 0.5) * CHK;
+      if (Math.hypot(cx - px, cz - pz) > LOAD_R + CHK * 0.7) continue;
+      if (Math.abs(cx) < CORE - CHK / 2 && Math.abs(cz) < CORE - CHK / 2) { chunks.set(key, null); continue; }   // fully inside the hand-made Vale
+      chunks.set(key, genChunk(ci, cj, scene)); made++;
+    }
+    for (const [key, c] of chunks) {
+      const [ci, cj] = key.split(',').map(Number), cx = (ci + 0.5) * CHK, cz = (cj + 0.5) * CHK;
+      if (Math.hypot(cx - px, cz - pz) < DROP_R) continue;
+      if (c) { c.meshes.forEach(m => { scene.remove(m); m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider); }
+      chunks.delete(key);
+    }
+  };
 
   // ----- Greymoss Keep (tools/blender/build_castle.py). Local coords: lx east, ly north (= game -z). -----
   const CL = { u: 1.0, floorY: 3.4 };
@@ -712,7 +933,7 @@
       const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let k = 0;
       geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
       merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-      const m = new THREE.Mesh(merged, mats[mn] || fallback); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m);
+      const m = new THREE.Mesh(merged, mats[mn] || fallback || Object.values(mats)[0]); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m);
       if (mn !== 'void') { merged.computeBoundingSphere(); m.updateMatrixWorld(); W.occluders.push(m); }
     }
   }
@@ -1037,7 +1258,7 @@
       uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) }, uFlowers: { value: 0.5 }, uFlowerK: { value: 1 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl; uniform float uFlowerK;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl; uniform float uFlowerK; uniform sampler2D uBiomeMap;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -1103,6 +1324,9 @@
           float tone = fract(sd * 17.0);
           vec3 sea = mix(vec3(0.1, 0.31, 0.25), vec3(0.17, 0.43, 0.35), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
+          vec4 bmg = texture2D(uBiomeMap, wp / uWorld + 0.5);
+          sea = mix(sea, mix(vec3(0.3, 0.27, 0.2), vec3(0.4, 0.33, 0.22), tone), bmg.r);    // ash: dry, straw-coloured
+          sea = mix(sea, mix(vec3(0.5, 0.58, 0.66), vec3(0.66, 0.72, 0.8), tone), bmg.g);   // frost: frozen, pale
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.55 : 1.0);
           if (uPush[0].z > 0.0) vCol *= 1.0 - 0.38 * (1.0 - smoothstep(0.7, 2.6, length(wp - uPush[0].xy)));   // soft halo so the hero reads
           vSpeck = 0.0; vGl = vec2(4.0, 9.0);
@@ -1184,24 +1408,27 @@
       ff.im.instanceMatrix.needsUpdate = true;
     }
     W.grass.mat.uniforms.uCenter.value.set(px, pz);
+    if (Math.abs(px - W._tc[0]) > 96 || Math.abs(pz - W._tc[1]) > 96) W.terrainRefresh(false, px, pz);
+    W.stream(px, pz, W.scene, W._streamBudget || 1); W._streamBudget = 1;
   };
 
   // ---------- minimap ----------
   W.mapCanvas = function () {
-    const c = document.createElement('canvas'); c.width = c.height = 512;
+    const S = 2048, c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d');
-    g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512);
-    g.font = '7px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+    g.font = '6px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
     const step = 4;
-    for (let y = 0; y < 512; y += step) for (let x = 0; x < 512; x += step) {
-      const wx = x / 512 * SIZE - HALF, wz = y / 512 * SIZE - HALF;
-      if (Math.hypot(wx, wz) > 118) continue;
-      const rd = W.riverAt(wx, wz), pd = W.pathAt(wx, wz);
-      let ch = '.', col = '#1d3a22';
+    for (let y = 0; y < S; y += step) for (let x = 0; x < S; x += step) {
+      const wx = x / S * SIZE - HALF, wz = y / S * SIZE - HALF;
+      const rd = W.riverAt(wx, wz), pd = W.pathAt(wx, wz), ba = sample(BA, wx, wz), bf = sample(BF, wx, wz), h = W.heightAt(wx, wz);
+      const edge = Math.max(Math.abs(wx), Math.abs(wz)) > 1140;
+      let ch = '.', col = bf > 0.5 ? '#6a7a8a' : ba > 0.5 ? '#4a3a30' : '#1d3a22';
       if (rd < RIVER_W) { ch = '~'; col = '#4a7ad0'; }
-      else if (pd < 1.6) { ch = ':'; col = '#7a6040'; }
-      else if (W.blocked(wx, wz, 0.2)) { ch = '#'; col = '#3e5a4a'; }
-      else if (Math.hypot(wx, wz) > 100) { ch = '^'; col = '#24382c'; }
+      else if (Math.hypot(wx - L.frostLake.x, wz - L.frostLake.z) < 72) { ch = '~'; col = '#9ab4d0'; }
+      else if (pd < 1.8) { ch = ':'; col = '#8a6a44'; }
+      else if (edge || h > 9) { ch = '^'; col = bf > 0.5 ? '#8a98a8' : '#3a4a3e'; }
+      else if (Math.abs(wx) < CORE && Math.abs(wz) < CORE && W.blocked(wx, wz, 0.2)) { ch = '#'; col = '#3e5a4a'; }
       else if (((x * 7 + y * 13) % 5) !== 0) continue;
       g.fillStyle = col; g.fillText(ch, x + 2, y + 2);
     }
