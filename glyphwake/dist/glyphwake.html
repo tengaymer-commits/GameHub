@@ -5598,7 +5598,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     /* 2 grass  */ { ramp: " .,'`:;~^\"*+", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
     /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
-    /* 5 leaf   */ { ramp: " .,:;*%&#@", mode: 0, gain: 2.4, under: 0.25, edge: 0, bright: 1.0, white: 0.1, flick: 0 },
+    /* 5 leaf   */ { ramp: "  .,;:*&%#@", mode: 0, gain: 2.3, under: 0.24, edge: 0, bright: 1.0, white: 0.04, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
     /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
     /* 8 fire   */ { ramp: " .'^*+#%@", mode: 0, gain: 0.9, under: 0.45, edge: 0, bright: 1.5, white: 0.2, flick: 9 },
@@ -5806,6 +5806,22 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         return (0.6 + 0.4 * seam) + riv * 0.6;
       }
     }
+    // leaf clusters: 3D cells; each clump lit on its sunny side, dark gaps between, own shade of green
+    float h31(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+    vec3 leafClusters(vec3 W, vec3 n, vec3 sun) {
+      vec3 g = W / 0.62, i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec3 bid = vec3(0.0), bc = vec3(0.0);
+      for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+        vec3 o = vec3(float(x), float(y), float(z));
+        vec3 c = o + 0.2 + 0.6 * vec3(h31(i + o), h31(i + o + 7.1), h31(i + o + 3.7)) - f;
+        float d = dot(c, c); if (d < d1) { d2 = d1; d1 = d; bid = i + o; bc = c; } else if (d < d2) d2 = d;
+      }
+      float gap = smoothstep(0.0, 0.18, sqrt(d2) - sqrt(d1));
+      vec3 cn = normalize(-bc + n * 0.5);                        // the clump's own rounded normal
+      float lit = 0.3 + 0.85 * max(dot(cn, normalize(sun + vec3(0.0, 0.6, 0.0))), 0.0);
+      float r = h31(bid + 1.3);
+      vec3 tint = r < 0.45 ? vec3(0.62, 0.78, 0.78) : r < 0.8 ? vec3(0.9, 0.92, 0.82) : vec3(1.2, 1.1, 0.68);   // deep blue-green / mid / sunlit yellow-green
+      return tint * lit * (0.2 + 0.8 * gap);
+    }
     // 8 cobblestone: rounded, irregular stones with deep dark gaps
     float cobble(vec2 uv) {
       vec2 g = uv / 0.34, i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec2 bid = vec2(0.0);
@@ -5833,9 +5849,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       vec3 base = vC;
       if (uTex > 0.5 && uUnlit < 0.5) {
         vec3 an = abs(n); vec2 uvc = an.y > max(an.x, an.z) ? vW.xz : (an.x > an.z ? vW.zy : vW.xy);
-        float t = uTex > 7.5 ? cobble(uvc) : surfTex(uTex, vW, n);
-        // zoom-aware: far away fine texture fades so glyphs form clean shapes instead of dots
-        base *= mix(0.9 + 0.1 * t, t, 0.2 + 0.8 * uDetail);
+        if (uTex > 4.5 && uTex < 5.5) {
+          vec3 lc = leafClusters(vW, n, uMoonDir);
+          base *= mix(vec3(0.85 + 0.15 * dot(lc, vec3(0.333))), lc, 0.6 + 0.4 * uDetail);
+        } else {
+          float t = uTex > 7.5 ? cobble(uvc) : surfTex(uTex, vW, n);
+          // zoom-aware: far away fine texture fades so glyphs form clean shapes instead of dots
+          base *= mix(0.9 + 0.1 * t, t, 0.2 + 0.8 * uDetail);
+        }
       }
       else if (uSpec < 0.3 && uUnlit < 0.5 && uFarGrass <= 0.0) {
         // matte, rough surfaces: blotchy grime at two scales + fine pitting
