@@ -92,3 +92,18 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 6. Grass: low-frequency color fields (lush, dry, blue-green), height variation, and wind gusts that roll across the meadow and catch the light.
 
 Settings: separate glyph density for **characters**, **environment** and **water & sky** (3–14 px; the shader keeps three character grids and picks one per pixel), quality (resolution, grass density, shadows, reflections), camera distance and tilt, control style, volume, music, screen shake.
+
+## Source look preset (PC, 1080p+)
+
+Settings → Look → **Apply "Source look"** matches the reference clips: flat near-orthographic lens at about 55° tilt,
+knight about 8% of screen height (zoom 110%), tiny glyphs (characters 4.5 px, environment 6.5 px, water/sky 5 px),
+swirling stroke grass with a light ASCII layer, dim blue-grey `o 0 8` earth patches, darker nights, and a cool
+silver key on characters ("Hero light") so they read first. Every value stays adjustable afterwards
+(Hero light, Darkness, Grass swirl, ASCII on grass, Dark earth patches).
+
+## The Pale Chapel
+
+`tools/blender/build_chapel.py` → `assets/models/chapel.glb`: a gothic facade with a pointed-arch doorway,
+lancet and rose windows, buttresses, a half-collapsed roofed nave and a wall torch, just north-east of the
+Waking Stone (`L.chapel` in `js/world.js`). Walls, roofs and tree tops between the camera and the knight
+dissolve (dithered) so he stays visible inside.

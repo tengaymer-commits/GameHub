@@ -101,7 +101,7 @@
   function init() {
     $('t-menu').style.visibility = 'hidden';
     $('t-foot').textContent = 'loading models…';
-    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit', 'armor', 'castle'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
+    GW.Assets.load(['monarch', 'wolf', 'nat_tree_pine_tall', 'nat_tree_oak', 'nat_tree_dark', 'nat_tree_autumn', 'nat_tree_fat', 'nat_stump', 'nat_log', 'nat_bush_large', 'nat_rock_large', 'nat_rock_tall', 'nat_mushroom_red', 'kit', 'armor', 'castle', 'chapel'], f => { $('t-foot').textContent = 'loading models… ' + Math.round(f * 100) + '%'; })
       .then(build).catch(err => { $('t-foot').textContent = 'Could not load the 3D models: ' + err.message; console.error(err); });
   }
   function build() {
@@ -486,7 +486,10 @@
     { const zb = UI.settings.zoom || 1.3, fbs = UI.settings.farBlend !== undefined ? UI.settings.farBlend : 0.7;
       G.R.asciiMat.uniforms.uFarBlend.value = fbs * GW.clamp((zb - 0.75) / 0.9, 0, 1); }
     GW.LU.uPlayerW.value.copy(P.pos);
-    G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : t * t * (3 - 2 * t); }
+    G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : Math.max(t * t * (3 - 2 * t), UI.settings.grassAscii || 0); }
+    { const S0 = UI.settings, v = (k, d) => S0[k] !== undefined ? S0[k] : d;
+      G.R.asciiMat.uniforms.uActorPop.value = v('heroPop', 0.3);
+      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uSwirl.value = v('swirl', 0.25); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
@@ -702,6 +705,9 @@
     LU.uMoonCol.value.copy(NIGHT.key).lerp(DAY.key, k).lerp(DUSK, dusk * 0.5);
     LU.uFogCol.value.copy(NIGHT.fog).lerp(DAY.fog, k).lerp(C3(0.3, 0.17, 0.12), dusk * 0.4);
     LU.uDayLight.value = GW.lerp(NIGHT.light, DAY.light, k);
+    // "darkness" setting: moodier days, much darker nights; torches and the hero carry the scene
+    const dk = S.dark || 0, df = 1 - dk * GW.lerp(0.55, 0.28, k);
+    LU.uAmb.value.multiplyScalar(df); LU.uMoonCol.value.multiplyScalar(GW.lerp(df, 1, 0.25)); LU.uDayLight.value *= GW.lerp(1, df, 0.6);
     const W = GW.World;
     if (W.skyDome) { W.skyDome.material.uniforms.uDay.value = k; W.skyDome.material.uniforms.uDusk.value = dusk; }
     if (W.stars) W.stars.visible = k < 0.6;

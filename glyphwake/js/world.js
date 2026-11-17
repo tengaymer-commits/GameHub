@@ -20,6 +20,7 @@
     ruinFire: { x: -48, z: 30 },
     meadowFire: { x: -18, z: -42 },
     castle: { x: 55, z: -65 },
+    chapel: { x: 18, z: 60 },
   };
   const RIVER_CP = [[-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44]];
   const PATHS = [
@@ -35,6 +36,7 @@
     { name: 'THE GLASS RIVER', sub: 'crossing', x: -4, z: -13, r: 9 },
     { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 12, z: -58, r: 30 },
     { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -72, z: 42, r: 26 },
+    { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 18, z: 62, r: 12 },
     { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 55, z: -65, r: 17 },
     { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -36, z: 64, r: 13 },
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
@@ -84,6 +86,7 @@
     flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
     flatK(L.start.x, L.start.z, 6, 12, 0.3);
     flatK(L.castle.x, L.castle.z, 16, 23, 0.4);
+    flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     return h;
   }
 
@@ -351,7 +354,7 @@
     const free = (x, z, r) => {
       if (W.riverAt(x, z) < RIVER_W + 1.5 + r) return false;
       if (W.pathAt(x, z) < 2.5 + r) return false;
-      for (const k of ['village', 'start', 'arena', 'castle']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 : 18) + r) return false;
+      for (const k of ['village', 'start', 'arena', 'castle', 'chapel']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 : k === 'chapel' ? 13 : 18) + r) return false;
       return !W.blocked(x, z, r + 0.6);
     };
 
@@ -419,6 +422,7 @@
       W.arenaStones.push(buildShrine(scene, x, z, 0.8 + (k % 3) * 0.2, false));
     }
 
+    buildChapel(scene);
     natureScatter(batch, place, rnd, free);
     kitScatter(scene, batch, place, rnd, free);
     buildCastle(scene);
@@ -610,6 +614,41 @@
     seg(6.0, 9.4, 8.0, 9.4, 0.35, 1); seg(8.0, 8.4, 8.0, 9.4, 0.35, 1);              // landing walls at the top
     W.addCollider(...toW(-5, -5), 1.0, 'castle');                                  // well
   }
+  // ----- The Pale Chapel (tools/blender/build_chapel.py): gothic facade with the arched black doorway -----
+  function mergeByMat(g, mats, fallback, x, y, z, scene) {
+    g.scene.updateMatrixWorld(true);
+    const byMat = {};
+    g.scene.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); (byMat[o.material.name] = byMat[o.material.name] || []).push(geo); } });
+    for (const mn in byMat) {
+      const geos = byMat[mn], merged = new THREE.BufferGeometry();
+      let n = 0; geos.forEach(gg => { n += (gg.index ? gg.index.count : gg.attributes.position.count); });
+      const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let k = 0;
+      geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
+      merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      const m = new THREE.Mesh(merged, mats[mn] || fallback); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m);
+    }
+  }
+  function buildChapel(scene) {
+    const g = GW.Assets.gltf.chapel; if (!g) return;
+    const C = L.chapel, base = W.heightAt(C.x, C.z) - 0.05;
+    const mats = {
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8f98ac, fill: 0.14 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x555b6a, fill: 0.08 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+    };
+    mergeByMat(g, mats, mats.cobble, C.x, base, C.z, scene);
+    const tw = (lx, ly) => [C.x + lx, C.z - ly];
+    const seg = (x0, y0, x1, y1, r) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
+      for (let i = 0; i <= n; i++) { const t = i / n; W.addCollider(...tw(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t), r, 'chapel'); } };
+    seg(-6.3, 0.55, -1.6, 0.55, 0.6); seg(1.6, 0.55, 6.3, 0.55, 0.6);          // facade, door open
+    [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55, 'chapel'));   // buttresses
+    seg(-5.45, 1.2, -5.45, 12.6, 0.55); seg(5.45, 1.2, 5.45, 12.6, 0.55); seg(-5.45, 12.65, 5.45, 12.65, 0.55);
+    // the torch on the east door buttress
+    const [fx, fz] = tw(2.1, -1.45), fy = base + 3.55;
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }));
+    f.position.set(fx, fy, fz); scene.add(f); W.flames.push({ m: f, s: 3.3, base: 1 });
+    W.lights.add(fx, fy + 0.3, fz - 0.6, new THREE.Color(1.0, 0.56, 0.24), 9.5, 0.9);
+  }
+
   // walkable height for a position at a given level; returns { y, lv }
   W.levelAt = function (x, z, lv) {
     if (CL.base === undefined) return { y: W.groundY(x, z), lv: 0 };
@@ -877,7 +916,7 @@
       uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) }, uFlowers: { value: 0.5 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -900,6 +939,10 @@
           // clumps: low-frequency density field leaves organic dark gaps (about a third of the ground covered)
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
           float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
+          // dark earth patches (matching the ground shader's o 0 8 letters): only a few straws survive there
+          float thr = 1.0 - 0.32 * uGroundO, pv = vn(wp * 0.11 + 5.0) * 0.7 + vn(wp * 0.37 + 1.7) * 0.3;
+          float patchK = smoothstep(thr - 0.05, thr + 0.03, pv) * step(0.01, uGroundO);
+          if (uTurf < 1.5) keep *= step(patchK * 0.88, fract(sd * 13.77));
           // lean is shared by neighbours (/ and \ groups), plus a little per-straw jitter and wind
           float lean = (vn(wp * 0.7 + 1.3) - 0.5) * 0.55 + (fract(sd * 5.3) - 0.5) * 0.6
                      + sin(uTime * 1.3 + wp.x * 0.3 + wp.y * 0.2) * 0.06;
@@ -917,6 +960,9 @@
           vec4 cpw = VP * vec4(root + vec3(pushW.x, 0.0, pushW.y), 1.0);
           // lying flat: angle from the screen's horizontal, mostly within about ±45 degrees
           float ang2 = 1.5708 + (vn(wp * 0.7 + 1.3) - 0.5) * 1.3 + (fract(sd * 5.3) - 0.5) * 1.9 + sin(uTime * 1.1 + wp.x * 0.3 + wp.y * 0.2) * 0.04;
+          // swirl: a large combed flow field, like brushed hair (reference look)
+          float flow = 1.5708 + (vn(wp * 0.055 + 2.1) - 0.5) * 6.5 + (vn(wp * 0.21 + 8.3) - 0.5) * 1.8 + (fract(sd * 5.3) - 0.5) * 0.7;
+          ang2 = mix(ang2, flow, uSwirl);
           vec2 dir = vec2(cos(ang2), sin(ang2));
           // footsteps: straws splay outward from the walker
           vec2 pd = (cpw.xy / cpw.w - cr.xy / cr.w) / uPx;

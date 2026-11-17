@@ -312,8 +312,19 @@
   };
   UI.applyControl = function () { document.body.classList.toggle('aim', UI.settings.control !== 'follow' && !I.touch); };
   UI.saveSettings = function () { try { localStorage.setItem('glyphwake.settings', JSON.stringify(UI.settings)); } catch (e) { /* ignore */ } };
+  // "Source look": matches the reference clips on a 1080p+ PC screen
+  UI.SOURCE_LOOK = { lens: 'flat', camPitch: 0.96, camYaw: 0, zoom: 1.1, glyphA: 4.5, glyph: 6.5, glyphS: 5, grassBlend: true, grassAscii: 0.3,
+    grassSize: 0.8, flowers: 0.7, swirl: 0.85, heroPop: 0.85, dark: 0.4, groundO: 0.9, farBlend: 0.15, pure: false, control: 'free', follow: false, hud: 'min', res: 'auto' };
   UI.initSettings = function (apply) {
     const S = UI.settings;
+    UI._apply = apply;
+    const pct = (id, def) => { const el = $('o-' + id), txt = () => { $('o-' + id + '-v').textContent = Math.round((S[id] !== undefined ? S[id] : def) * 100) + '%'; };
+      el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
+    pct('heroPop', 0.3); pct('dark', 0); pct('swirl', 0.25); pct('grassAscii', 0); pct('groundO', 0.4);
+    $('o-source').onclick = () => {
+      Object.assign(S, UI.SOURCE_LOOK); UI.saveSettings(); UI.applyControl(); apply(); UI.initSettings(apply);
+      if (UI.toast) UI.toast('Source look applied');
+    };
     const gl = $('o-glyph'), q = $('o-quality'), v = $('o-vol'), m = $('o-mus'), sh = $('o-shake'), pu = $('o-pure');
     const ti = $('o-tilt'), ctl = $('o-control');
     const ctlNote = () => { $('o-control-note').textContent = S.control === 'follow'

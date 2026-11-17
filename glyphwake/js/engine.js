@@ -97,7 +97,7 @@
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -109,7 +109,7 @@
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -254,10 +254,11 @@
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
-      if (uTex > 0.5 && vW.y > uPlayerW.y + 1.9) {
-        // dissolve tree tops and roofs above and around the hero (dithered), so he is never hidden
-        float dp = length(vW.xz - uPlayerW.xz);
-        float cut = 1.0 - smoothstep(1.6, 3.4, dp);
+      if (uTex > 0.5 && uPlayerW.y > -900.0) {
+        // dissolve anything between the camera and the hero (roofs, tree tops, walls), dithered, so he is never hidden
+        vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
+        float tt = dot(rr, cd), dp = length(rr - cd * tt);
+        float cut = (1.0 - smoothstep(1.8, 3.6, dp)) * smoothstep(0.6, 1.6, tt);
         if (cut > 0.0 && th(floor(gl_FragCoord.xy * 0.5)) < cut * 0.85) discard;
       }
       vec3 n = normalize(vN);
@@ -289,6 +290,8 @@
         // (they move with the ground, so no screen-fixed grid / scanlines)
         float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1);
         float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
+        // dark patches in the meadow where the earth shows as dim blue-grey o 0 8 letters (as in the reference)
+        grassy *= 1.0 - step(1.0 - 0.32 * uGroundO, tn(vW.xz * 0.11 + 5.0) * 0.7 + tn(vW.xz * 0.37 + 1.7) * 0.3) * step(0.01, uGroundO);
         base = vec3(0.02, 0.06, 0.045) * (0.8 + 0.4 * n2);
         vec2 gp = vW.xz / vec2(0.17, 0.24);
         vec2 gc = floor(gp), gu = fract(gp);
@@ -296,12 +299,13 @@
         float dens = mix(0.5, 0.9, grassy) * (0.75 + 0.4 * n1);
         if (r < dens) {
           float idx = 1.0 + floor(th(gc + 3.1) * 11.0);
-          float row = grassy > 0.5 ? 2.0 : 13.0;   // grass strokes on grassland, faint letters on bare earth
+          float row = grassy > 0.5 ? 2.0 : 3.0;    // grass strokes on grassland, faint o 0 8 on bare earth
+          if (grassy <= 0.5) idx = 5.0 + floor(th(gc + 5.3) * 5.0);
           vec2 auv = vec2((idx + gu.x) / 16.0, (32.0 - row + (1.0 - gu.y)) / 33.0);
           float gm = texture2D(uAtlas, auv).r;
           float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
           gGlyph = gm * (1.0 - smoothstep(0.22, 0.55, px));
-          gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.08, 0.08, 0.07);
+          gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.1, 0.11, 0.15) * (0.7 + 0.6 * th(gc + 2.0));
         }
       }
       if (uTex > 0.5 && uUnlit < 0.5) {
@@ -353,7 +357,7 @@
   // ---------- post pipeline ----------
   const ASCII_F = `
     uniform sampler2D tScene; uniform sampler2D tAtlas;
-    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff; uniform float uFarBlend;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff; uniform float uFarBlend; uniform float uActorPop;
     vec2 CS;
     uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
     varying vec2 vUv;
@@ -422,7 +426,7 @@
       float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
       float jit = actor ? S3.x : 0.16;
       v += (h21(wcell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
-      if (actor) v = clamp(pow(v, 1.1) * 1.5, 0.3, 0.999);
+      if (actor) v = clamp(pow(v, 1.1) * (1.5 + 0.7 * uActorPop), 0.3 + 0.22 * uActorPop, 0.999);
       if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
@@ -453,7 +457,8 @@
       float mx = max(max(c.r, c.g), c.b);
       vec3 hue = c / max(mx, 0.03);
       vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
-      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.55) * S2.x * (actor ? 1.12 : 1.0);
+      if (actor) tint = mix(tint, vec3(0.92, 0.96, 1.0), 0.4 * uActorPop);   // cool silver key light: heroes read first
+      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.55) * S2.x * (actor ? 1.12 + 0.4 * uActorPop : 1.0);
       vec3 under = actor ? c * S.z : c * S.z;
       vec3 outc = under + gm * gcol;
       if (asciiGrass) outc = mix(raw, outc, uGrassMix);
@@ -512,7 +517,7 @@
     const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, 0));
     this.setA = setA;
     this.asciiMat = new THREE.ShaderMaterial({
-      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() }, uFarBlend: { value: 0 },
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() }, uFarBlend: { value: 0 }, uActorPop: { value: 0 },
         uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
       vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
     });
