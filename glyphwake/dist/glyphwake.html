@@ -5723,7 +5723,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null }, uBiomeMap2: { value: null }, uMapC: { value: new THREE.Vector2() }, uMapSpan: { value: 1024 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -5735,7 +5735,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap; uniform sampler2D uBiomeMap2; uniform vec2 uMapC; uniform float uMapSpan;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -5810,7 +5810,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
     uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex; uniform float uSil;
-    float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+    float th(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
     float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
     // Procedural surface textures, projected from the dominant axis of the normal (triplanar-lite),
@@ -5946,10 +5946,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         // dark patches in the meadow where the earth shows as dim blue-grey o 0 8 letters (as in the reference)
         grassy *= 1.0 - step(1.0 - 0.32 * uGroundO, tn(vW.xz * 0.11 + 5.0) * 0.7 + tn(vW.xz * 0.37 + 1.7) * 0.3) * step(0.01, uGroundO);
         base = vec3(0.02, 0.06, 0.045) * (0.8 + 0.4 * n2);
-        vec4 bm = texture2D(uBiomeMap, vW.xz / uWorldSize + 0.5);
-        grassy *= (1.0 - bm.g) * (1.0 - 0.6 * bm.r);
+        vec4 bm = texture2D(uBiomeMap, (vW.xz - uMapC) / uMapSpan + 0.5), bm2 = texture2D(uBiomeMap2, (vW.xz - uMapC) / uMapSpan + 0.5);
+        grassy *= (1.0 - bm.g) * (1.0 - 0.6 * bm.r) * (1.0 - bm.b) * (1.0 - 0.4 * bm.a);
         base = mix(base, vec3(0.045, 0.04, 0.037) * (0.8 + 0.4 * n2), bm.r);              // ash
         base = mix(base, vec3(0.16, 0.19, 0.24) * (0.8 + 0.4 * n2), bm.g);                // snow
+        base = mix(base, vec3(0.17, 0.15, 0.11) * (0.8 + 0.4 * n2), bm.b);                // salt
+        base = mix(base, vec3(0.05, 0.06, 0.05) * (0.8 + 0.4 * n2), bm.a);                // highlands
+        base = mix(base, vec3(0.025, 0.035, 0.02) * (0.8 + 0.4 * n2), bm2.r);             // mire
+        base = mix(base, vec3(0.01, 0.028, 0.032) * (0.8 + 0.4 * n2), bm2.g);             // duskwood
         if (vC.b > 0.45 && vC.r < 0.36) base = vec3(0.1, 0.14, 0.2) * (0.9 + 0.2 * n2);   // frozen mere: dark glassy ice
         vec2 gp = vW.xz / vec2(0.17, 0.24);
         vec2 gc = floor(gp), gu = fract(gp);
@@ -5966,6 +5970,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.1, 0.11, 0.15) * (0.7 + 0.6 * th(gc + 2.0));
           gTint = mix(gTint, vec3(0.2, 0.16, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm.r);
           gTint = mix(gTint, vec3(0.26, 0.31, 0.4) * (0.7 + 0.6 * th(gc + 2.0)), bm.g);
+          gTint = mix(gTint, vec3(0.3, 0.27, 0.2) * (0.7 + 0.6 * th(gc + 2.0)), bm.b);
+          gTint = mix(gTint, vec3(0.14, 0.16, 0.13) * (0.7 + 0.6 * th(gc + 2.0)), bm.a);
+          gTint = mix(gTint, vec3(0.1, 0.12, 0.06) * (0.7 + 0.6 * th(gc + 2.0)), bm2.r);
+          gTint = mix(gTint, vec3(0.04, 0.1, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm2.g);
         }
       }
       if (uTex > 0.5 && uUnlit < 0.5) {
@@ -5974,7 +5982,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         float lb = (floor(q) + smoothstep(0.35, 0.65, fq)) / 4.0;     // soft steps: lit / side / shade / deep shade
         L *= mix(1.0, max(lb, 0.06) / l, 0.75);
         if (uWorldSize > 0.0) {
-          float gh = texture2D(uHeightMap, vW.xz / uWorldSize + 0.5).r;
+          float gh = texture2D(uHeightMap, (vW.xz - uMapC) / uMapSpan + 0.5).r;
           L *= mix(0.5, 1.0, smoothstep(0.0, 1.1, vW.y - gh));      // contact shadow where walls meet the ground
         }
       }
@@ -6760,8 +6768,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 (function () {
   'use strict';
   const GW = window.GW, ID = GW.ID;
-  // 2.6 km world, data maps at 2 m per texel; the old Vale is the centre
-  const SIZE = 2600, N = 1300, HALF = SIZE / 2;
+  // 8 km world. Terrain data (2 m per texel) is computed per 128 m chunk on demand and cached;
+  // the GPU gets a 1 km window around the hero. The old Vale is the centre.
+  const SIZE = 8000, HALF = SIZE / 2, CELLM = 2, DCH = 128, DN = DCH / CELLM, WIN = 1024, WN = WIN / CELLM;
   const CORE = 135;   // the hand-made Vale: |x|,|z| < CORE is scattered once at load, the rest streams in chunks
 
   // ---------- layout ----------
@@ -6785,11 +6794,16 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     lair: { x: -55, z: -70 },
     // ---- beyond the Vale ----
     hearth: { x: 380, z: -380 },      // Hearthwick: the village hub on the crossroads
-    cinder: { x: 980, z: 60 },        // Cinder Watch, in the Ashen Barrens (east)
-    abbey: { x: -150, z: -980 },      // Rimeglass Abbey, in Frostmere (north)
-    frostLake: { x: 90, z: -900 },
+    // six regions in a ring around the Vale (r ~ 1.4-3.9 km): hubs at r 2.6 km
+    abbey: { x: -150, z: -2600 },     // N  Frostmere: Rimeglass Abbey
+    frostLake: { x: 120, z: -2470 },
+    high: { x: 2250, z: -1300 },      // NE the Highlands
+    cinder: { x: 2250, z: 1300 },     // SE the Ashen Barrens: Cinder Watch
+    salt: { x: 0, z: 2600 },          // S  the Salt Wastes
+    mire: { x: -2250, z: 1300 },      // SW the Mire
+    dusk: { x: -2250, z: -1300 },     // NW Duskwood
   };
-  const RIVER_CP = [[-1290, 40], [-1050, -20], [-820, 60], [-600, 20], [-420, -50], [-260, -30], [-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44], [260, -110], [420, -150], [560, -120], [700, -190], [880, -260], [1060, -230], [1290, -300]];
+  const RIVER_CP = [[-3950, 260], [-3400, 120], [-2800, 220], [-2200, 60], [-1600, 120], [-1100, -20], [-700, 40], [-420, -50], [-260, -30], [-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44], [260, -110], [420, -150], [700, -190], [1100, -260], [1600, -180], [2100, -420], [2700, -380], [3300, -560], [3950, -500]];
   const PATHS = [
     [[0, 76], [1, 60], [-1, 46], [0, 38]],
     [[0, 18], [-3, 4], [-4, -13], [2, -30], [8, -45], [12, -58], [8, -80], [3, -96], [2, -104]],
@@ -6798,10 +6812,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     [[14, -58], [30, -54], [44, -51], [55, -51], [55, -56]],
     // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
     [[55, -56], [110, -120], [190, -190], [280, -290], [380, -370]],
-    [[380, -370], [520, -330], [680, -250], [820, -120], [930, 20], [975, 52]],
-    [[380, -390], [330, -520], [240, -660], [90, -790], [-40, -900], [-140, -965]],
-    [[-70, 42], [-160, 60], [-300, 110], [-480, 90], [-700, 160]],
-    [[2, -104], [-20, -200], [-90, -330], [-200, -460], [-300, -620]],
+    // Hearthwick to the Highlands, the Barrens and Frostmere
+    [[380, -370], [700, -520], [1100, -700], [1500, -900], [1900, -1120], [2240, -1290]],
+    [[380, -370], [700, -150], [1100, 150], [1500, 500], [1900, 900], [2240, 1285]],
+    [[380, -390], [330, -700], [250, -1100], [120, -1500], [40, -1900], [-60, -2300], [-145, -2580]],
+    // the Vale to the Mire and Duskwood (west) and the Salt Wastes (south)
+    [[-70, 42], [-300, 110], [-700, 300], [-1200, 600], [-1700, 950], [-2240, 1290]],
+    [[2, -104], [-300, -300], [-800, -560], [-1300, -820], [-1800, -1080], [-2240, -1295]],
+    [[0, 76], [40, 400], [-20, 900], [60, 1500], [-30, 2100], [0, 2585]],
+    // the old ring road between the region hubs
+    [[-145, -2580], [700, -2300], [1600, -1850], [2240, -1290], [2600, -300], [2600, 400], [2240, 1285], [1500, 1950], [700, 2400], [0, 2585],
+     [-700, 2400], [-1500, 1950], [-2240, 1290], [-2600, 400], [-2600, -300], [-2240, -1295], [-1600, -1850], [-800, -2350], [-145, -2580]],
   ];
   const ZONES = [
     { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 78, r: 14 },
@@ -6817,16 +6838,21 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
     { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 2, z: -108, r: 22 },
     { name: 'HEARTHWICK', sub: 'the crossroads village', x: 380, z: -380, r: 30 },
-    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 980, z: 60, r: 24 },
-    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -980, r: 24 },
-    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 90, z: -900, r: 70 },
+    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 2250, z: 1300, r: 24 },
+    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -2600, r: 24 },
+    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
   ];
   // regions (biomes): name, subtitle, banner colour
   const REGIONS = {
     vale: { name: 'THE VALE OF NINEFOLD', sub: 'green, and still', col: '#9fd0b0' },
     ash: { name: 'THE ASHEN BARRENS', sub: 'the ground is warm', col: '#e0a070' },
     frost: { name: 'FROSTMERE', sub: 'breath turns to glass', col: '#bcd4f0' },
+    high: { name: 'THE HIGHLANDS', sub: 'stone, wind, and old crowns', col: '#b8c4a0' },
+    salt: { name: 'THE SALT WASTES', sub: 'white as bone, and as dry', col: '#e8dcb8' },
+    mire: { name: 'THE MIRE', sub: 'the ground drinks your steps', col: '#9aa070' },
+    dusk: { name: 'DUSKWOOD', sub: 'the trees lean in to listen', col: '#80b0b8' },
   };
+  const BIOMES = ['frost', 'high', 'ash', 'salt', 'mire', 'dusk'];   // sector order, clockwise from north
 
   // ---------- math helpers ----------
   const ss = (a, b, x) => { const t = GW.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -6867,22 +6893,19 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
     return GW.lerp(GW.lerp(hsh(i, j), hsh(i + 1, j), u), GW.lerp(hsh(i, j + 1), hsh(i + 1, j + 1), u), v);
   }
-  // biome weights (0..1): ash to the east, frost to the north, the Vale elsewhere
-  function biomeRaw(x, z) {
-    const wob = (vnoise(x * 0.004, z * 0.004) - 0.5) * 160;
-    const frost = ss(-430, -640, z + wob);
-    const ash = ss(500, 720, x + wob * 0.8) * (1 - frost);
-    return [ash, frost];
+  // biome weights: the Vale inside r ~1.4 km, then six sectors clockwise from north (frost, high, ash, salt, mire, dusk)
+  function biomeW(x, z) {
+    const r = Math.hypot(x, z), wob = (vnoise(x * 0.0015, z * 0.0015) - 0.5) * 520;
+    const outer = ss(1250, 1650, r + wob);
+    const out = [0, 0, 0, 0, 0, 0]; if (outer <= 0) return out;
+    const a = Math.atan2(x, -z) + (vnoise(x * 0.0011 + 9, z * 0.0011 - 4) - 0.5) * 0.7;
+    let sum = 0;
+    for (let k = 0; k < 6; k++) { const d = Math.abs(GW.angDiff(a, k * Math.PI / 3)); out[k] = Math.max(0, 1 - d / (Math.PI / 3 * 0.8)); out[k] = out[k] * out[k] * (3 - 2 * out[k]); sum += out[k]; }
+    for (let k = 0; k < 6; k++) out[k] = out[k] / (sum || 1) * outer;
+    return out;
   }
-  function rawHeight(x, z) {
-    let h = 0.5 * Math.sin(x * 0.05) * Math.cos(z * 0.045) + 0.35 * Math.sin(x * 0.13 + 1.3) * Math.sin(z * 0.11 + 0.7)
-      + 0.12 * Math.sin(x * 0.4 + z * 0.3);
-    const r = Math.hypot(x, z);
-    h += ss(98, 128, r) * 2.2 * (1 - ss(150, 220, r));   // the old forest rise around the Vale, softened
-    // rolling land beyond the Vale; mountains at the world's edge
-    const far = ss(150, 340, r);
-    h += far * ((vnoise(x * 0.0032, z * 0.0032) - 0.5) * 16 + (vnoise(x * 0.011 + 7, z * 0.011 + 3) - 0.5) * 5);
-    h += ss(1120, 1290, Math.max(Math.abs(x), Math.abs(z))) * 45;
+  function rawHeight(x, z, bw) {
+    let h = rawHeight0(x, z, bw);
     const flatK = (cx, cz, r0, r1, to) => { const d = Math.hypot(x - cx, z - cz); h = GW.lerp(to, h, ss(r0, r1, d)); };
     flatK(L.village.x, L.village.z, 12, 20, 0.15);
     flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
@@ -6891,10 +6914,26 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
-    flatK(L.hearth.x, L.hearth.z, 30, 55, h0At(L.hearth));
-    flatK(L.cinder.x, L.cinder.z, 22, 40, h0At(L.cinder));
-    flatK(L.abbey.x, L.abbey.z, 24, 44, h0At(L.abbey));
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
     flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
+    return h;
+  }
+  // terrain before hubs are flattened: the Vale's gentle waves, rolling land, region character, edge mountains
+  function rawHeight0(x, z, bw) {
+    let h = 0.5 * Math.sin(x * 0.05) * Math.cos(z * 0.045) + 0.35 * Math.sin(x * 0.13 + 1.3) * Math.sin(z * 0.11 + 0.7)
+      + 0.12 * Math.sin(x * 0.4 + z * 0.3);
+    const r = Math.hypot(x, z);
+    h += ss(98, 128, r) * 2.2 * (1 - ss(150, 220, r));   // the old forest rise around the Vale, softened
+    const far = ss(150, 340, r);
+    h += far * ((vnoise(x * 0.0032, z * 0.0032) - 0.5) * 16 + (vnoise(x * 0.011 + 7, z * 0.011 + 3) - 0.5) * 5);
+    const b = bw || biomeW(x, z);
+    if (b[1] > 0) { const rg = 1 - Math.abs(2 * vnoise(x * 0.0042 + 3, z * 0.0042 + 8) - 1); h += b[1] * (rg * rg * 38 + vnoise(x * 0.02, z * 0.02) * 6); }   // highlands: ridges
+    if (b[0] > 0) h += b[0] * (vnoise(x * 0.006 + 1, z * 0.006) - 0.3) * 12;                                                  // frost: soft drifts
+    if (b[2] > 0) h += b[2] * (vnoise(x * 0.012, z * 0.012 + 5) - 0.5) * 10;                                                   // ash: broken ground
+    if (b[3] > 0) h = GW.lerp(h, h * 0.15 + 0.3, b[3]);                                                                         // salt: flat pans
+    if (b[4] > 0) h = GW.lerp(h, -0.15 + vnoise(x * 0.025, z * 0.025) * 0.9, b[4] * 0.9);                                     // mire: low and wet
+    if (b[5] > 0) h += b[5] * (vnoise(x * 0.007 + 2, z * 0.007 - 6) - 0.4) * 14;                                              // duskwood: hills
+    h += ss(3650, 3950, Math.max(Math.abs(x), Math.abs(z))) * 60;                                                                // the world's rim
     return h;
   }
 
@@ -6902,59 +6941,108 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const _h0 = {};
   function h0At(c) {
     const k = c.x + ',' + c.z; if (_h0[k] !== undefined) return _h0[k];
-    const r = Math.hypot(c.x, c.z), far = ss(150, 340, r);
-    return (_h0[k] = far * ((vnoise(c.x * 0.0032, c.z * 0.0032) - 0.5) * 16 + (vnoise(c.x * 0.011 + 7, c.z * 0.011 + 3) - 0.5) * 5));
+    return (_h0[k] = rawHeight0(c.x, c.z));
   }
 
-  // ---------- bake ----------
-  const H = new Float32Array(N * N), G = new Float32Array(N * N), R = new Float32Array(N * N), P = new Float32Array(N * N);
-  const BA = new Float32Array(N * N), BF = new Float32Array(N * N);
-  // distance to polylines, rasterised only in a band around each segment (fast at 1300^2)
-  function bandDist(out, polys, band) {
-    out.fill(band);
-    const cellW = SIZE / N;
-    for (const poly of polys) for (let s = 0; s < poly.length - 1; s++) {
-      const a = poly[s], b = poly[s + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1e-6;
-      const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - band + HALF) / cellW)), i1 = Math.min(N - 1, Math.ceil((Math.max(a[0], b[0]) + band + HALF) / cellW));
-      const j0 = Math.max(0, Math.floor((Math.min(a[1], b[1]) - band + HALF) / cellW)), j1 = Math.min(N - 1, Math.ceil((Math.max(a[1], b[1]) + band + HALF) / cellW));
-      for (let j = j0; j <= j1; j++) { const z = (j + 0.5) * cellW - HALF; for (let i = i0; i <= i1; i++) {
-        const x = (i + 0.5) * cellW - HALF; let t = ((x - a[0]) * dx + (z - a[1]) * dz) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
-        const px = a[0] + dx * t - x, pz = a[1] + dz * t - z, d = Math.sqrt(px * px + pz * pz), k = j * N + i;
-        if (d < out[k]) out[k] = d;
-      } }
+  // ---------- terrain data: computed per 128 m chunk, cached ----------
+  // river surface height follows the land: each river vertex gets a smoothed ground height
+  const RIVER_Y = (() => { const raw = RIVER.map(p => rawHeight0(p[0], p[1]) - 0.55); return raw.map((_, i) => { let s = 0, n = 0; for (let k = -6; k <= 6; k++) { const v = raw[Math.max(0, Math.min(raw.length - 1, i + k))]; s += v; n++; } return Math.min(s / n, raw[i] + 0.2); }); })();
+  // segment index (256 m cells) so each chunk only measures nearby river/road segments
+  const SEGC = 256;
+  function segIndex(polys, band, ys) {
+    const idx = new Map();
+    polys.forEach((poly, pi) => { for (let s = 0; s < poly.length - 1; s++) {
+      const a = poly[s], b = poly[s + 1], seg = { ax: a[0], az: a[1], dx: b[0] - a[0], dz: b[1] - a[1], ya: ys ? ys[s] : 0, yb: ys ? ys[s + 1] : 0 };
+      seg.l2 = seg.dx * seg.dx + seg.dz * seg.dz || 1e-6;
+      const i0 = Math.floor((Math.min(a[0], b[0]) - band) / SEGC), i1 = Math.floor((Math.max(a[0], b[0]) + band) / SEGC);
+      const j0 = Math.floor((Math.min(a[1], b[1]) - band) / SEGC), j1 = Math.floor((Math.max(a[1], b[1]) + band) / SEGC);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = i * 4096 + j; let l = idx.get(k); if (!l) idx.set(k, l = []); l.push(seg); }
+    } });
+    return idx;
+  }
+  const RIDX = segIndex([RIVER], 64, RIVER_Y), PIDX = segIndex(PATHP, 32);
+  const EMPTY = [];
+  function segsNear(idx, x0, z0, x1, z1) {
+    const ia = Math.floor(x0 / SEGC), ib = Math.floor(x1 / SEGC), ja = Math.floor(z0 / SEGC), jb = Math.floor(z1 / SEGC);
+    if (ia === ib && ja === jb) return idx.get(ia * 4096 + ja) || EMPTY;   // single cell: no copy
+    const out = new Set();
+    for (let i = Math.floor(x0 / SEGC); i <= Math.floor(x1 / SEGC); i++) for (let j = Math.floor(z0 / SEGC); j <= Math.floor(z1 / SEGC); j++) { const l = idx.get(i * 4096 + j); if (l) l.forEach(s => out.add(s)); }
+    return [...out];
+  }
+  function nearest(segs, x, z, cap) {
+    let best = cap, y = 0;
+    for (const s of segs) {
+      let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) / s.l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const px = s.ax + s.dx * t - x, pz = s.az + s.dz * t - z, d = Math.sqrt(px * px + pz * pz);
+      if (d < best) { best = d; y = s.ya + (s.yb - s.ya) * t; }
     }
+    return [best, y];
   }
-  function bake() {
-    bandDist(R, [RIVER], 60); bandDist(P, PATHP, 30);
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-      const x = (i + 0.5) / N * SIZE - HALF, z = (j + 0.5) / N * SIZE - HALF;
-      const k0 = j * N + i, rd = R[k0], pd = P[k0];
-      const [ba, bf] = biomeRaw(x, z); BA[k0] = ba; BF[k0] = bf;
-      let h = rawHeight(x, z);
-      const carve = GW.clamp(1 - rd / (RIVER_W + 1.6), 0, 1);
-      h -= 1.9 * Math.pow(carve, 0.8);
-      if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
-      let g = 0.95;
-      g *= ss(RIVER_W - 0.15, RIVER_W + 0.25, rd);
-      g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
-      const vd = Math.hypot(x - L.village.x, z - L.village.z);
-      g *= GW.lerp(0.6, 1, ss(6, 14, vd));
-      const ad = Math.hypot(x - L.arena.x, z - L.arena.z);
-      g *= GW.lerp(0.35, 1, ss(10, 18, ad));
-      g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
-      g *= GW.lerp(1, 0.55, ba) * GW.lerp(1, 0.6, bf);                                  // dry, sparse ash grass; thin snow grass
-      for (const c of [L.hearth, L.cinder, L.abbey]) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - c.x, z - c.z)));
-      if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;               // the frozen mere
-      const k = j * N + i;
-      H[k] = h; G[k] = GW.clamp(g, 0, 1);
+  // every field for one point (used by chunks and the world map)
+  function fieldsAt(x, z, rsegs, psegs, out) {
+    const [rd, ry] = nearest(rsegs, x, z, 60), pd = nearest(psegs, x, z, 30)[0];
+    const bw = biomeW(x, z);
+    let h = rawHeight(x, z, bw);
+    const carve = GW.clamp(1 - rd / (RIVER_W + 1.6), 0, 1);
+    if (rd < 60) h = Math.min(h, GW.lerp(h, ry - 1.35, Math.pow(carve, 0.8)) + Math.max(0, rd - RIVER_W - 1.6) * 0.0);
+    if (rd < 60 && h > ry + 0.2) h = GW.lerp(ry + 0.2, h, ss(RIVER_W + 1.2, RIVER_W + 9, rd));   // banks slope down to the water
+    if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
+    let g = 0.95;
+    g *= ss(RIVER_W - 0.15, RIVER_W + 0.25, rd);
+    g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
+    g *= GW.lerp(0.6, 1, ss(6, 14, Math.hypot(x - L.village.x, z - L.village.z)));
+    g *= GW.lerp(0.35, 1, ss(10, 18, Math.hypot(x - L.arena.x, z - L.arena.z)));
+    g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
+    g *= GW.lerp(1, 0.6, bw[0]) * GW.lerp(1, 0.75, bw[1]) * GW.lerp(1, 0.55, bw[2]) * GW.lerp(1, 0.25, bw[3]);   // frost, high, ash, salt: sparser
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - L[k].x, z - L[k].z)));
+    if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;
+    for (const b of (W.burns || [])) if (Math.hypot(x - b[0], z - b[1]) < b[2]) g = -2;
+    out.h = h; out.g = GW.clamp(g, -2, 1); out.rd = rd; out.ry = ry; out.pd = pd; out.bw = bw;
+    return out;
+  }
+  const dcache = new Map(); let _lk = null, _lc = null;
+  function computeChunk(ci, cj) {
+    const n = DN * DN, c = { H: new Float32Array(n), G: new Float32Array(n), R: new Float32Array(n), P: new Float32Array(n), RY: new Float32Array(n), B: new Uint8Array(n * 6) };
+    const x0 = ci * DCH, z0 = cj * DCH;
+    const rs = segsNear(RIDX, x0 - 64, z0 - 64, x0 + DCH + 64, z0 + DCH + 64), ps = segsNear(PIDX, x0 - 32, z0 - 32, x0 + DCH + 32, z0 + DCH + 32);
+    const f = {};
+    for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) {
+      fieldsAt(x0 + (i + 0.5) * CELLM, z0 + (j + 0.5) * CELLM, rs, ps, f);
+      const k = j * DN + i; c.H[k] = f.h; c.G[k] = f.g; c.R[k] = f.rd; c.P[k] = f.pd; c.RY[k] = f.ry;
+      for (let b = 0; b < 6; b++) c.B[k * 6 + b] = Math.round(f.bw[b] * 255);
     }
+    return c;
   }
-  function sample(arr, x, z) {
-    const fx = (x + HALF) / SIZE * N - 0.5, fz = (z + HALF) / SIZE * N - 0.5;
-    const i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j;
-    const at = (a, b) => arr[GW.clamp(b, 0, N - 1) * N + GW.clamp(a, 0, N - 1)];
-    return GW.lerp(GW.lerp(at(i, j), at(i + 1, j), tx), GW.lerp(at(i, j + 1), at(i + 1, j + 1), tx), tz);
+  function chunkAt(ci, cj) {
+    const key = ci * 4096 + cj; if (key === _lk) return _lc;
+    let c = dcache.get(key);
+    if (!c) { c = computeChunk(ci, cj); dcache.set(key, c); if (dcache.size > 420) { const old = dcache.keys().next().value; dcache.delete(old); } }
+    _lk = key; _lc = c; return c;
   }
+  function tex(field, i, j) {
+    const ci = Math.floor(i / DN), cj = Math.floor(j / DN), c = chunkAt(ci, cj);
+    return c[field][(j - cj * DN) * DN + (i - ci * DN)];
+  }
+  function sample(field, x, z) {
+    const fx = x / CELLM - 0.5, fz = z / CELLM - 0.5, i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j;
+    return GW.lerp(GW.lerp(tex(field, i, j), tex(field, i + 1, j), tx), GW.lerp(tex(field, i, j + 1), tex(field, i + 1, j + 1), tx), tz);
+  }
+  function biomeSample(x, z) {
+    const i = Math.round(x / CELLM - 0.5), j = Math.round(z / CELLM - 0.5), ci = Math.floor(i / DN), cj = Math.floor(j / DN), c = chunkAt(ci, cj), k = ((j - cj * DN) * DN + (i - ci * DN)) * 6;
+    return [c.B[k] / 255, c.B[k + 1] / 255, c.B[k + 2] / 255, c.B[k + 3] / 255, c.B[k + 4] / 255, c.B[k + 5] / 255];
+  }
+  // compute one missing data chunk near the hero per frame, so re-centring the window never stalls
+  function prefetch(px, pz) {
+    const R = WIN / 2 + 320, ci0 = Math.floor(px / DCH), cj0 = Math.floor(pz / DCH), n = Math.ceil(R / DCH);
+    let best = null, bd = 1e9;
+    for (let dj = -n; dj <= n; dj++) for (let di = -n; di <= n; di++) {
+      const ci = ci0 + di, cj = cj0 + dj; if (dcache.has(ci * 4096 + cj)) continue;
+      const d = Math.hypot((ci + 0.5) * DCH - px, (cj + 0.5) * DCH - pz); if (d < R && d < bd) { bd = d; best = [ci, cj]; }
+    }
+    if (best) chunkAt(best[0], best[1]);
+  }
+  // burns change grass: drop the cached chunks under them so they are recomputed
+  function invalidate(x, z, r) { for (let ci = Math.floor((x - r) / DCH); ci <= Math.floor((x + r) / DCH); ci++) for (let cj = Math.floor((z - r) / DCH); cj <= Math.floor((z + r) / DCH); cj++) dcache.delete(ci * 4096 + cj); _lk = null; }
 
   // ---------- instanced batches ----------
   function Batch() { this.groups = {}; }
@@ -6983,16 +7071,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   // ---------- world object ----------
   const W = GW.World = {
-    SIZE, L, ZONES, WATER_Y,
+    SIZE, L, ZONES, WATER_Y, BIOMES,
     colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], occluders: [], lights: null, fireflies: null,
   };
-  W.heightAt = (x, z) => sample(H, x, z);
-  W.riverAt = (x, z) => sample(R, x, z);
-  W.biomeAt = (x, z) => ({ ash: sample(BA, x, z), frost: sample(BF, x, z) });
-  W.regionAt = (x, z) => { const b = W.biomeAt(x, z); return b.frost > 0.5 ? 'frost' : b.ash > 0.5 ? 'ash' : 'vale'; };
+  W.heightAt = (x, z) => sample('H', x, z);
+  W.riverAt = (x, z) => sample('R', x, z);
+  W.waterYAt = (x, z) => sample('RY', x, z);
+  W.biomeAt = (x, z) => { const b = biomeSample(x, z), o = { vale: 1 }; BIOMES.forEach((n, k) => { o[n] = b[k]; o.vale -= b[k]; }); return o; };
+  W.regionAt = (x, z) => { const b = biomeSample(x, z); let best = 'vale', bv = 0.5; b.forEach((v, k) => { if (v > bv) { bv = v; best = BIOMES[k]; } }); return best; };
   W.REGIONS = REGIONS; W.CORE = CORE;
-  W.pathAt = (x, z) => sample(P, x, z);
-  W.inWater = (x, z) => sample(R, x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
+  W.pathAt = (x, z) => sample('P', x, z);
+  W.inWater = (x, z) => sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
   W.onBridge = (x, z) => {
     const b = W.bridge; if (!b) return false;
     const dx = x - b.x, dz = z - b.z;
@@ -7017,13 +7106,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     W.colliders.push(c);
     const i0 = Math.floor((x - r) / CELL), i1 = Math.floor((x + r) / CELL), j0 = Math.floor((z - r) / CELL), j1 = Math.floor((z + r) / CELL);
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-      const k = i * 1000 + j; let a = W.grid.get(k); if (!a) W.grid.set(k, a = []); a.push(c);
+      const k = i * 4096 + j; let a = W.grid.get(k); if (!a) W.grid.set(k, a = []); a.push(c);
     }
     return c;
   };
   W.removeCollider = function (c) {
     const i0 = Math.floor((c.x - c.r) / CELL), i1 = Math.floor((c.x + c.r) / CELL), j0 = Math.floor((c.z - c.r) / CELL), j1 = Math.floor((c.z + c.r) / CELL);
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const a = W.grid.get(i * 1000 + j); if (a) { const k = a.indexOf(c); if (k >= 0) a.splice(k, 1); } }
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const a = W.grid.get(i * 4096 + j); if (a) { const k = a.indexOf(c); if (k >= 0) a.splice(k, 1); } }
     const k = W.colliders.indexOf(c); if (k >= 0) W.colliders.splice(k, 1);
   };
   // push a circle out of colliders; returns true if touched
@@ -7032,14 +7121,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     let hit = false;
     const i = Math.floor(p.x / CELL), j = Math.floor(p.z / CELL);
     for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) {
-      const arr = W.grid.get(a * 1000 + b); if (!arr) continue;
+      const arr = W.grid.get(a * 4096 + b); if (!arr) continue;
       for (const c of arr) {
         if (c.lv !== undefined && c.lv !== lv) continue;
         const dx = p.x - c.x, dz = p.z - c.z, rr = r + c.r, d2 = dx * dx + dz * dz;
         if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2), k = (rr - d) / d; p.x += dx * k; p.z += dz * k; hit = true; }
       }
     }
-    const lim = 1250;   // the mountains at the world's edge
+    const lim = 3880;   // the mountains at the world's edge
     if (Math.abs(p.x) > lim) { p.x = Math.sign(p.x) * lim; hit = true; }
     if (Math.abs(p.z) > lim) { p.z = Math.sign(p.z) * lim; hit = true; }
     return hit;
@@ -7047,7 +7136,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   W.blocked = function (x, z, r) {
     const i = Math.floor(x / CELL), j = Math.floor(z / CELL);
     for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) {
-      const arr = W.grid.get(a * 1000 + b); if (!arr) continue;
+      const arr = W.grid.get(a * 4096 + b); if (!arr) continue;
       for (const c of arr) if ((x - c.x) ** 2 + (z - c.z) ** 2 < (r + c.r) ** 2) return true;
     }
     return false;
@@ -7055,7 +7144,6 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   W.build = function (scene, opts) {
     W.scene = scene;
-    bake();
     W.lights = new GW.Lights();
     const rnd = GW.rand(1337);
     const batch = new Batch();
@@ -7063,36 +7151,54 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const place = (x, y, z, ry, sx, sy, sz) => { q.setFromAxisAngle(up, ry); m4.compose(v3.set(x, y, z), q, s3.set(sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz)); return m4; };
     _kitBatch = batch; _kitPlace = place; _kitRnd = rnd;
 
-    // ---- data texture for shaders ----
-    const half = new Uint16Array(N * N * 4);
-    for (let k = 0; k < N * N; k++) {
-      half[k * 4] = THREE.DataUtils.toHalfFloat(H[k]);
-      half[k * 4 + 1] = THREE.DataUtils.toHalfFloat(G[k]);
-      half[k * 4 + 2] = THREE.DataUtils.toHalfFloat(Math.min(R[k], 60));
-      half[k * 4 + 3] = THREE.DataUtils.toHalfFloat(Math.min(P[k], 60));
-    }
-    const tMap = new THREE.DataTexture(half, N, N, THREE.RGBAFormat, THREE.HalfFloatType);
-    tMap.minFilter = THREE.LinearFilter; tMap.magFilter = THREE.LinearFilter; tMap.needsUpdate = true;
-    W.tMap = tMap; GW.LU.uHeightMap.value = tMap; GW.LU.uWorldSize.value = SIZE;
-    // biome map: r = ash, g = frost
-    const bio = new Uint8Array(N * N * 4);
-    for (let k = 0; k < N * N; k++) { bio[k * 4] = Math.round(BA[k] * 255); bio[k * 4 + 1] = Math.round(BF[k] * 255); bio[k * 4 + 3] = 255; }
-    const tBio = new THREE.DataTexture(bio, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
-    tBio.minFilter = THREE.LinearFilter; tBio.magFilter = THREE.LinearFilter; tBio.needsUpdate = true;
-    GW.LU.uBiomeMap.value = tBio;
+    // ---- GPU data window: 1 km around the hero (height/grass/river/path + region weights), re-centred as you travel ----
+    const half = new Uint16Array(WN * WN * 4), bio1 = new Uint8Array(WN * WN * 4), bio2 = new Uint8Array(WN * WN * 4);
+    const tMap = new THREE.DataTexture(half, WN, WN, THREE.RGBAFormat, THREE.HalfFloatType);
+    const tBio = new THREE.DataTexture(bio1, WN, WN, THREE.RGBAFormat, THREE.UnsignedByteType), tBio2 = new THREE.DataTexture(bio2, WN, WN, THREE.RGBAFormat, THREE.UnsignedByteType);
+    [tMap, tBio, tBio2].forEach(t => { t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; });
+    W.tMap = tMap; GW.LU.uHeightMap.value = tMap; GW.LU.uWorldSize.value = 1; GW.LU.uBiomeMap.value = tBio; GW.LU.uBiomeMap2.value = tBio2;
+    const toH = THREE.DataUtils.toHalfFloat;
+    W.dataWindow = function (px, pz, force) {
+      const cx = Math.round(px / DCH) * DCH, cz = Math.round(pz / DCH) * DCH;
+      if (!force && W._dc && Math.abs(px - W._dc[0]) < 192 && Math.abs(pz - W._dc[1]) < 192) return;
+      W._dc = [cx, cz];
+      const i0 = (cx - WIN / 2) / CELLM, j0 = (cz - WIN / 2) / CELLM;
+      for (let j = 0; j < WN; j++) for (let i = 0; i < WN; i++) {
+        const gi = i0 + i, gj = j0 + j, ci = Math.floor(gi / DN), cj = Math.floor(gj / DN), c = chunkAt(ci, cj), k = (gj - cj * DN) * DN + (gi - ci * DN), o = (j * WN + i) * 4;
+        half[o] = toH(c.H[k]); half[o + 1] = toH(c.G[k]); half[o + 2] = toH(Math.min(c.R[k], 60)); half[o + 3] = toH(Math.min(c.P[k], 30));
+        // bio1 = (ash, frost, salt, high)  bio2 = (mire, dusk)
+        bio1[o] = c.B[k * 6 + 2]; bio1[o + 1] = c.B[k * 6]; bio1[o + 2] = c.B[k * 6 + 3]; bio1[o + 3] = c.B[k * 6 + 1];
+        bio2[o] = c.B[k * 6 + 4]; bio2[o + 1] = c.B[k * 6 + 5]; bio2[o + 3] = 255;
+      }
+      tMap.needsUpdate = tBio.needsUpdate = tBio2.needsUpdate = true;
+      GW.LU.uMapC.value.set(cx, cz);
+      W.localMap = null;   // rebuilt on demand for the minimap
+    };
+    W.dataWindow(L.start.x, L.start.z, true);
     // scorch the ground: grass gone (density < 0 marks burnt), terrain turns to ash-dirt
     W.burn = function (x, z, r) {
-      const ci = Math.round((x + HALF) / SIZE * N - 0.5), cj = Math.round((z + HALF) / SIZE * N - 0.5), rr = Math.ceil(r / SIZE * N) + 1;
-      for (let j = cj - rr; j <= cj + rr; j++) for (let i = ci - rr; i <= ci + rr; i++) {
-        if (i < 0 || j < 0 || i >= N || j >= N) continue;
-        const wx = (i + 0.5) / N * SIZE - HALF, wz = (j + 0.5) / N * SIZE - HALF, d = Math.hypot(wx - x, wz - z);
-        if (d > r + 0.6) continue;
-        const k = j * N + i; G[k] = d < r ? -2 : Math.min(G[k], 0.15);
-        half[k * 4 + 1] = THREE.DataUtils.toHalfFloat(G[k]);
-      }
-      tMap.needsUpdate = true;
       (W.burns = W.burns || []).push([x, z, r]);
+      invalidate(x, z, r + 2);
+      W.dataWindow(W._dc[0], W._dc[1], true);
       W.terrainRefresh(true);
+    };
+    // minimap source: the data window drawn as a 512 px picture (2 m per pixel)
+    W.getLocalMap = function () {
+      if (W.localMap) return W.localMap;
+      const cv = document.createElement('canvas'); cv.width = cv.height = WN; const g = cv.getContext('2d'), img = g.createImageData(WN, WN), d = img.data;
+      const x0 = W._dc[0] - WIN / 2, z0 = W._dc[1] - WIN / 2;
+      const bb = [0, 0, 0, 0, 0, 0], gi0 = x0 / CELLM, gj0 = z0 / CELLM;
+      for (let j = 0; j < WN; j++) for (let i = 0; i < WN; i++) {
+        const x = x0 + (i + 0.5) * CELLM, z = z0 + (j + 0.5) * CELLM, o = (j * WN + i) * 4;
+        const gi = gi0 + i, gj = gj0 + j, ci = Math.floor(gi / DN), cj = Math.floor(gj / DN), ch = chunkAt(ci, cj), k = (gj - cj * DN) * DN + (gi - ci * DN);
+        for (let q = 0; q < 6; q++) bb[q] = ch.B[k * 6 + q] / 255;
+        const rd = ch.R[k], pd = ch.P[k];
+        let c = mapColour(bb, rd, pd, x, z, ch.H[k]);
+        if (((i * 7 + j * 13) % 3) !== 0 && rd >= RIVER_W && pd >= 1.8) c = c.map(v => v * 0.55);
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      return (W.localMap = { canvas: cv, x0, z0, mpp: CELLM });
     };
 
     // ---- terrain: a 640 m window of 2 m quads that follows you (re-centred on a 32 m grid, so vertices stay put) ----
@@ -7102,30 +7208,42 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const terrain = new THREE.Mesh(tg, GW.mat({ id: ID.GROUND, vertexColors: true, color: 0xffffff, farGrass: 30 }));
     W.terrainMat = terrain.material; W.terrain = terrain;
     terrain.frustumCulled = false; terrain.layers.set(1); terrain.renderOrder = -6; scene.add(terrain);
-    const groundCol = (x, z) => {
-      const rd = sample(R, x, z), pd = sample(P, x, z), g = sample(G, x, z), ba = sample(BA, x, z), bf = sample(BF, x, z);
+    const BIO_GROUND = [[0.42, 0.47, 0.55], [0.12, 0.14, 0.12], [0.11, 0.095, 0.085], [0.36, 0.32, 0.24], [0.06, 0.07, 0.04], [0.03, 0.06, 0.06]];
+    // ground colour from one data texel (the terrain vertices sit exactly on texel centres)
+    const bwT = [0, 0, 0, 0, 0, 0];
+    const groundColT = (ch, k, x, z) => {
+      const rd = ch.R[k], pd = ch.P[k], g = ch.G[k];
+      for (let q = 0; q < 6; q++) bwT[q] = ch.B[k * 6 + q] / 255;
       const n = 0.8 + 0.4 * Math.sin(x * 0.7) * Math.sin(z * 0.9);
-      let c = [0.07 * n, 0.12 * n, 0.065 * n];
-      const dirt = [0.2, 0.16, 0.11], pf = 1 - ss(0.8, 2.6, pd);
-      c = c.map((v, k) => GW.lerp(v, dirt[k], Math.max(pf, (1 - Math.max(0, g)) * 0.6)));
-      const ashC = [0.11 * n, 0.095 * n, 0.085 * n], snowC = [0.42 * n, 0.47 * n, 0.55 * n];
-      c = c.map((v, k) => GW.lerp(GW.lerp(v, ashC[k], ba * (1 - pf * 0.5)), snowC[k], bf * (1 - pf * 0.6)));
-      if (g < -1) c = [0.085, 0.06, 0.045];                                         // scorched by a fire
-      if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 74) c = [0.32, 0.42, 0.52]; // the frozen mere
-      const bed = [0.06, 0.08, 0.11], bfr = 1 - ss(RIVER_W - 0.5, RIVER_W + 0.8, rd);
-      return c.map((v, k) => GW.lerp(v, bed[k], bfr));
+      let c0 = 0.07 * n, c1 = 0.12 * n, c2 = 0.065 * n;
+      const pf = 1 - ss(0.8, 2.6, pd), dm = Math.max(pf, (1 - Math.max(0, g)) * 0.6);
+      c0 = GW.lerp(c0, 0.2, dm); c1 = GW.lerp(c1, 0.16, dm); c2 = GW.lerp(c2, 0.11, dm);
+      for (let q = 0; q < 6; q++) if (bwT[q] > 0.01) { const w = bwT[q] * (1 - pf * 0.5), B = BIO_GROUND[q]; c0 = GW.lerp(c0, B[0] * n, w); c1 = GW.lerp(c1, B[1] * n, w); c2 = GW.lerp(c2, B[2] * n, w); }
+      if (g < -1) { c0 = 0.085; c1 = 0.06; c2 = 0.045; }
+      if (Math.abs(x - L.frostLake.x) < 80 && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 74) { c0 = 0.32; c1 = 0.42; c2 = 0.52; }
+      const bfr = 1 - ss(RIVER_W - 0.5, RIVER_W + 0.8, rd);
+      _gc[0] = GW.lerp(c0, 0.06, bfr); _gc[1] = GW.lerp(c1, 0.08, bfr); _gc[2] = GW.lerp(c2, 0.11, bfr); return _gc;
     };
+    const _gc = [0, 0, 0];
     W.terrainRefresh = function (force, px, pz) {
       const cx = px === undefined ? (W._tc || [0, 0])[0] : Math.round(px / 32) * 32, cz = pz === undefined ? (W._tc || [0, 0])[1] : Math.round(pz / 32) * 32;
       if (!force && W._tc && W._tc[0] === cx && W._tc[1] === cz) return;
       W._tc = [cx, cz];
       const pos = tg.attributes.position, col = tg.attributes.color;
       for (let i = 0; i < pos.count; i++) {
-        const x = gridXZ[i * 2] + cx, z = gridXZ[i * 2 + 1] + cz;
-        pos.setXYZ(i, x, W.heightAt(x, z), z);
-        const c = groundCol(x, z); col.setXYZ(i, c[0], c[1], c[2]);
+        const x = gridXZ[i * 2] + cx + 1, z = gridXZ[i * 2 + 1] + cz + 1;   // +1 m: on a texel centre
+        const gi = (x - 1) / CELLM, gj = (z - 1) / CELLM, ci = Math.floor(gi / DN), cj = Math.floor(gj / DN), ch = chunkAt(ci, cj), k = (gj - cj * DN) * DN + (gi - ci * DN);
+        pos.setXYZ(i, x, ch.H[k], z);
+        const c = groundColT(ch, k, x, z); col.setXYZ(i, c[0], c[1], c[2]);
       }
-      pos.needsUpdate = true; col.needsUpdate = true; tg.computeVertexNormals();
+      // normals straight from the height grid (much faster than computeVertexNormals on 200k triangles)
+      const nrm = tg.attributes.normal, V = TSEG + 1, pa = pos.array, na = nrm.array;
+      for (let r = 0; r < V; r++) for (let q = 0; q < V; q++) {
+        const i = r * V + q, l = r * V + Math.max(0, q - 1), rr = r * V + Math.min(V - 1, q + 1), u = Math.max(0, r - 1) * V + q, d = Math.min(V - 1, r + 1) * V + q;
+        const dx = (pa[rr * 3 + 1] - pa[l * 3 + 1]) / (pa[rr * 3] - pa[l * 3] || 1), dz = (pa[d * 3 + 1] - pa[u * 3 + 1]) / (pa[d * 3 + 2] - pa[u * 3 + 2] || 1);
+        const il = 1 / Math.sqrt(dx * dx + 1 + dz * dz); na[i * 3] = -dx * il; na[i * 3 + 1] = il; na[i * 3 + 2] = -dz * il;
+      }
+      pos.needsUpdate = true; col.needsUpdate = true; nrm.needsUpdate = true;
     };
     W.terrainRefresh(true, L.start.x, L.start.z);
 
@@ -7568,6 +7686,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const BIO_MAT = {
     frost: { needle: 0xb4c4d0, foliage: 0xbcc8d0, bark: 0x5a5550, rock: 0xb8c0cc, stone: 0xb0b8c4 },
     ash: { needle: 0x4a4038, foliage: 0x4a4038, bark: 0x2e2a28, rock: 0x55524f, stone: 0x5a5654 },
+    high: { needle: 0x5a7a5a, foliage: 0x6a7a50, rock: 0x8a8e88, stone: 0x8a8e88 },
+    salt: { bark: 0x9a8e7a, rock: 0xd0c8b0, stone: 0xd0c8b0 },
+    mire: { needle: 0x3a4a2a, foliage: 0x4a5a30, bark: 0x3a3228, rock: 0x4a4a3e },
+    dusk: { needle: 0x1e4a50, foliage: 0x2a5560, bark: 0x2a2e30, rock: 0x3a4448 },
   };
   const bioMats = {};
   function kitMatB(mn, bio) {
@@ -7576,8 +7698,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
   function chunkFree(x, z, r) {
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
-    if (Math.max(Math.abs(x), Math.abs(z)) > 1230) return false;
-    if (sample(R, x, z) < RIVER_W + 1.5 + r || sample(P, x, z) < 3.2 + r) return false;
+    if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
+    if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
     for (const c of [L.hearth, L.cinder, L.abbey]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
@@ -7604,6 +7726,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (bio === 'ash') {
         if (roll < 0.1) { if (chunkFree(x, z, 1)) kit(['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'][k % 3], x, z, 0.8 + rnd() * 0.6, 0.4, 'ash', new THREE.Color(0.4, 0.35, 0.32)); }
         else if (roll < 0.16) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.5 + rnd() * 0.9, 0.85, 'ash'); }
+      } else if (bio === 'high') {
+        if (roll < (forest > 0.62 ? 0.35 : 0.02)) { if (chunkFree(x, z, 1)) kit(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][k % 3], x, z, 0.8 + rnd() * 0.4, 0.4, 'high'); }
+        else if (roll > 0.86) { if (chunkFree(x, z, 1.4)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.6 + rnd() * 1.2, 0.85, 'high'); }
+      } else if (bio === 'salt') {
+        if (roll < 0.02) { if (chunkFree(x, z, 1)) kit(['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'][k % 3], x, z, 0.7 + rnd() * 0.4, 0.4, 'salt', new THREE.Color(0.9, 0.86, 0.8)); }
+        else if (roll > 0.95) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.4 + rnd() * 0.7, 0.85, 'salt'); }
+      } else if (bio === 'mire') {
+        if (roll < (forest > 0.55 ? 0.3 : 0.04)) { if (chunkFree(x, z, 1)) kit(rnd() < 0.5 ? ['kit_deadtree_a', 'kit_deadtree_b'][k % 2] : 'kit_pine_c', x, z, 0.8 + rnd() * 0.5, 0.4, 'mire', new THREE.Color(0.7, 0.72, 0.6)); }
+        else if (roll > 0.975) { if (chunkFree(x, z, 1.5)) nat(rnd() < 0.6 ? 'log' : 'stump', x, z, 2.6 + rnd(), 0.8); }
+      } else if (bio === 'dusk') {
+        if (roll < (forest > 0.4 ? 0.85 : 0.15)) { if (chunkFree(x, z, 1)) kit(['kit_pine_a', 'kit_pine_b', 'kit_pine_c', 'kit_oak_b'][k % 4], x, z, 0.9 + rnd() * 0.6, 0.4, 'dusk'); }
       } else if (bio === 'frost') {
         if (roll < (forest > 0.58 ? 0.75 : 0.05)) { if (chunkFree(x, z, 1)) kit(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][k % 3], x, z, 0.85 + rnd() * 0.5, 0.4, 'frost'); }
         else if (roll < 0.85 && roll > 0.8) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.5 + rnd() * 0.8, 0.85, 'frost'); }
@@ -7944,7 +8077,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (i > 0) along += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
       for (let s = 0; s < 2; s++) {
         const sg = s ? 1 : -1, k = i * 2 + s;
-        posA[k * 3] = pts[i][0] - dz * w * sg; posA[k * 3 + 1] = WATER_Y; posA[k * 3 + 2] = pts[i][1] + dx * w * sg;
+        posA[k * 3] = pts[i][0] - dz * w * sg; posA[k * 3 + 1] = RIVER_Y[i]; posA[k * 3 + 2] = pts[i][1] + dx * w * sg;
         uvA[k * 2] = s; uvA[k * 2 + 1] = along;
       }
       if (i < n - 1) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
@@ -8016,15 +8149,15 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) }, uFlowers: { value: 0.5 }, uFlowerK: { value: 1 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl; uniform float uFlowerK; uniform sampler2D uBiomeMap;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl; uniform float uFlowerK; uniform sampler2D uBiomeMap; uniform sampler2D uBiomeMap2; uniform vec2 uMapC; uniform float uMapSpan;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl;
-        float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+        float gh(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(gh(i), gh(i + vec2(1.0, 0.0)), f.x), mix(gh(i + vec2(0.0, 1.0)), gh(i + vec2(1.0, 1.0)), f.x), f.y); }
         void main(){
           vec2 base = uCenter - uSize * 0.5;
           vec2 wp = base + mod((aOff.xy + uShift) * (uSize / 50.0) - base, uSize);
-          vec4 m = texture2D(tMap, wp / uWorld + 0.5);
+          vec4 m = texture2D(tMap, (wp - uMapC) / uMapSpan + 0.5);
           float sd = fract(aOff.z + uShift.x * 0.0137);
           float ed = max(abs(wp.x - uCenter.x), abs(wp.y - uCenter.y)) / uSize;
           float edgeF = 1.0 - smoothstep(0.34, 0.5, ed);
@@ -8082,9 +8215,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           float tone = fract(sd * 17.0);
           vec3 sea = mix(vec3(0.1, 0.31, 0.25), vec3(0.17, 0.43, 0.35), tone);
           sea = mix(sea, vec3(0.2, 0.42, 0.24), smoothstep(0.6, 0.9, fA) * 0.35);   // a few warmer patches
-          vec4 bmg = texture2D(uBiomeMap, wp / uWorld + 0.5);
+          vec4 bmg = texture2D(uBiomeMap, (wp - uMapC) / uMapSpan + 0.5), bmg2 = texture2D(uBiomeMap2, (wp - uMapC) / uMapSpan + 0.5);
           sea = mix(sea, mix(vec3(0.3, 0.27, 0.2), vec3(0.4, 0.33, 0.22), tone), bmg.r);    // ash: dry, straw-coloured
           sea = mix(sea, mix(vec3(0.5, 0.58, 0.66), vec3(0.66, 0.72, 0.8), tone), bmg.g);   // frost: frozen, pale
+          sea = mix(sea, mix(vec3(0.52, 0.48, 0.36), vec3(0.62, 0.58, 0.44), tone), bmg.b); // salt: bleached
+          sea = mix(sea, mix(vec3(0.26, 0.34, 0.24), vec3(0.36, 0.42, 0.3), tone), bmg.a);  // highlands: olive and grey
+          sea = mix(sea, mix(vec3(0.17, 0.21, 0.1), vec3(0.26, 0.28, 0.14), tone), bmg2.r); // mire: olive-brown reeds
+          sea = mix(sea, mix(vec3(0.05, 0.17, 0.2), vec3(0.08, 0.24, 0.27), tone), bmg2.g); // duskwood: deep teal
           vCol = sea * (0.85 + 0.15 * t) * (1.0 - 0.3 * flatK) * (uTurf > 0.5 ? 0.55 : 1.0);
           if (uPush[0].z > 0.0) vCol *= 1.0 - 0.38 * (1.0 - smoothstep(0.7, 2.6, length(wp - uPush[0].xy)));   // soft halo so the hero reads
           vSpeck = 0.0; vGl = vec2(4.0, 9.0);
@@ -8166,30 +8303,45 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       ff.im.instanceMatrix.needsUpdate = true;
     }
     W.grass.mat.uniforms.uCenter.value.set(px, pz);
+    prefetch(px, pz);
+    W.dataWindow(px, pz);
     if (Math.abs(px - W._tc[0]) > 96 || Math.abs(pz - W._tc[1]) > 96) W.terrainRefresh(false, px, pz);
     W.stream(px, pz, W.scene, W._streamBudget || 1); W._streamBudget = 1;
   };
 
   // ---------- minimap ----------
+  // map colours per region
+  const MAP_BIO = [[106, 122, 138], [92, 104, 80], [80, 62, 50], [150, 138, 104], [70, 78, 46], [36, 70, 76]];
+  function mapColour(b, rd, pd, x, z, h) {
+    if (rd < RIVER_W) return [74, 122, 208];
+    if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) return [154, 180, 208];
+    if (pd < 1.8) return [138, 106, 68];
+    let c = [29, 58, 34];
+    for (let k = 0; k < 6; k++) if (b[k] > 0.01) c = c.map((v, i) => GW.lerp(v, MAP_BIO[k][i], b[k]));
+    if (h > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3700) c = c.map(v => Math.min(255, v * 1.35 + 18));
+    return c;
+  }
   W.mapCanvas = function () {
     const S = 2048, c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d');
     g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
     g.font = '6px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const step = 4;
+    const step = 4, f = {}, B = S / step, base = document.createElement('canvas'); base.width = base.height = B;
+    const bg = base.getContext('2d'), bimg = bg.createImageData(B, B), glyphs = [];
     for (let y = 0; y < S; y += step) for (let x = 0; x < S; x += step) {
-      const wx = x / S * SIZE - HALF, wz = y / S * SIZE - HALF;
-      const rd = W.riverAt(wx, wz), pd = W.pathAt(wx, wz), ba = sample(BA, wx, wz), bf = sample(BF, wx, wz), h = W.heightAt(wx, wz);
-      const edge = Math.max(Math.abs(wx), Math.abs(wz)) > 1140;
-      let ch = '.', col = bf > 0.5 ? '#6a7a8a' : ba > 0.5 ? '#4a3a30' : '#1d3a22';
-      if (rd < RIVER_W) { ch = '~'; col = '#4a7ad0'; }
-      else if (Math.hypot(wx - L.frostLake.x, wz - L.frostLake.z) < 72) { ch = '~'; col = '#9ab4d0'; }
-      else if (pd < 1.8) { ch = ':'; col = '#8a6a44'; }
-      else if (edge || h > 9) { ch = '^'; col = bf > 0.5 ? '#8a98a8' : '#3a4a3e'; }
-      else if (Math.abs(wx) < CORE && Math.abs(wz) < CORE && W.blocked(wx, wz, 0.2)) { ch = '#'; col = '#3e5a4a'; }
+      const wx = (x + 2) / S * SIZE - HALF, wz = (y + 2) / S * SIZE - HALF;
+      fieldsAt(wx, wz, segsNear(RIDX, wx - 1, wz - 1, wx + 1, wz + 1), segsNear(PIDX, wx - 1, wz - 1, wx + 1, wz + 1), f);
+      const col = mapColour(f.bw, f.rd, f.pd, wx, wz, f.h), o = ((y / step) * B + x / step) * 4;
+      bimg.data[o] = col[0] * 0.42; bimg.data[o + 1] = col[1] * 0.42; bimg.data[o + 2] = col[2] * 0.42; bimg.data[o + 3] = 255;   // tinted base
+      let ch = '.';
+      if (f.rd < RIVER_W + 3 || Math.hypot(wx - L.frostLake.x, wz - L.frostLake.z) < 72) ch = '~';
+      else if (f.pd < 4) ch = ':';
+      else if (f.h > 14 || Math.max(Math.abs(wx), Math.abs(wz)) > 3700) ch = '^';
       else if (((x * 7 + y * 13) % 5) !== 0) continue;
-      g.fillStyle = col; g.fillText(ch, x + 2, y + 2);
+      glyphs.push([ch, x + 2, y + 2, col]);
     }
+    bg.putImageData(bimg, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(base, 0, 0, S, S);
+    for (const [ch, x, y, col] of glyphs) { g.fillStyle = `rgb(${col[0] | 0},${col[1] | 0},${col[2] | 0})`; g.fillText(ch, x, y); }
     return c;
   };
 })();
@@ -9817,13 +9969,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   // ---------------- minimap ----------------
   let mapImg = null;
-  UI.initMinimap = function () { mapImg = GW.World.mapCanvas(); };
+  UI.initMinimap = function () { /* the world map is drawn the first time it is opened */ };
   UI.drawMinimap = function (G) {
     const c = $('minimap'), g = c.getContext('2d'), P = G.player;
-    const S = GW.World.SIZE, scale = mapImg.width / S, span = 80; // world units shown
+    const span = 80; // world units shown
     g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
-    const sx = (P.pos.x + S / 2) * scale - span * scale / 2, sz = (P.pos.z + S / 2) * scale - span * scale / 2;
-    g.drawImage(mapImg, sx, sz, span * scale, span * scale, 0, 0, 128, 128);
+    const LM = GW.World.getLocalMap(); g.imageSmoothingEnabled = false;
+    g.drawImage(LM.canvas, (P.pos.x - span / 2 - LM.x0) / LM.mpp, (P.pos.z - span / 2 - LM.z0) / LM.mpp, span / LM.mpp, span / LM.mpp, 0, 0, 128, 128);
     const to = (x, z) => [(x - P.pos.x) / span * 128 + 64, (z - P.pos.z) / span * 128 + 64];
     g.font = 'bold 10px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const it of GW.World.interact) { const [x, y] = to(it.x, it.z); if (x < 0 || y < 0 || x > 128 || y > 128) continue; g.fillStyle = it.type === 'rest' ? '#ff9a40' : '#ffcf6a'; g.fillText(it.type === 'rest' ? '▲' : it.type === 'forge' ? 'π' : '!', x, y); }
@@ -9839,10 +9991,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   UI.toggleMap = function (G, on) {
     WM.open = on === undefined ? !WM.open : on;
     $('worldmap').classList.toggle('hidden', !WM.open);
-    if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 1.6; UI.drawWorldMap(G); }
+    if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 5; UI.drawWorldMap(G); }
   };
   UI.drawWorldMap = function (G) {
-    if (!WM.open || !mapImg) return;
+    if (!WM.open) return;
+    if (!mapImg) mapImg = GW.World.mapCanvas();
     const c = $('wm'), dpr = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
     if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
     const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -9852,17 +10005,28 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const [ox, oy] = to(-S / 2, -S / 2);
     g.imageSmoothingEnabled = true; g.globalAlpha = 0.85; g.drawImage(mapImg, ox, oy, S * px, S * px); g.globalAlpha = 1;
     // fog of war: unexplored land stays dark
-    if (G.fog) { const FC = G.FOG_CELL, FN = G.FOG_N; g.fillStyle = '#030408';
-      for (let j = 0; j < FN; j++) for (let i = 0; i < FN; i++) if (!G.fog[j * FN + i]) { const [x, y] = to(i * FC - S / 2, j * FC - S / 2); g.fillRect(x - 0.5, y - 0.5, FC * px + 1, FC * px + 1); } }
+    if (G.fog) { const FN = G.FOG_N;
+      if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
+      const fg = WM.fogCv.getContext('2d'), img = fg.createImageData(FN, FN);
+      for (let k = 0; k < FN * FN; k++) { img.data[k * 4] = 3; img.data[k * 4 + 1] = 4; img.data[k * 4 + 2] = 8; img.data[k * 4 + 3] = G.fog[k] ? 0 : 255; }
+      fg.putImageData(img, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(WM.fogCv, ox, oy, S * px, S * px); }
     const seen = (x, z) => !G.fog || G.fog[Math.floor((z + S / 2) / G.FOG_CELL) * G.FOG_N + Math.floor((x + S / 2) / G.FOG_CELL)];
     g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const z of W.ZONES) {
-      if (!seen(z.x, z.z)) continue;
+      if (!seen(z.x, z.z) || (WM.zoom < 4 && z.r < 60)) continue;
       const [x, y] = to(z.x, z.z);
       g.strokeStyle = 'rgba(200,200,210,.18)'; g.setLineDash([2, 4]); g.beginPath(); g.arc(x, y, z.r * px, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
       g.font = `600 ${Math.round(GW.clamp(10 * WM.zoom, 10, 15))}px ui-monospace, Menlo, monospace`; g.fillStyle = '#c8ccd8';
       g.fillText(z.name, x, y - z.r * px - 8);
+    }
+    // region names (zoomed out)
+    if (WM.zoom < 4) {
+      const HUB = { vale: [0, 300], frost: ['abbey'], high: ['high'], ash: ['cinder'], salt: ['salt'], mire: ['mire'], dusk: ['dusk'] };
+      g.font = `600 ${Math.round(GW.clamp(13 + WM.zoom * 3, 13, 22))}px ui-monospace, Menlo, monospace`;
+      for (const k in W.REGIONS) { const h = HUB[k], pos = typeof h[0] === 'string' ? W.L[h[0]] : { x: h[0], z: h[1] };
+        const [x, y] = to(pos.x, pos.z + (k === 'vale' ? 0 : 160)); g.fillStyle = W.REGIONS[k].col; g.globalAlpha = 0.85; g.fillText(W.REGIONS[k].name, x, y); }
+      g.globalAlpha = 1;
     }
     g.font = 'bold 14px ui-monospace, Menlo, monospace';
     for (const f of W.fires) { if (!seen(f.x, f.z)) continue; const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
@@ -9876,7 +10040,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   };
   (function mapInput() {
     const c = document.getElementById('wm'); if (!c) return;
-    c.addEventListener('wheel', e => { WM.zoom = GW.clamp(WM.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.8, 6); UI.drawWorldMap(GW.G); e.preventDefault(); }, { passive: false });
+    c.addEventListener('wheel', e => { WM.zoom = GW.clamp(WM.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.9, 48); UI.drawWorldMap(GW.G); e.preventDefault(); }, { passive: false });
     c.addEventListener('pointerdown', e => { WM.drag = { x: e.clientX, y: e.clientY, cx: WM.cx, cz: WM.cz }; c.setPointerCapture(e.pointerId); });
     c.addEventListener('pointermove', e => { if (!WM.drag) return; const S = GW.World.SIZE, px = Math.min(innerWidth, innerHeight) * 0.9 / S * WM.zoom;
       WM.cx = WM.drag.cx - (e.clientX - WM.drag.x) / px; WM.cz = WM.drag.cz - (e.clientY - WM.drag.y) / px; UI.drawWorldMap(GW.G); });
@@ -10165,10 +10329,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
-    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700]].forEach(([x, z]) => pack('wolf', x, z, 4));
-    [[800, -50], [1050, -120], [900, 250], [1150, 160], [720, 380]].forEach(([x, z]) => pack('hollow', x, z, 3));
-    [[960, 40], [1000, 75]].forEach(([x, z]) => G.spawnEnemy('hollow', x, z, { x: GW.World.L.cinder.x, z: GW.World.L.cinder.z }));
-    [[-160, -960], [-140, -1000]].forEach(([x, z]) => G.spawnEnemy('hollow', x, z, { x: GW.World.L.abbey.x, z: GW.World.L.abbey.z }));
+    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700], [900, 600], [-900, 700], [600, 1100], [-1000, -200]].forEach(([x, z]) => pack('wolf', x, z, 3));
+    // the six regions: a ring of camps around each hub (region enemies come in a later phase)
+    const ring = (c, type, n, r0) => { for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + 0.4, r = r0 + (k % 2) * 220; pack(type, c.x + Math.cos(a) * r, c.z + Math.sin(a) * r, n); } };
+    ring(Lw.abbey, 'wolf', 4, 260); ring(Lw.high, 'wolf', 4, 240); ring(Lw.cinder, 'hollow', 3, 230);
+    ring(Lw.salt, 'hollow', 3, 260); ring(Lw.mire, 'hollow', 3, 240); ring(Lw.dusk, 'wolf', 4, 250);
+    [[-20, -20], [20, 15]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.cinder.x + dx, Lw.cinder.z + dz, { x: Lw.cinder.x, z: Lw.cinder.z }));
+    [[-10, 20], [10, -20]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.abbey.x + dx, Lw.abbey.z + dz, { x: Lw.abbey.x, z: Lw.abbey.z }));
     // group everything into camps (enemies whose homes lie within 20 m share one)
     G.camps = [];
     for (const e of G.enemies) {
@@ -10209,7 +10376,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // spawn behind the edge of the view, in the dark
     for (let tries = 0; tries < 12; tries++) {
       const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 10, x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r;
-      if (Math.abs(x) > 1200 || Math.abs(z) > 1200 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
+      if (Math.abs(x) > 3800 || Math.abs(z) > 3800 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
       const type = Math.random() < 0.65 ? 'wolf' : 'hollow', n = type === 'wolf' ? 3 : 2;
       for (let k = 0; k < n; k++) { const e = G.spawnEnemy(type, x + Math.cos(k * 2.1) * 1.8, z + Math.sin(k * 2.1) * 1.8, { x: P.pos.x, z: P.pos.z }, true); e.hunter = true; e.aggro = false; }
       if (type === 'wolf') GWAudio.sfx('howl');
@@ -10908,7 +11075,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   let frame = 0;
   function loop(now) {
     requestAnimationFrame(loop);
-    let dt = Math.min(0.05, (now - G.last) / 1000); G.last = now;
+    let dt = Math.max(0, Math.min(0.05, (now - G.last) / 1000)); G.last = now;   // never negative (rAF stamps can trail performance.now())
     G.t += dt; frame++;
     GW.LU.uTime.value = G.t;
     const pressed = I.consume();
@@ -11035,8 +11202,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
     G.R.render(G.scene, G.camera, { silhouette: G.state === 'play' ? silhouettePass : null, gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
-      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
-    G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.waterYAt(focus.x, focus.z) : undefined });
+    G.flashWhite = GW.clamp(G.flashWhite - dt * 1.2, 0, 1);
     drawFireGlyphs();
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);

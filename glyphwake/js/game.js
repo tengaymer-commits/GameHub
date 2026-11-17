@@ -173,10 +173,13 @@
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
-    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700]].forEach(([x, z]) => pack('wolf', x, z, 4));
-    [[800, -50], [1050, -120], [900, 250], [1150, 160], [720, 380]].forEach(([x, z]) => pack('hollow', x, z, 3));
-    [[960, 40], [1000, 75]].forEach(([x, z]) => G.spawnEnemy('hollow', x, z, { x: GW.World.L.cinder.x, z: GW.World.L.cinder.z }));
-    [[-160, -960], [-140, -1000]].forEach(([x, z]) => G.spawnEnemy('hollow', x, z, { x: GW.World.L.abbey.x, z: GW.World.L.abbey.z }));
+    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700], [900, 600], [-900, 700], [600, 1100], [-1000, -200]].forEach(([x, z]) => pack('wolf', x, z, 3));
+    // the six regions: a ring of camps around each hub (region enemies come in a later phase)
+    const ring = (c, type, n, r0) => { for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + 0.4, r = r0 + (k % 2) * 220; pack(type, c.x + Math.cos(a) * r, c.z + Math.sin(a) * r, n); } };
+    ring(Lw.abbey, 'wolf', 4, 260); ring(Lw.high, 'wolf', 4, 240); ring(Lw.cinder, 'hollow', 3, 230);
+    ring(Lw.salt, 'hollow', 3, 260); ring(Lw.mire, 'hollow', 3, 240); ring(Lw.dusk, 'wolf', 4, 250);
+    [[-20, -20], [20, 15]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.cinder.x + dx, Lw.cinder.z + dz, { x: Lw.cinder.x, z: Lw.cinder.z }));
+    [[-10, 20], [10, -20]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.abbey.x + dx, Lw.abbey.z + dz, { x: Lw.abbey.x, z: Lw.abbey.z }));
     // group everything into camps (enemies whose homes lie within 20 m share one)
     G.camps = [];
     for (const e of G.enemies) {
@@ -217,7 +220,7 @@
     // spawn behind the edge of the view, in the dark
     for (let tries = 0; tries < 12; tries++) {
       const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 10, x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r;
-      if (Math.abs(x) > 1200 || Math.abs(z) > 1200 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
+      if (Math.abs(x) > 3800 || Math.abs(z) > 3800 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
       const type = Math.random() < 0.65 ? 'wolf' : 'hollow', n = type === 'wolf' ? 3 : 2;
       for (let k = 0; k < n; k++) { const e = G.spawnEnemy(type, x + Math.cos(k * 2.1) * 1.8, z + Math.sin(k * 2.1) * 1.8, { x: P.pos.x, z: P.pos.z }, true); e.hunter = true; e.aggro = false; }
       if (type === 'wolf') GWAudio.sfx('howl');
@@ -916,7 +919,7 @@
   let frame = 0;
   function loop(now) {
     requestAnimationFrame(loop);
-    let dt = Math.min(0.05, (now - G.last) / 1000); G.last = now;
+    let dt = Math.max(0, Math.min(0.05, (now - G.last) / 1000)); G.last = now;   // never negative (rAF stamps can trail performance.now())
     G.t += dt; frame++;
     GW.LU.uTime.value = G.t;
     const pressed = I.consume();
@@ -1043,8 +1046,8 @@
     const low = P.hp / P.maxHp < 0.3 && G.state === 'play' ? 0.35 + 0.15 * Math.sin(G.t * 5) : 0;
     const camD = G.camera.position.distanceTo(focus.isVector3 ? focus : new THREE.Vector3(focus.x, 0, focus.z));
     G.R.render(G.scene, G.camera, { silhouette: G.state === 'play' ? silhouettePass : null, gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
-      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
-    G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
+      reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.waterYAt(focus.x, focus.z) : undefined });
+    G.flashWhite = GW.clamp(G.flashWhite - dt * 1.2, 0, 1);
     drawFireGlyphs();
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);

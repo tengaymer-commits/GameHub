@@ -298,13 +298,13 @@
 
   // ---------------- minimap ----------------
   let mapImg = null;
-  UI.initMinimap = function () { mapImg = GW.World.mapCanvas(); };
+  UI.initMinimap = function () { /* the world map is drawn the first time it is opened */ };
   UI.drawMinimap = function (G) {
     const c = $('minimap'), g = c.getContext('2d'), P = G.player;
-    const S = GW.World.SIZE, scale = mapImg.width / S, span = 80; // world units shown
+    const span = 80; // world units shown
     g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
-    const sx = (P.pos.x + S / 2) * scale - span * scale / 2, sz = (P.pos.z + S / 2) * scale - span * scale / 2;
-    g.drawImage(mapImg, sx, sz, span * scale, span * scale, 0, 0, 128, 128);
+    const LM = GW.World.getLocalMap(); g.imageSmoothingEnabled = false;
+    g.drawImage(LM.canvas, (P.pos.x - span / 2 - LM.x0) / LM.mpp, (P.pos.z - span / 2 - LM.z0) / LM.mpp, span / LM.mpp, span / LM.mpp, 0, 0, 128, 128);
     const to = (x, z) => [(x - P.pos.x) / span * 128 + 64, (z - P.pos.z) / span * 128 + 64];
     g.font = 'bold 10px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const it of GW.World.interact) { const [x, y] = to(it.x, it.z); if (x < 0 || y < 0 || x > 128 || y > 128) continue; g.fillStyle = it.type === 'rest' ? '#ff9a40' : '#ffcf6a'; g.fillText(it.type === 'rest' ? '▲' : it.type === 'forge' ? 'π' : '!', x, y); }
@@ -320,10 +320,11 @@
   UI.toggleMap = function (G, on) {
     WM.open = on === undefined ? !WM.open : on;
     $('worldmap').classList.toggle('hidden', !WM.open);
-    if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 1.6; UI.drawWorldMap(G); }
+    if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 5; UI.drawWorldMap(G); }
   };
   UI.drawWorldMap = function (G) {
-    if (!WM.open || !mapImg) return;
+    if (!WM.open) return;
+    if (!mapImg) mapImg = GW.World.mapCanvas();
     const c = $('wm'), dpr = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
     if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
     const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -333,17 +334,28 @@
     const [ox, oy] = to(-S / 2, -S / 2);
     g.imageSmoothingEnabled = true; g.globalAlpha = 0.85; g.drawImage(mapImg, ox, oy, S * px, S * px); g.globalAlpha = 1;
     // fog of war: unexplored land stays dark
-    if (G.fog) { const FC = G.FOG_CELL, FN = G.FOG_N; g.fillStyle = '#030408';
-      for (let j = 0; j < FN; j++) for (let i = 0; i < FN; i++) if (!G.fog[j * FN + i]) { const [x, y] = to(i * FC - S / 2, j * FC - S / 2); g.fillRect(x - 0.5, y - 0.5, FC * px + 1, FC * px + 1); } }
+    if (G.fog) { const FN = G.FOG_N;
+      if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
+      const fg = WM.fogCv.getContext('2d'), img = fg.createImageData(FN, FN);
+      for (let k = 0; k < FN * FN; k++) { img.data[k * 4] = 3; img.data[k * 4 + 1] = 4; img.data[k * 4 + 2] = 8; img.data[k * 4 + 3] = G.fog[k] ? 0 : 255; }
+      fg.putImageData(img, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(WM.fogCv, ox, oy, S * px, S * px); }
     const seen = (x, z) => !G.fog || G.fog[Math.floor((z + S / 2) / G.FOG_CELL) * G.FOG_N + Math.floor((x + S / 2) / G.FOG_CELL)];
     g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const z of W.ZONES) {
-      if (!seen(z.x, z.z)) continue;
+      if (!seen(z.x, z.z) || (WM.zoom < 4 && z.r < 60)) continue;
       const [x, y] = to(z.x, z.z);
       g.strokeStyle = 'rgba(200,200,210,.18)'; g.setLineDash([2, 4]); g.beginPath(); g.arc(x, y, z.r * px, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
       g.font = `600 ${Math.round(GW.clamp(10 * WM.zoom, 10, 15))}px ui-monospace, Menlo, monospace`; g.fillStyle = '#c8ccd8';
       g.fillText(z.name, x, y - z.r * px - 8);
+    }
+    // region names (zoomed out)
+    if (WM.zoom < 4) {
+      const HUB = { vale: [0, 300], frost: ['abbey'], high: ['high'], ash: ['cinder'], salt: ['salt'], mire: ['mire'], dusk: ['dusk'] };
+      g.font = `600 ${Math.round(GW.clamp(13 + WM.zoom * 3, 13, 22))}px ui-monospace, Menlo, monospace`;
+      for (const k in W.REGIONS) { const h = HUB[k], pos = typeof h[0] === 'string' ? W.L[h[0]] : { x: h[0], z: h[1] };
+        const [x, y] = to(pos.x, pos.z + (k === 'vale' ? 0 : 160)); g.fillStyle = W.REGIONS[k].col; g.globalAlpha = 0.85; g.fillText(W.REGIONS[k].name, x, y); }
+      g.globalAlpha = 1;
     }
     g.font = 'bold 14px ui-monospace, Menlo, monospace';
     for (const f of W.fires) { if (!seen(f.x, f.z)) continue; const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
@@ -357,7 +369,7 @@
   };
   (function mapInput() {
     const c = document.getElementById('wm'); if (!c) return;
-    c.addEventListener('wheel', e => { WM.zoom = GW.clamp(WM.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.8, 6); UI.drawWorldMap(GW.G); e.preventDefault(); }, { passive: false });
+    c.addEventListener('wheel', e => { WM.zoom = GW.clamp(WM.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.9, 48); UI.drawWorldMap(GW.G); e.preventDefault(); }, { passive: false });
     c.addEventListener('pointerdown', e => { WM.drag = { x: e.clientX, y: e.clientY, cx: WM.cx, cz: WM.cz }; c.setPointerCapture(e.pointerId); });
     c.addEventListener('pointermove', e => { if (!WM.drag) return; const S = GW.World.SIZE, px = Math.min(innerWidth, innerHeight) * 0.9 / S * WM.zoom;
       WM.cx = WM.drag.cx - (e.clientX - WM.drag.x) / px; WM.cz = WM.drag.cz - (e.clientY - WM.drag.y) / px; UI.drawWorldMap(GW.G); });

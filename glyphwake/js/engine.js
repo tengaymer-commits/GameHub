@@ -97,7 +97,7 @@
     uDayLight: { value: 1.0 },
     uDetail: { value: 1.0 },
     uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
-    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null }, uBiomeMap2: { value: null }, uMapC: { value: new THREE.Vector2() }, uMapSpan: { value: 1024 },
     uShadowMap: { value: null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadowOn: { value: 0 },
@@ -109,7 +109,7 @@
 
   const LIGHT_GLSL = `
     #include <packing>
-    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap;
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap; uniform sampler2D uBiomeMap2; uniform vec2 uMapC; uniform float uMapSpan;
     uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
     uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
     uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
@@ -184,7 +184,7 @@
   const UBER_F = `
     varying vec3 vN; varying vec3 vW; varying vec3 vC;
     uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex; uniform float uSil;
-    float th(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+    float th(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
     float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
     // Procedural surface textures, projected from the dominant axis of the normal (triplanar-lite),
@@ -320,10 +320,14 @@
         // dark patches in the meadow where the earth shows as dim blue-grey o 0 8 letters (as in the reference)
         grassy *= 1.0 - step(1.0 - 0.32 * uGroundO, tn(vW.xz * 0.11 + 5.0) * 0.7 + tn(vW.xz * 0.37 + 1.7) * 0.3) * step(0.01, uGroundO);
         base = vec3(0.02, 0.06, 0.045) * (0.8 + 0.4 * n2);
-        vec4 bm = texture2D(uBiomeMap, vW.xz / uWorldSize + 0.5);
-        grassy *= (1.0 - bm.g) * (1.0 - 0.6 * bm.r);
+        vec4 bm = texture2D(uBiomeMap, (vW.xz - uMapC) / uMapSpan + 0.5), bm2 = texture2D(uBiomeMap2, (vW.xz - uMapC) / uMapSpan + 0.5);
+        grassy *= (1.0 - bm.g) * (1.0 - 0.6 * bm.r) * (1.0 - bm.b) * (1.0 - 0.4 * bm.a);
         base = mix(base, vec3(0.045, 0.04, 0.037) * (0.8 + 0.4 * n2), bm.r);              // ash
         base = mix(base, vec3(0.16, 0.19, 0.24) * (0.8 + 0.4 * n2), bm.g);                // snow
+        base = mix(base, vec3(0.17, 0.15, 0.11) * (0.8 + 0.4 * n2), bm.b);                // salt
+        base = mix(base, vec3(0.05, 0.06, 0.05) * (0.8 + 0.4 * n2), bm.a);                // highlands
+        base = mix(base, vec3(0.025, 0.035, 0.02) * (0.8 + 0.4 * n2), bm2.r);             // mire
+        base = mix(base, vec3(0.01, 0.028, 0.032) * (0.8 + 0.4 * n2), bm2.g);             // duskwood
         if (vC.b > 0.45 && vC.r < 0.36) base = vec3(0.1, 0.14, 0.2) * (0.9 + 0.2 * n2);   // frozen mere: dark glassy ice
         vec2 gp = vW.xz / vec2(0.17, 0.24);
         vec2 gc = floor(gp), gu = fract(gp);
@@ -340,6 +344,10 @@
           gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.1, 0.11, 0.15) * (0.7 + 0.6 * th(gc + 2.0));
           gTint = mix(gTint, vec3(0.2, 0.16, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm.r);
           gTint = mix(gTint, vec3(0.26, 0.31, 0.4) * (0.7 + 0.6 * th(gc + 2.0)), bm.g);
+          gTint = mix(gTint, vec3(0.3, 0.27, 0.2) * (0.7 + 0.6 * th(gc + 2.0)), bm.b);
+          gTint = mix(gTint, vec3(0.14, 0.16, 0.13) * (0.7 + 0.6 * th(gc + 2.0)), bm.a);
+          gTint = mix(gTint, vec3(0.1, 0.12, 0.06) * (0.7 + 0.6 * th(gc + 2.0)), bm2.r);
+          gTint = mix(gTint, vec3(0.04, 0.1, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm2.g);
         }
       }
       if (uTex > 0.5 && uUnlit < 0.5) {
@@ -348,7 +356,7 @@
         float lb = (floor(q) + smoothstep(0.35, 0.65, fq)) / 4.0;     // soft steps: lit / side / shade / deep shade
         L *= mix(1.0, max(lb, 0.06) / l, 0.75);
         if (uWorldSize > 0.0) {
-          float gh = texture2D(uHeightMap, vW.xz / uWorldSize + 0.5).r;
+          float gh = texture2D(uHeightMap, (vW.xz - uMapC) / uMapSpan + 0.5).r;
           L *= mix(0.5, 1.0, smoothstep(0.0, 1.1, vW.y - gh));      // contact shadow where walls meet the ground
         }
       }
