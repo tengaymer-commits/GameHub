@@ -245,7 +245,7 @@ def dead_tree(seed, height):
     apply_mods(ob)
     displace(ob, 0.04, 0.25, seed)
     me.materials.append(mat('bark'))
-    decimate(ob, min(1.0, 2500.0 / max(1, len(ob.data.polygons))))
+    decimate(ob, min(1.0, 1100.0 / max(1, len(ob.data.polygons))))
     smooth(ob)
     return [ob]
 
@@ -374,7 +374,7 @@ def pine(seed, height):
             cl = clump('br', c, 1.0, (L * 0.55, L * 0.22, 0.13 + 0.05 * (1 - t)), 'needle', seed * 31 + k * 7 + i, droop=0.25)
             cl.rotation_euler = (0, 0.25, a); parts.append(cl)
     tip = cyl('tip', 0.12, height * 0.14, (0, 0, height * 0.97), 'needle', segs=6, r2=0.0); parts.append(tip)
-    nd = join(parts[1:], 'needles'); decimate(nd, min(1.0, 2600.0 / max(1, len(nd.data.polygons))))
+    nd = join(parts[1:], 'needles'); decimate(nd, min(1.0, 950.0 / max(1, len(nd.data.polygons))))
     return [nd, trunk]
 
 def broadleaf(seed, height):
@@ -406,7 +406,7 @@ def broadleaf(seed, height):
             if (bv.co - v.co).length < 1e-5: r = rr; break
         sl[i].radius = (r, r)
     sl[0].use_root = True; apply_mods(ob); displace(ob, 0.03, 0.25, seed)
-    me.materials.append(mat('bark')); decimate(ob, min(1.0, 1800.0 / max(1, len(ob.data.polygons)))); smooth(ob)
+    me.materials.append(mat('bark')); decimate(ob, min(1.0, 700.0 / max(1, len(ob.data.polygons)))); smooth(ob)
     leaves = []
     for i, tp in enumerate(tips):
         r = random.uniform(0.9, 1.4) * height / 6
@@ -415,7 +415,7 @@ def broadleaf(seed, height):
     for k in range(4):
         a = random.random() * 6.28
         leaves.append(clump('lf', Vector((math.cos(a) * 0.8, math.sin(a) * 0.8, height * 0.62)), 1.0, (1.3, 1.2, 0.9), 'foliage', seed * 5 + k))
-    fol = join(leaves, 'foliage'); decimate(fol, min(1.0, 3000.0 / max(1, len(fol.data.polygons))))
+    fol = join(leaves, 'foliage'); decimate(fol, min(1.0, 1100.0 / max(1, len(fol.data.polygons))))
     return [fol, ob]
 
 # ---------------------------------------------------------------- build

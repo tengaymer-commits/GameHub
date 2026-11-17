@@ -229,8 +229,9 @@
     float h31(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
     vec3 leafClusters(vec3 W, vec3 n, vec3 sun) {
       vec3 g = W / 0.62, i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec3 bid = vec3(0.0), bc = vec3(0.0);
-      for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-        vec3 o = vec3(float(x), float(y), float(z));
+      vec3 lo = step(0.5, f) - 1.0;                              // only the 2x2x2 nearest cells (8 instead of 27 lookups)
+      for (int z = 0; z <= 1; z++) for (int y = 0; y <= 1; y++) for (int x = 0; x <= 1; x++) {
+        vec3 o = lo + vec3(float(x), float(y), float(z));
         vec3 c = o + 0.2 + 0.6 * vec3(h31(i + o), h31(i + o + 7.1), h31(i + o + 3.7)) - f;
         float d = dot(c, c); if (d < d1) { d2 = d1; d1 = d; bid = i + o; bc = c; } else if (d < d2) d2 = d;
       }

@@ -132,12 +132,20 @@
     let g = this.groups[key]; if (!g) g = this.groups[key] = { geom, mat, items: [] };
     g.items.push({ m: m4.clone(), c: color ? new THREE.Color(color) : new THREE.Color(1, 1, 1) });
   };
+  // instances are split into 36 m chunks with real bounds, so off-screen trees/props are skipped
+  // by the main, shadow and reflection passes instead of always being drawn
   Batch.prototype.build = function (scene) {
+    const CH = 36, _p = new THREE.Vector3();
     Object.values(this.groups).forEach(g => {
-      const im = new THREE.InstancedMesh(g.geom, g.mat, g.items.length);
-      g.items.forEach((it, i) => { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
-      im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
-      im.frustumCulled = false; scene.add(im);
+      const chunks = new Map();
+      for (const it of g.items) { _p.setFromMatrixPosition(it.m); const k = Math.floor(_p.x / CH) + ',' + Math.floor(_p.z / CH); (chunks.get(k) || chunks.set(k, []).get(k)).push(it); }
+      if (!g.geom.boundingSphere) g.geom.computeBoundingSphere();
+      for (const items of chunks.values()) {
+        const im = new THREE.InstancedMesh(g.geom, g.mat, items.length);
+        items.forEach((it, i) => { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
+        im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        im.computeBoundingSphere(); im.frustumCulled = true; scene.add(im);
+      }
     });
   };
 
@@ -1022,10 +1030,10 @@
     g.setIndex(idx);
     const push = Array.from({ length: 6 }, () => new THREE.Vector3(0, 0, 0));
     const m = new THREE.ShaderMaterial({
-      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) }, uFlowers: { value: 0.5 } }, GW.LU),
+      uniforms: Object.assign({ uCenter: { value: new THREE.Vector2() }, uSize: { value: S }, tMap: { value: tMap }, uWorld: { value: SIZE }, uPush: { value: push }, uScale: { value: 1.0 }, uWidth: { value: 1.0 }, uPx: { value: new THREE.Vector2(0.002, 0.003) }, uLineW: { value: 1.0 }, uLen: { value: 20 }, uTurf: { value: 0 }, uShift: { value: new THREE.Vector2(0, 0) }, uFlowers: { value: 0.5 }, uFlowerK: { value: 1 } }, GW.LU),
       side: THREE.DoubleSide,
       vertexShader: `attribute vec3 aOff; attribute vec2 aV;
-        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl;
+        uniform vec2 uCenter; uniform float uSize; uniform sampler2D tMap; uniform float uWorld; uniform vec3 uPush[6]; uniform float uScale; uniform float uTime; uniform float uWidth; uniform vec2 uPx; uniform float uLineW; uniform float uLen; uniform float uTurf; uniform vec2 uShift; uniform float uFlowers; uniform float uGroundO; uniform float uSwirl; uniform float uFlowerK;
         varying vec3 vW; varying vec3 vCol; varying float vT; varying float vSpeck; varying float vAc; varying vec2 vGl;
         float gh(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -1079,7 +1087,7 @@
           if (flatK > 0.01 && length(pd) > 0.001) dir = normalize(mix(dir, normalize(pd), flatK * 0.85));
           vec2 nrm = vec2(-dir.y, dir.x);
           float t = aV.y;
-          bool speck = uTurf > 1.5 && vis * edgeF > 0.5 && fract(sd * 97.13) < uFlowers * (0.045 + 0.17 * smoothstep(0.5, 0.85, vn(wp * 0.18 + 21.0)));
+          bool speck = uTurf > 1.5 && vis * edgeF > 0.5 && fract(sd * 97.13) < uFlowers * uFlowerK * (0.045 + 0.17 * smoothstep(0.5, 0.85, vn(wp * 0.18 + 21.0)));
           float L2 = speck ? uLineW * 11.5 : lenPx;
           float wpx = speck ? uLineW * 3.9 : uLineW;
           if (speck) dir = vec2(0.0, 1.0);
@@ -1130,9 +1138,12 @@
     const tm2 = new THREE.ShaderMaterial({ uniforms: tu2, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
     const turf2 = new THREE.Mesh(g, tm2); turf2.frustumCulled = false; turf2.layers.set(1); turf2.renderOrder = -5.6; scene.add(turf2);
     // dandelions in their own pass, drawn after all grass so straws never cover them
-    const fu = Object.assign({}, m.uniforms, { uTurf: { value: 2 } });
+    // (only a fifth of the blades run this pass, each 5x as likely to be a flower: same look, far less vertex work)
+    const fu = Object.assign({}, m.uniforms, { uTurf: { value: 2 }, uFlowerK: { value: 5 } });
     const fm = new THREE.ShaderMaterial({ uniforms: fu, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, side: m.side, depthTest: false, depthWrite: false });
-    const flowers = new THREE.Mesh(g, fm); flowers.frustumCulled = false; flowers.layers.set(1); flowers.renderOrder = -4.9; scene.add(flowers);
+    const gf = new THREE.BufferGeometry(); for (const k in g.attributes) gf.setAttribute(k, g.attributes[k]); gf.setIndex(g.index);
+    gf.setDrawRange(0, Math.floor(count / 5) * 9);
+    const flowers = new THREE.Mesh(gf, fm); flowers.frustumCulled = false; flowers.layers.set(1); flowers.renderOrder = -4.9; scene.add(flowers);
     return { mesh, mat: m, push, turf };
   }
 
