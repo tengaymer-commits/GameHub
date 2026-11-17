@@ -371,6 +371,9 @@ body.touch #hotbar { display: none; }
     <select id="o-res"><option value="auto">Auto (sharp glyphs)</option><option value="1">1× (fastest)</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="2.5">2.5×</option><option value="3">3×</option><option value="4">4× (sharpest, strong GPU)</option></select>
   </label>
   <div class="s-note" id="o-res-note"></div>
+  <label>Render distance
+    <select id="o-viewdist"><option value="0.6">Near (fastest)</option><option value="1">Normal</option><option value="1.5">Far</option><option value="2.2">Very far (strong PC)</option></select>
+  </label>
   <label>Show FPS <input type="checkbox" id="o-fps" /></label>
   <label>Weather (rain, snow, ash) <input type="checkbox" id="o-weather" /></label>
   <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
@@ -7682,7 +7685,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
 
   // ----- the wilderness beyond the Vale: generated per 96 m chunk as you approach, dropped when far -----
-  const CHK = 96, LOAD_R = 230, DROP_R = 330, chunks = new Map();
+  const CHK = 96, chunks = new Map();
+  let LOAD_R = 230, DROP_R = 330;
+  W.setViewDistance = function (k) { LOAD_R = 230 * k; DROP_R = 330 * k + 40; };
   const BIO_MAT = {
     frost: { needle: 0xb4c4d0, foliage: 0xbcc8d0, bark: 0x5a5550, rock: 0xb8c0cc, stone: 0xb0b8c4 },
     ash: { needle: 0x4a4038, foliage: 0x4a4038, bark: 0x2e2a28, rock: 0x55524f, stone: 0x5a5654 },
@@ -10099,6 +10104,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
     const see = $('o-see'); see.value = String(S.seeMode !== undefined ? S.seeMode : 2); see.onchange = () => { S.seeMode = +see.value; UI.saveSettings(); };
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
+    const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };
@@ -10977,7 +10983,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const fovF = G.R.aspect < 0.8 ? 2.4 : 2;   // near-orthographic: no parallax, so pixel snapping holds for every depth
     C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
     const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
-    C.far = 400 * lensK; C.near = 0.5 * Math.max(1, lensK * 0.5);
+    const VD = UI.settings.viewDist || 1;
+    C.far = 400 * lensK * Math.max(1, VD); C.near = 0.5 * Math.max(1, lensK * 0.5);
     if (title) {
       const a = G.t * 0.05, c = GW.World.L.village;
       C.position.set(c.x + Math.sin(a) * 30, 16, c.z + Math.cos(a) * 30);
@@ -10987,7 +10994,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const portrait = G.R.aspect < 0.8;
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
-    GW.LU.uFogStart.value = D * lensK + D * 2.5 + 10;
+    GW.LU.uFogStart.value = D * lensK + (D * 2.5 + 10) * VD;
+    if (G._vd !== VD) { G._vd = VD; GW.World.setViewDistance(VD); }
     // close up the glyphs grow so the letters read; far out they shrink into a dense texture
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }

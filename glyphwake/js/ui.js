@@ -428,6 +428,7 @@
       el.value = S[id] !== undefined ? S[id] : def; txt(); el.oninput = () => { S[id] = +el.value; txt(); UI.saveSettings(); }; };
     const see = $('o-see'); see.value = String(S.seeMode !== undefined ? S.seeMode : 2); see.onchange = () => { S.seeMode = +see.value; UI.saveSettings(); };
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
+    const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };

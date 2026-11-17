@@ -916,7 +916,9 @@
   }
 
   // ----- the wilderness beyond the Vale: generated per 96 m chunk as you approach, dropped when far -----
-  const CHK = 96, LOAD_R = 230, DROP_R = 330, chunks = new Map();
+  const CHK = 96, chunks = new Map();
+  let LOAD_R = 230, DROP_R = 330;
+  W.setViewDistance = function (k) { LOAD_R = 230 * k; DROP_R = 330 * k + 40; };
   const BIO_MAT = {
     frost: { needle: 0xb4c4d0, foliage: 0xbcc8d0, bark: 0x5a5550, rock: 0xb8c0cc, stone: 0xb0b8c4 },
     ash: { needle: 0x4a4038, foliage: 0x4a4038, bark: 0x2e2a28, rock: 0x55524f, stone: 0x5a5654 },

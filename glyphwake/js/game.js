@@ -821,7 +821,8 @@
     const fovF = G.R.aspect < 0.8 ? 2.4 : 2;   // near-orthographic: no parallax, so pixel snapping holds for every depth
     C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
     const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
-    C.far = 400 * lensK; C.near = 0.5 * Math.max(1, lensK * 0.5);
+    const VD = UI.settings.viewDist || 1;
+    C.far = 400 * lensK * Math.max(1, VD); C.near = 0.5 * Math.max(1, lensK * 0.5);
     if (title) {
       const a = G.t * 0.05, c = GW.World.L.village;
       C.position.set(c.x + Math.sin(a) * 30, 16, c.z + Math.cos(a) * 30);
@@ -831,7 +832,8 @@
     const portrait = G.R.aspect < 0.8;
     let D = (portrait ? 16.5 : 16) * (UI.settings.zoom || 1.3);
     if (G.bossActive) D *= 1.2;
-    GW.LU.uFogStart.value = D * lensK + D * 2.5 + 10;
+    GW.LU.uFogStart.value = D * lensK + (D * 2.5 + 10) * VD;
+    if (G._vd !== VD) { G._vd = VD; GW.World.setViewDistance(VD); }
     // close up the glyphs grow so the letters read; far out they shrink into a dense texture
     const gz = GW.clamp(Math.pow(16 / D, 1.4), 1, 3.2);
     if (Math.abs(gz - (G.R.glyphZoom || 1)) > 0.03) { G.R.glyphZoom = gz; G.R.updateCells(); }
