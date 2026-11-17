@@ -5877,10 +5877,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         // inside a building: a clean cut-away. Roof and the walls between you and the camera are sliced off
         // in a round window around the hero; the cut edge is drawn as a dark band like a section drawing.
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
-        float tt = dot(rr, cd), dp = length(rr - cd * tt), R = 7.5;
+        float tt = dot(rr, cd), dp = length(rr - cd * tt), R = 3.6;
         bool front = tt > 0.4 || vW.y > uPlayerW.y + 2.6;
         if (front && dp < R) discard;
-        if (front) xEdge = 1.0 - smoothstep(R, R + 0.5, dp);
+        if (front) xEdge = 1.0 - smoothstep(R, R + 0.35, dp);
       }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
