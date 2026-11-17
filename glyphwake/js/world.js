@@ -464,7 +464,7 @@
     leafsDark: { id: ID.LEAF, tex: 5, color: 0x3c7a60, fill: 0.08 }, leafsGreen: { id: ID.LEAF, tex: 5, color: 0x4a8a5c, fill: 0.08 },
     leafsFall: { id: ID.LEAF, tex: 5, color: 0xc06a28 }, grass: { id: ID.LEAF, tex: 5, color: 0x2c5a2e },
     woodBark: { id: ID.BARK, tex: 3, color: 0x8a6646, fill: 0.12 }, woodBarkDark: { id: ID.BARK, tex: 3, color: 0x6a5038, fill: 0.12 }, woodBirch: { id: ID.BARK, tex: 3, color: 0xd6d0c2 },
-    woodInner: { id: ID.PLANKS, tex: 2, color: 0xb88e5c }, dirt: { id: ID.ROCK, tex: 6, color: 0x7a7e88 }, stone: { id: ID.ROCK, tex: 6, color: 0x8a8e98 },
+    woodInner: { id: ID.PLANKS, tex: 2, color: 0xb88e5c }, dirt: { id: ID.ROCK, tex: 6, color: 0x77787b }, stone: { id: ID.ROCK, tex: 6, color: 0x88898c },
     colorRed: { id: ID.FLOWER, color: 0xc02424, emissive: 0x200404 }, _defaultMat: { id: ID.STONE, color: 0xd0c8b8 },
   };
   const natCache = {}, natMats = {};
@@ -519,8 +519,9 @@
       const r = rnd();
       if (r < 0.3) put('log', x, z, 2.6 + rnd(), { col: 0.9, tag: 'log' });
       else if (r < 0.55) put('stump', x, z, 3 + rnd() * 1.5, { col: 0.45, tag: 'stump' });
-      else if (r < 0.8) put('rock_tall', x, z, 2.2 + rnd() * 2.5, { col: 1.1, tag: 'rock' });
-      else put('rock_large', x, z, 3 + rnd() * 3, { col: 1.4, tag: 'rock' });
+      else if ([L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 26)) continue;   // keep campsites clear of boulders
+      else if (r < 0.8) put('rock_tall', x, z, 1.4 + rnd() * 1.4, { col: 0.8, tag: 'rock' });
+      else put('rock_large', x, z, 1.8 + rnd() * 1.6, { col: 1.0, tag: 'rock' });
     }
     for (let k = 0; k < 60; k++) {
       const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210;
@@ -530,7 +531,7 @@
 
   // ----- Blender-built environment kit (tools/blender/build_kit.py) -----
   const KIT_MAT = {
-    stone: { id: ID.MASONRY, tex: 1, color: 0xa4a8b2, fill: 0.06 }, stoneDark: { id: ID.MASONRY, tex: 1, color: 0x7a7e88, fill: 0.05 },
+    stone: { id: ID.MASONRY, tex: 8, color: 0x9a9b9e, fill: 0.08 }, stoneDark: { id: ID.MASONRY, tex: 8, color: 0x6c6d70, fill: 0.06 },
     moss: { id: ID.MOSS, tex: 5, color: 0x3e5a36 }, wood: { id: ID.PLANKS, tex: 2, color: 0x8e6a48, fill: 0.08 }, woodDark: { id: ID.PLANKS, tex: 2, color: 0x6a4e38, fill: 0.08 },
     bark: { id: ID.BARK, tex: 3, color: 0x86766a, fill: 0.1 }, thatch: { id: ID.THATCH, tex: 4, color: 0x8a7650, fill: 0.05 }, iron: { id: ID.METAL, tex: 7, color: 0x5a5e66 },
     cloth: { id: ID.PLANKS, color: 0xb8a882 }, lantern: { id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true }, void: { id: ID.VOID, color: 0, unlit: true },
@@ -602,7 +603,8 @@
       }
       W.lairWebs = buildWebs(scene, C, anchors, rnd);
     }
-    for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210; if (Math.hypot(x, z) < 104 && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.7 + rnd() * 0.9, rnd() * 6.28, 0.85); }
+    const nearCamp = (x, z) => [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 26);
+    for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210, s = 0.4 + rnd() * 0.45; if (Math.hypot(x, z) < 104 && !nearCamp(x, z) && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, s, rnd() * 6.28, 0.85); }
   }
 
   // glowing dotted spider webs (thin ribbons drawn with the twinkling star glyphs)
@@ -651,7 +653,7 @@
     const g = GW.Assets.gltf.castle; if (!g) return;
     const base = W.heightAt(L.castle.x, L.castle.z) - 0.05;
     const cmat = {
-      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x767a82, fill: 0.03 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x575b63, fill: 0.03 }),
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x88898c, fill: 0.08 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5e5f62, fill: 0.06 }),
       moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.06 }),
       woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
     };
@@ -705,7 +707,7 @@
     const g = GW.Assets.gltf.chapel; if (!g) return;
     const C = L.chapel, base = W.heightAt(C.x, C.z) - 0.05;
     const mats = {
-      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8f98ac, fill: 0.14 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x555b6a, fill: 0.08 }),
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x929396, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x58595c, fill: 0.08 }),
       moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
     };
     mergeByMat(g, mats, mats.cobble, C.x, base, C.z, scene);
@@ -730,8 +732,8 @@
     const T = L.tower, base = W.heightAt(T.x, T.z) - 0.05;
     TW.base = base; TW.x = T.x; TW.z = T.z; TW.topY = base + TW.top;
     const mats = {
-      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a92a4, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5a6070, fill: 0.08 }),
-      moss: GW.mat({ id: ID.LEAF, tex: 5, color: 0x5a8a4a, fill: 0.1 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x8a6440, fill: 0.1 }),
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8e8f92, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5c5d60, fill: 0.08 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x6a9a4a, fill: 0.12 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x8a6440, fill: 0.1 }),
       woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
       gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
     };

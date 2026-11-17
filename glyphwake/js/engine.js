@@ -26,7 +26,7 @@
     /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.4, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
     /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
     /* 13 ruin  */ { ramp: " -\\|)co0Oo8%@WMD", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.45, flick: 0, letters: 1 },
-    /* 14 moss  */ { ramp: " .,:;~*%&", mode: 0, gain: 2.0, under: 0.2, edge: 0, bright: 1.1, white: 0.3, flick: 0 },
+    /* 14 moss  */ { ramp: " .,;~(){}?&%$S@#", mode: 0, gain: 2.4, under: 0.08, edge: 0, bright: 1.15, white: 0.05, flick: 0, letters: 1 },
     /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
     // ---- armour glyph patterns (actors) ----
     /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
@@ -42,7 +42,7 @@
     /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
     /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
     /* 26 flower (dandelion glyphs, always drawn as rendered) */ { ramp: " ", mode: 1, gain: 1.0, under: 0, edge: 0, bright: 1, white: 0, flick: 0 },
-    /* 27 masonry */ { ramp: " ;=+/(zxwbdpq$Q&", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.2, white: 0.5, flick: 0, letters: 1 },
+    /* 27 masonry */ { ramp: " ;=+/(zxwbdpq$Q&", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.2, white: 0.35, flick: 0, letters: 1 },
     /* 28 bark    */ { ramp: " .:;!|lI1H", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.05, white: 0.08, flick: 0 },
     /* 29 thatch  */ { ramp: " .'`/\\^vwW", mode: 0, gain: 2.6, under: 0.06, edge: 0, bright: 1.1, white: 0.1, flick: 0 },
     /* 30 planks  */ { ramp: " .-~=+#H", mode: 0, gain: 2.5, under: 0.06, edge: 0, bright: 1.05, white: 0.1, flick: 0 },
@@ -243,13 +243,14 @@
     }
     // 8 cobblestone: rounded, irregular stones with deep dark gaps
     float cobble(vec2 uv) {
-      vec2 g = uv / 0.34, i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec2 bid = vec2(0.0);
+      vec2 g = uv / vec2(0.62, 0.42), i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec2 bid = vec2(0.0);
       for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
         vec2 o = vec2(float(x), float(y)); vec2 c = o + 0.15 + 0.7 * vec2(th(i + o), th(i + o + 17.0)) - f;
         float d = dot(c, c); if (d < d1) { d2 = d1; d1 = d; bid = i + o; } else if (d < d2) d2 = d;
       }
-      float edge = smoothstep(0.0, 0.18, sqrt(d2) - sqrt(d1));
-      return (0.35 + 0.65 * edge) * (0.75 + 0.4 * th(bid)) * (0.85 + 0.25 * (1.0 - sqrt(d1)));
+      float edge = smoothstep(0.02, 0.14, sqrt(d2) - sqrt(d1));
+      float streak = 0.75 + 0.35 * tn(vec2(uv.x * 2.3, uv.y * 0.25));      // rain-streaked, weathered faces
+      return (0.08 + 0.92 * edge) * (0.55 + 0.75 * th(bid)) * (0.8 + 0.3 * (1.0 - sqrt(d1))) * streak;
     }
     ${LIGHT_GLSL}
     void main() {
@@ -276,8 +277,8 @@
           base *= mix(vec3(0.85 + 0.15 * dot(lc, vec3(0.333))), lc, 0.6 + 0.4 * uDetail);
         } else {
           float t = uTex > 7.5 ? cobble(uvc) : surfTex(uTex, vW, n);
-          // zoom-aware: far away fine texture fades so glyphs form clean shapes instead of dots
-          base *= mix(0.9 + 0.1 * t, t, 0.2 + 0.8 * uDetail);
+          // zoom-aware: far away fine texture fades so glyphs form clean shapes instead of dots (masonry keeps its stones: the letters carry them)
+          base *= uTex > 7.5 ? t : mix(0.9 + 0.1 * t, t, 0.2 + 0.8 * uDetail);
         }
       }
       else if (uSpec < 0.3 && uUnlit < 0.5 && uFarGrass <= 0.0) {
@@ -428,7 +429,7 @@
         if (cg) { asciiGrass = true; id = 2; }
       }
       // foliage is drawn as rendered fur strokes, per pixel (like the grass), not as glyphs
-      if ((pid == 5 || pid == 14 || pid == 9) && !actor) { gl_FragColor = vec4(raw * 1.15, 1.0); return; }
+      if ((pid == 5 || pid == 9) && !actor) { gl_FragColor = vec4(raw * 1.15, 1.0); return; }
       bool scenCell = uSet3[id].z > 0.5;
       if (!actor && !scenCell && uSet[pid].x > 0.5 && uSet[pid].x < 1.5 && !asciiGrass) {
         gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return;
@@ -452,7 +453,8 @@
       float jit = actor ? S3.x : 0.16;
       v += (h21(wcell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
       if (actor) v = clamp(pow(v, 1.1) * (1.5 + 0.7 * uActorPop), 0.3 + 0.22 * uActorPop, 0.999);
-      if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
+      if (S3.w > 0.5) v = clamp(v * 1.35, 0.0, 0.999);     // letter walls: mortar and deep shade go blank, stones carry the letters
+      else if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
       v = clamp(v, 0.0, 0.999);
       float idx = floor(v * 16.0);
       // woven patterns: mail checker, plate bands, scale rows
@@ -461,7 +463,7 @@
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
       if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(wcell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
-      if (S3.w > 0.5 && id != 8) { float rr = h21(wcell * 1.913 + 7.7); row = rr < 0.4 ? row : (rr < 0.7 ? 13.0 : (rr < 0.9 ? 3.0 : 27.0)); }   // letter walls mix three alphabets
+      if (S3.w > 0.5 && id != 8 && id != 14) { float rr = h21(wcell * 1.913 + 7.7); row = rr < 0.4 ? row : (rr < 0.7 ? 13.0 : (rr < 0.9 ? 3.0 : 27.0)); }   // letter walls mix three alphabets
       float edgeBoost = 0.0;
       if (actor) {
         float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));

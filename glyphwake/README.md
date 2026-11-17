@@ -138,3 +138,14 @@ upper floor, 2 tower roof); this is the pattern for the larger ruined castle lat
 A giant furry spider in the Widow's Hollow (south-west), ringed by dead trees strung with glowing dotted webs.
 Procedural body, 8 legs with 2-bone IK and a tetrapod gait. Three phases (segmented boss bar): leg stab and web
 throw (slows you), then pounce, then web rain. Leave the hollow and she goes home and heals.
+
+## Palette (current + idea for later)
+
+- **Towers, ruins, castle, chapel, graves**: neutral greys (`0x88898c` / dark `0x5e5f62`), letters lift to a little
+  white on lit faces (`white` 0.35 in the masonry set). Mortar and deep shade print blank, so stones read as clusters
+  of letters (cobble cells 0.62 × 0.42 m with rain streaks).
+- **Moss / ivy on stone**: green curly letters (`;~(){}?&%$S@`) on the structure grid.
+- **Fire**: drawn as pure fire-coloured characters on an overlay (`drawFireGlyphs` in `js/game.js`), no cell
+  backgrounds; flame cones are hidden.
+- *Idea for later*: give every category its own small palette (stone greys, wood browns, foliage greens, water
+  blues, enemies desaturated, heroes silver-white, loot gold) so things separate at a glance.

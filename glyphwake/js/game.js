@@ -596,6 +596,69 @@
   // ---------------- camera ----------------
   const camT = new V3(), camLook = new V3(), _snapA = new V3(), _snapR = new V3(), _snapU = new V3(), _snapP = new V3();
   G.gridOff = new THREE.Vector2(0, 0);
+  // ---- fire: pure fire-coloured ASCII drawn over the frame (no glyph cell backgrounds, no dark lines) ----
+  const FIRE_CH = '@%&$#*8%&@^*', EMBER_CH = "*'.^`+";
+  let fxCv = null, fxCx = null;
+  const _fv = new THREE.Vector3();
+  function drawFireGlyphs() {
+    if (!fxCv) {
+      fxCv = document.createElement('canvas'); fxCv.id = 'fx';
+      fxCv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;';
+      const gl = document.getElementById('gl'); gl.parentNode.insertBefore(fxCv, gl.nextSibling); fxCx = fxCv.getContext('2d');
+    }
+    const dpr = Math.min(2, window.devicePixelRatio || 1), Wd = Math.round(innerWidth * dpr), Hd = Math.round(innerHeight * dpr);
+    if (fxCv.width !== Wd || fxCv.height !== Hd) { fxCv.width = Wd; fxCv.height = Hd; }
+    const cx = fxCx; cx.clearRect(0, 0, Wd, Hd);
+    if (G.state !== 'play' && G.state !== 'title' && G.state !== 'paused') return;
+    // cluster live flame meshes into fire spots (campfire = several cones)
+    const spots = [];
+    for (const f of GW.World.flames) {
+      if (f.flat || !f.base) continue;
+      if (!f.wp) { f.wp = new THREE.Vector3(); f.m.getWorldPosition(f.wp); f.m.visible = false; }
+      if (f.m.parent && !f.m.parent.visible) continue;
+      const s = spots.find(o => Math.abs(o.x - f.wp.x) < 0.9 && Math.abs(o.z - f.wp.z) < 0.9);
+      if (s) { s.n++; s.y = Math.min(s.y, f.wp.y); } else spots.push({ x: f.wp.x, y: f.wp.y, z: f.wp.z, n: 1 });
+    }
+    const C = G.camera, t = G.t;
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    for (let si = 0; si < spots.length; si++) {
+      const sp = spots[si];
+      const big = sp.n > 2, base = sp.y - (big ? 0.35 : 0.1);
+      _fv.set(sp.x, base, sp.z).project(C); if (_fv.z > 1 || Math.abs(_fv.x) > 1.2 || Math.abs(_fv.y) > 1.2) continue;
+      const bx = (_fv.x * 0.5 + 0.5) * Wd, by = (-_fv.y * 0.5 + 0.5) * Hd;
+      _fv.set(sp.x, base + 1, sp.z).project(C); const ppm = Math.max(4, Math.hypot((_fv.x * 0.5 + 0.5) * Wd - bx, (-_fv.y * 0.5 + 0.5) * Hd - by));
+      const fs = GW.clamp(ppm * (big ? 0.26 : 0.2), 6 * dpr, 30 * dpr), cw = fs * 0.62;
+      // glow
+      cx.globalCompositeOperation = 'lighter';
+      const gr = cx.createRadialGradient(bx, by - fs, 0, bx, by - fs, fs * (big ? 6 : 3.5));
+      const fl = 0.85 + 0.15 * Math.sin(t * 9 + si);
+      gr.addColorStop(0, `rgba(255,150,60,${0.34 * fl})`); gr.addColorStop(0.4, `rgba(255,90,20,${0.12 * fl})`); gr.addColorStop(1, 'rgba(255,60,10,0)');
+      cx.fillStyle = gr; cx.fillRect(bx - fs * 7, by - fs * 8, fs * 14, fs * 14);
+      cx.font = `bold ${Math.round(fs)}px ui-monospace, Menlo, Consolas, monospace`;
+      // flame body: rows narrowing upward, letters re-rolled ~12 times a second
+      const rows = big ? 5 : 3, cols = big ? 4 : 2, slot = Math.floor(t * 12);
+      for (let r = 0; r < rows; r++) {
+        const k = r / rows, w = Math.max(1, Math.round(cols * Math.pow(1 - k, 0.8) + 0.4 * Math.sin(t * 7 + r + si)));
+        for (let c = 0; c < w; c++) {
+          const h = Math.abs(Math.sin((slot * 13.1 + r * 7.7 + c * 3.3 + si * 17.9))) * 1000 % 1;
+          if (r > 1 && h < 0.15) continue;
+          const x = bx + (c - (w - 1) / 2) * cw + (h - 0.5) * cw * 0.5 + Math.sin(t * 5 + r * 1.3 + si) * cw * 0.25 * k;
+          const y = by - r * fs * 0.8 - fs * 0.3;
+          const hot = 1 - k;
+          cx.fillStyle = `rgba(255,${Math.round(120 + 120 * hot * hot)},${Math.round(40 + 120 * hot * hot * hot)},${0.55 + 0.45 * hot})`;
+          cx.fillText(FIRE_CH[Math.floor(h * FIRE_CH.length)], x, y);
+        }
+      }
+      // embers drifting up
+      for (let e = 0; e < (big ? 6 : 2); e++) {
+        const life = (t * 0.6 + e * 0.37 + si * 0.13) % 1, eh = Math.abs(Math.sin(e * 91.7 + si * 13.3 + Math.floor(t * 0.6 + e * 0.37 + si * 0.13) * 7.1)) * 1000 % 1;
+        const x = bx + (eh - 0.5) * cw * 3 + Math.sin(t * 2 + e) * cw * 0.6, y = by - fs * (rows * 0.8 + life * rows * 1.4);
+        cx.fillStyle = `rgba(255,${Math.round(150 + 80 * (1 - life))},70,${0.8 * (1 - life)})`;
+        cx.fillText(EMBER_CH[Math.floor(eh * EMBER_CH.length)], x, y);
+      }
+      cx.globalCompositeOperation = 'source-over';
+    }
+  }
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
     const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
@@ -816,6 +879,7 @@
     G.R.render(G.scene, G.camera, { gridOff: G.state === 'title' ? null : G.gridOff, hurt: Math.max(G.hurtFx, low), white: G.flashWhite, shadowFocus: G.state === 'title' ? new THREE.Vector3(focus.x, 0, focus.z) : P.pos, shadowHalf: Math.round(GW.clamp(16 * (UI.settings.zoom || 1.3) * 1.25, 16, 70) / 6) * 6,
       reflY: (frame % 30 === 0 ? (G.nearWater = GW.World.riverDist(focus.x, focus.z) < 45) : G.nearWater) ? GW.World.WATER_Y : undefined });
     G.flashWhite = Math.max(0, G.flashWhite - dt * 1.2);
+    drawFireGlyphs();
     // audio
     if (GWAudio.ctx) {
       let fd = 99; for (const it of GW.World.interact) if (it.type === 'rest') fd = Math.min(fd, Math.hypot(it.x - focus.x, it.z - focus.z));
