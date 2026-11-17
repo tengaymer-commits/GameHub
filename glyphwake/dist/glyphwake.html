@@ -5872,12 +5872,15 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     ${LIGHT_GLSL}
     void main() {
       if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
+      float xEdge = 0.0;
       if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
-        // dissolve anything between the camera and the hero (roofs, tree tops, walls), dithered, so he is never hidden
+        // inside a building: a clean cut-away. Roof and the walls between you and the camera are sliced off
+        // in a round window around the hero; the cut edge is drawn as a dark band like a section drawing.
         vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
-        float tt = dot(rr, cd), dp = length(rr - cd * tt);
-        float cut = (1.0 - smoothstep(1.8, 3.6, dp)) * smoothstep(0.6, 1.6, tt);
-        if (cut > 0.0 && th(floor(gl_FragCoord.xy * 0.5)) < cut * 0.85) discard;
+        float tt = dot(rr, cd), dp = length(rr - cd * tt), R = 7.5;
+        bool front = tt > 0.4 || vW.y > uPlayerW.y + 2.6;
+        if (front && dp < R) discard;
+        if (front) xEdge = 1.0 - smoothstep(R, R + 0.5, dp);
       }
       vec3 n = normalize(vN);
       if (!gl_FrontFacing) n = -n;
@@ -5971,10 +5974,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (uFarGrass > 0.0) col += gTint * gGlyph * (0.45 + 0.55 * gShadow + max(L - uAmb - uMoonCol, vec3(0.0)) * 1.5);
       float outId = uId;
       if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
+      col = mix(col, col * 0.18 + vec3(0.02, 0.025, 0.035), xEdge);
       gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
-      if (uSil > 0.5) {   // hero behind a wall: a flat silver silhouette (still drawn as character glyphs)
-        float rr = pow(1.0 - max(dot(n, V), 0.0), 2.0);
-        gl_FragColor = vec4(vec3(0.5, 0.58, 0.78) * (0.55 + 0.6 * rr), (outId + 0.5) / 32.0);
+      if (uSil > 0.5) {   // hero behind something: only his outline (the rim), in silver
+        float rr = 1.0 - max(dot(n, V), 0.0);
+        if (rr < 0.55) discard;
+        gl_FragColor = vec4(vec3(0.62, 0.7, 0.92) * (0.6 + 0.8 * rr), (outId + 0.5) / 32.0);
       }
     }`;
 
@@ -5996,7 +6001,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         uFarGrass: { value: o.farGrass || 0 },
         uGrassC: { value: new THREE.Vector2() },
         uFill: { value: o.fill !== undefined ? o.fill : (FILL[o.id] || 0) },
-        uTex: { value: o.tex || 0 },
+        uTex: { value: o.tex || 0 }, uSil: { value: 0 },
         uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
       }, LU),
       vertexShader: UBER_V, fragmentShader: UBER_F,
@@ -6930,12 +6935,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const it0Scale = m => new THREE.Vector3().setFromMatrixScale(m).y;
   Batch.prototype.build = function (scene, out, chunk) {
     const CH = chunk || 36, _p = new THREE.Vector3();
-    Object.values(this.groups).forEach(g => {
+    Object.entries(this.groups).forEach(([key, g]) => {
       const chunks = new Map();
       for (const it of g.items) { _p.setFromMatrixPosition(it.m); const k = Math.floor(_p.x / CH) + ',' + Math.floor(_p.z / CH); (chunks.get(k) || chunks.set(k, []).get(k)).push(it); }
       if (!g.geom.boundingSphere) g.geom.computeBoundingSphere();
       for (const items of chunks.values()) {
-        const im = new THREE.InstancedMesh(g.geom, g.mat, items.length);
+        const im = new THREE.InstancedMesh(g.geom, g.mat, items.length); im.name = key;
         items.forEach((it, i) => { im.setMatrixAt(i, it.m); im.setColorAt(i, it.c); });
         im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
         im.computeBoundingSphere(); im.frustumCulled = true; scene.add(im); if (out) out.push(im);
@@ -10613,6 +10618,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         const hits = rc.intersectObjects(G._occ, false); if (hits.length) { any = true; break; }
       }
       if (any) hiddenHold = 1.0;   // stay shown a moment, so edges of roofs don't make it flicker
+      // inside: something solid overhead (a roof) -> cut-away view instead of the outline
+      { _hp.set(P.pos.x, P.pos.y + 2.0, P.pos.z); const up = new THREE.Raycaster(_hp.clone(), new THREE.Vector3(0, 1, 0), 0, 25);
+        const inside = up.intersectObjects(G._occ || [], false).some(h => !(h.object.isInstancedMesh && /kit_(pine|oak|dead)|nat_|^cone|^trunk/.test(h.object.name || '')));
+        G._insideHold = inside ? 0.5 : (G._insideHold || 0) - 0.05; G.heroInside = G._insideHold > 0; }
     }
     hiddenHold -= Math.min(0.1, dt || 0.016); hidden = hiddenHold > 0;
     hiddenK += ((hidden ? 1 : 0) - hiddenK) * Math.min(1, (dt || 0.016) * 10);
@@ -10621,7 +10630,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // second pass over the hero's meshes: drawn only where something is in front of him (depth test 'greater')
   const silMats = new WeakMap();
   function silhouettePass(r, camera) {
-    if (!G.heroHidden || UI.settings.xray) return;
+    if (!G.heroHidden || UI.settings.xray || G.heroInside) return;
     const scene = G.scene, hide = [];
     // render just the hero: temporarily hide every other top-level object
     scene.children.forEach(o => { if (o !== G.player.model && o.visible) { o.visible = false; hide.push(o); } });
@@ -10778,7 +10787,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.R.asciiMat.uniforms.uGrassMix.value = UI.settings.grassBlend === false ? 0 : Math.max(t * t * (3 - 2 * t), UI.settings.grassAscii || 0); }
     { const S0 = UI.settings, v = (k, d) => S0[k] !== undefined ? S0[k] : d;
       G.R.asciiMat.uniforms.uActorPop.value = v('heroPop', 0.3);
-      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
+      GW.LU.uGroundO.value = v('groundO', 0.4); GW.LU.uXray.value = S0.xray || G.heroInside ? 1 : 0; GW.LU.uSwirl.value = v('swirl', 0.25); }
     const gu0 = GW.World.grass.mat.uniforms;
     const gs = UI.settings.grassSize || 1;   // match the title-screen look: ~26 px straws, ~2.5 px wide (CSS px)
     gu0.uPx.value.set(2 / G.R.W, 2 / G.R.H); gu0.uLineW.value = 0.8 * gs * G.R.dpr * Math.min(1.5, Math.sqrt(gz)); gu0.uLen.value = 20 * gs * G.R.dpr * Math.min(1.6, Math.sqrt(gz));
