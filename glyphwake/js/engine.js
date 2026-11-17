@@ -15,7 +15,7 @@
     /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
     /* 1 ground */ { ramp: " .", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
     /* 2 grass  */ { ramp: " .,'`:;~^\"*+", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
-    /* 3 stone  */ { ramp: " :~*uvnaeS0Q$%&B", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.5, flick: 0, letters: 1 },
+    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
     /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
     /* 5 leaf   */ { ramp: "  .,;:*&%#@", mode: 0, gain: 2.3, under: 0.24, edge: 0, bright: 1.0, white: 0.04, flick: 0 },
     /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
@@ -463,7 +463,7 @@
       idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
       if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(wcell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
       float row = float(id);
-      if (S3.w > 0.5 && id != 8 && id != 14) { float rr = h21(wcell * 1.913 + 7.7); row = rr < 0.4 ? row : (rr < 0.7 ? 13.0 : (rr < 0.9 ? 3.0 : 27.0)); }   // letter walls mix three alphabets
+      if (S3.w > 0.5 && id != 8 && id != 14) { float rr = h21(wcell * 1.913 + 7.7); row = rr < 0.45 ? row : (rr < 0.8 ? 13.0 : 27.0); }   // letter walls mix three alphabets
       float edgeBoost = 0.0;
       if (actor) {
         float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));

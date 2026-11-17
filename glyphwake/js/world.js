@@ -321,7 +321,7 @@
       for (let i = 0; i < p.count; i++) { const f = 0.78 + r2() * 0.4; p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f); }
       g.computeVertexNormals(); return g; });
     // icosahedron vertices are duplicated per face: jitter per vertex keeps facets (stylised look)
-    const stoneM = GW.mat({ id: ID.ROCK, tex: 6, color: 0x8a90a0 });
+    const stoneM = GW.mat({ id: ID.ROCK, tex: 6, color: 0x8a8b8e });
     const ruinM = GW.mat({ id: ID.MASONRY, tex: 1, color: 0x8c94aa });
     const woodM = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.12 });
     const leafM = GW.mat({ id: ID.LEAF, tex: 5, color: 0x3e7a62, fill: 0.08 });
@@ -337,7 +337,7 @@
 
     const rock = (x, z, s, flatK) => {
       const y = W.heightAt(x, z);
-      batch.add('rock' + (Math.floor(rnd() * 3)), rockGeos[Math.floor(rnd() * 3)], stoneM, place(x, y + s * 0.15, z, rnd() * 6.28, s, s * (flatK || (0.55 + rnd() * 0.35)), s * (0.8 + rnd() * 0.4)), new THREE.Color().setHSL(0.62, 0.08, 0.45 + rnd() * 0.2));
+      batch.add('rock' + (Math.floor(rnd() * 3)), rockGeos[Math.floor(rnd() * 3)], stoneM, place(x, y + s * 0.15, z, rnd() * 6.28, s, s * (flatK || (0.55 + rnd() * 0.35)), s * (0.8 + rnd() * 0.4)), new THREE.Color().setHSL(0.6, 0.02, 0.38 + rnd() * 0.18));
       W.addCollider(x, z, s * 0.85, 'rock');
     };
     const tree = (x, z, s, dark) => {
@@ -404,8 +404,9 @@
     }
     // rocks
     for (let k = 0; k < 160; k++) {
-      const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210;
-      if (free(x, z, 1.5)) rock(x, z, 0.5 + rnd() * rnd() * 2.2);
+      const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210, s = 0.5 + rnd() * rnd() * 2.2;
+      if (k % 2 || [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 30)) continue;   // fewer, and none around camps
+      if (free(x, z, 1.5)) rock(x, z, s);
     }
     // river stones along banks
     for (let k = 0; k < RIVER.length; k += 3) {
