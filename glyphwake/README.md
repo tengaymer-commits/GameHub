@@ -73,8 +73,10 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 | | Desktop | Touch |
 |---|---|---|
 | Move | WASD / arrows | left thumb (floating stick) |
-| Attack / combo | left click (hold to chain), aim with the mouse | ⚔ (hold to chain, auto-aims) |
-| Roll | Space / right click | ⟲ |
+| Attack / combo | left click (tap to chain), aim with the mouse | ⚔ (auto-aims) |
+| Charged heavy | hold left click, release (or hold J) | hold ⚔ |
+| Block / parry | hold right click (or V); tap it as the blow lands to parry | hold ⛉ |
+| Roll | Space | ⟲ |
 | Skills | 2 · 3 · 4 | ◎ » ✶ |
 | Flask | Q | ♥ |
 | Talk / rest / anvil | E | E |
@@ -82,6 +84,15 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 | Camera angle | hold middle mouse + drag (double-click middle to reset) | ≡ → Settings → Camera tilt |
 | Control style | ≡ → Settings → Control style: **Free aim** (default: WASD/stick moves and the knight faces where he walks, the camera stays put, attacks go toward the crosshair cursor) or **Follow camera** | same |
 | Menu | Esc / Tab | ≡ |
+
+## Combat
+- **Light combo**: tap attack for a 3-hit chain.
+- **Charged heavy**: hold attack. While charging you can't be knocked out of it. A full charge flashes gold. Heavies deal more damage and fill the break bar faster.
+- **Block**: hold right click. A block soaks 80% of the damage and costs stamina. If stamina runs out, your guard breaks.
+- **Parry**: start the block within 0.2 s of the hit landing. The blow is negated, time slows, the attacker reels, and the next swing is a **riposte** (×3.5).
+- **Perfect dodge**: roll through a blow at the last instant. Time slows, you get +30 stamina, and your next hit crits.
+- **Break bar** `[####----]`: hits fill it. When it is full the enemy is **BROKEN** for about 3 s. Attack it then for a **finisher**: 50% of its life (8% on bosses), and you heal 12%.
+- **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
 ## How the glyph rendering works (`js/engine.js`)
 1. Every material is a small custom shader. It writes its lit color to RGB and a **glyph-set id** to alpha (stone, water, fire, cloth, ruin letters …).

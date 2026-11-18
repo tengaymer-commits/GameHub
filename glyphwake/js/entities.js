@@ -246,8 +246,17 @@
     // ---- sprint: hold Shift while moving (costs stamina) ----
     this.sprinting = !!(input.sprint && ml > 0.3 && this.state === 'move' && this.st > 4);
     if (this.sprinting) { speed *= 1.55; this.st -= 16 * dt; this.stDelay = 0.5; }
-    const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
+    const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85) || this.state === 'block' || (this.state === 'charge' && this.queued === 'roll');
 
+    // ---- hold the attack button to charge a heavy; hold block (RMB) to guard, tap it as a blow lands to parry ----
+    if (input.attackHeld) this.atkHeldT = (this.atkHeldT || 0) + dt; else this.atkHeldT = 0;
+    if (this.riposteT > 0) this.riposteT -= dt;
+    if (this.state !== 'charge' && this.atkHeldT > 0.3 && this.st > 12 && (this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.55))) {
+      this.state = 'charge'; this.t = 0; this.chargeT = 0; this.queued = null; GWAudio.sfx('cast');
+    }
+    if (input.block && this.state !== 'block' && this.st > 2 && (this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.5) || this.state === 'charge')) {
+      this.state = 'block'; this.t = 0; this.blockStart = G.t; this.queued = null;
+    }
     // buffer inputs
     if (input.attack) this.queued = 'attack';
     if (input.roll) this.queued = 'roll';
@@ -280,6 +289,10 @@
         this.rollDir = ml > 0.1 ? Math.atan2(mv.x, mv.z) : this.yaw; this.yaw = this.rollDir;
         this.st -= 24; this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
         G.parts.dust.burst(this.pos.x, this.pos.y + 0.2, this.pos.z, 8, 2, 0x6a6458, 0.5, 1.2, 0);
+      } else if (q === 'attack' && this.st > 4 && G.finisherTarget && G.finisherTarget(this)) {
+        // a broken enemy within reach: execute it
+        this.queued = null; this.finTarget = G.finisherTarget(this); this.state = 'finisher'; this.t = 0; this.cur = { dur: 0.8 }; this.iframe = 0.8; this.fired = false;
+        this.yaw = Math.atan2(this.finTarget.pos.x - this.pos.x, this.finTarget.pos.z - this.pos.z); GWAudio.sfx('heavy');
       } else if (q === 'attack' && this.st > 4) {
         this.queued = null;
         const next = this.state === 'attack' ? (this.combo + 1) % 3 : 0;
@@ -288,6 +301,7 @@
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
         this.st -= this.cur.st; this.stDelay = 0.6;
+        if (this.riposteT > 0) { this.cur.dmg *= 3.5; this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
         GWAudio.sfx(this.cur.heavy ? 'heavy' : 'swing');
       } else if (SKILLS[q]) {
         const sk = SKILLS[q];
@@ -367,6 +381,34 @@
         if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; this._drank = false; }
         break;
       }
+      case 'charge': {
+        this.chargeT += dt; faceTarget();
+        vx = mv.x * speed * 0.3; vz = mv.z * speed * 0.3;
+        const full = this.chargeT >= 1.0;
+        if (full && !this._chFull) { this._chFull = true; GWAudio.sfx('socket'); G.parts.spark.burst(this.pos.x, this.pos.y + 1.2, this.pos.z, 20, 3, 0xffd060, 0.5, 1, 0); }
+        if (Math.random() < 0.5) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + 0.4 + this.chargeT, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.4, 0.8, full ? 0xffd060 : 0xc8d8ff, 0);
+        if (!input.attackHeld || this.chargeT > 1.4) {
+          const c = Math.min(1, this.chargeT);
+          this.cur = { dur: 0.62 / this.ws.speed, dmg: 1.6 + 1.8 * c, range: 3.3 + 0.5 * c, cone: 1.1, step: 4.5 + 2 * c, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c };
+          this.cur.hitAt = this.cur.dur * 0.42; this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.08;
+          this.combo = 2; this.atkN = (this.atkN || 0) + 1; this.state = 'attack'; this.t = 0; this.hitSet.clear(); this._chFull = false;
+          this.st -= this.cur.st; this.stDelay = 0.7; GWAudio.sfx('heavy'); if (c > 0.95) G.shake(0.25);
+        }
+        break;
+      }
+      case 'block': {
+        vx = mv.x * speed * 0.35; vz = mv.z * speed * 0.35; faceTarget();
+        this.stDelay = Math.max(this.stDelay, 0.25);
+        if (!input.block) { this.state = 'move'; this.t = 0; }
+        break;
+      }
+      case 'finisher': {
+        const e = this.finTarget;
+        if (e && e.alive) { const d = e.distTo(this.pos); if (d > 1.6) { vx = Math.sin(this.yaw) * 9; vz = Math.cos(this.yaw) * 9; } }
+        if (this.t > 0.42 && !this.fired) { this.fired = true; if (e && e.alive) G.finisher(e); }
+        if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; this.finTarget = null; }
+        break;
+      }
       case 'hurt': {
         vx = this.vel.x; vz = this.vel.z; this.vel.multiplyScalar(Math.max(0, 1 - dt * 8));
         if (this.t > 0.28) { this.state = 'move'; this.t = 0; }
@@ -411,7 +453,7 @@
       const a = Math.atan2(dx, dz);
       if (Math.abs(GW.angDiff(this.yaw, a)) > cone && d > e.radius + 0.4) continue;
       this.hitSet.add(e);
-      G.hitEnemy(e, this.ws.dmg * mult, { heavy, from: this.pos, melee: true });
+      G.hitEnemy(e, this.ws.dmg * mult, { heavy, from: this.pos, melee: true, brk: (this.cur && this.cur.brk) || (heavy ? 1.6 : 0.6), riposte: this.cur && this.cur.riposte });
     }
   };
 
@@ -456,6 +498,9 @@
           b.rotation.x = 0.3;
         } else if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / this.cur.dur * 0.8 });
         break;
+      case 'charge': R.play('Idle_Sword', { fade: 0.15 }); b.rotation.x = -0.18 - 0.1 * Math.min(1, this.chargeT || 0); b.rotation.y = 0.35; break;
+      case 'block': R.play('Idle_Sword', { fade: 0.1 }); b.rotation.y = -0.5; b.rotation.x = 0.08; break;
+      case 'finisher': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, speed: 0.9 }); b.rotation.x = 0.3 * Math.sin(Math.min(1, this.t / 0.8) * Math.PI); break;
       case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
       case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;
       case 'dead': if (fresh) R.play('Death', { loop: false, restart: true, fade: 0.1 }); break;
@@ -581,7 +626,9 @@
     }
     if (this.aggro && (P.state === 'dead' || dH > this.T.leash || dP > this.T.aggro * 2.2)) { if (!this.T.boss) { this.aggro = false; this.setState('return'); } }
     const ctx = { dt, G, P, dP, slow, W };
-    this.T.ai(this, ctx);
+    if (this.brk > 0 && G.t - this.lastHit > 2.5) this.brk = Math.max(0, this.brk - G.brkMax(this) * 0.15 * dt);
+    if (this.brokenT > 0) { this.brokenT -= dt; this.moving = false; this.model.rotation.z = Math.sin(G.t * 9) * 0.06; if (this.brokenT <= 0) this.model.rotation.z = 0; }
+    else this.T.ai(this, ctx);
     // knockback
     this.pos.x += this.kb.x * dt; this.pos.z += this.kb.z * dt; this.kb.multiplyScalar(Math.max(0, 1 - dt * 9));
     // separation
@@ -633,8 +680,8 @@
     if (d > range + 0.45) return false;
     if (half < Math.PI && Math.abs(GW.angDiff(this.yaw, Math.atan2(dx, dz))) > half) return false;
     this.didHit = true;
-    G.hurtPlayer(dmg * (this.dmgMul || 1), this.pos, opts);
-    if (this.T.onHit) this.T.onHit(G, this);
+    const parried = G.hurtPlayer(dmg * (this.dmgMul || 1), this.pos, Object.assign({ src: this }, opts));
+    if (this.T.onHit && parried !== 'parry' && parried !== 'block') this.T.onHit(G, this);
     return true;
   };
   GW.Enemy = Enemy; GW.ETYPES = TYPES;

@@ -47,7 +47,7 @@
     cv.addEventListener('mousedown', e => {
       GWAudio.init();
       if (e.button === 0) { I.mouse.down = true; I.press('click'); }
-      if (e.button === 2) { I.mouse.right = true; I.press('roll'); }
+      if (e.button === 2) { I.mouse.right = true; }
     });
     window.addEventListener('mouseup', e => { if (e.button === 0) I.mouse.down = false; if (e.button === 2) I.mouse.right = false; });
     cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -88,8 +88,8 @@
     document.addEventListener('touchend', onEnd); document.addEventListener('touchcancel', onEnd);
     document.querySelectorAll('.tb').forEach(b => {
       const act = b.dataset.act;
-      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); I.press(act); b.classList.add('down'); if (act === 'attack') { I.holdAttack = true; I.lastAttackRepeat = performance.now(); } navigator.vibrate && navigator.vibrate(8); });
-      const up = () => { b.classList.remove('down'); if (act === 'attack') I.holdAttack = false; };
+      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); I.press(act); b.classList.add('down'); if (act === 'attack') { I.holdAttack = true; I.lastAttackRepeat = performance.now(); } if (act === 'block') I.holdBlock = true; navigator.vibrate && navigator.vibrate(8); });
+      const up = () => { b.classList.remove('down'); if (act === 'attack') I.holdAttack = false; if (act === 'block') I.holdBlock = false; };
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
     });
     if (matchMedia('(pointer: coarse)').matches) I.touch = true;

@@ -242,6 +242,7 @@ body.touch #hotbar { display: none; }
     <div id="tbtns">
       <button class="tb big" data-act="attack">⚔</button>
       <button class="tb" data-act="roll">⟲</button>
+      <button class="tb" data-act="block">⛉</button>
       <button class="tb sk" data-act="s2"><b>◎</b><i></i></button>
       <button class="tb sk" data-act="s3"><b>»</b><i></i></button>
       <button class="tb sk" data-act="s4"><b>✶</b><i></i></button>
@@ -297,7 +298,7 @@ body.touch #hotbar { display: none; }
     <button class="btn" id="t-new">New journey</button>
     <button class="btn ghost" id="t-settings">Settings</button>
   </div>
-  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · F make fire · M map · I inventory · H horse · Shift sprint</div>
+  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 2 3 4 skills · Q flask · E interact · F make fire · M map · I inventory · H horse · Shift sprint</div>
 </div>
 
 <!-- ================= MENUS ================= -->
@@ -8810,8 +8811,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // ---- sprint: hold Shift while moving (costs stamina) ----
     this.sprinting = !!(input.sprint && ml > 0.3 && this.state === 'move' && this.st > 4);
     if (this.sprinting) { speed *= 1.55; this.st -= 16 * dt; this.stDelay = 0.5; }
-    const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
+    const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85) || this.state === 'block' || (this.state === 'charge' && this.queued === 'roll');
 
+    // ---- hold the attack button to charge a heavy; hold block (RMB) to guard, tap it as a blow lands to parry ----
+    if (input.attackHeld) this.atkHeldT = (this.atkHeldT || 0) + dt; else this.atkHeldT = 0;
+    if (this.riposteT > 0) this.riposteT -= dt;
+    if (this.state !== 'charge' && this.atkHeldT > 0.3 && this.st > 12 && (this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.55))) {
+      this.state = 'charge'; this.t = 0; this.chargeT = 0; this.queued = null; GWAudio.sfx('cast');
+    }
+    if (input.block && this.state !== 'block' && this.st > 2 && (this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.5) || this.state === 'charge')) {
+      this.state = 'block'; this.t = 0; this.blockStart = G.t; this.queued = null;
+    }
     // buffer inputs
     if (input.attack) this.queued = 'attack';
     if (input.roll) this.queued = 'roll';
@@ -8844,6 +8854,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         this.rollDir = ml > 0.1 ? Math.atan2(mv.x, mv.z) : this.yaw; this.yaw = this.rollDir;
         this.st -= 24; this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
         G.parts.dust.burst(this.pos.x, this.pos.y + 0.2, this.pos.z, 8, 2, 0x6a6458, 0.5, 1.2, 0);
+      } else if (q === 'attack' && this.st > 4 && G.finisherTarget && G.finisherTarget(this)) {
+        // a broken enemy within reach: execute it
+        this.queued = null; this.finTarget = G.finisherTarget(this); this.state = 'finisher'; this.t = 0; this.cur = { dur: 0.8 }; this.iframe = 0.8; this.fired = false;
+        this.yaw = Math.atan2(this.finTarget.pos.x - this.pos.x, this.finTarget.pos.z - this.pos.z); GWAudio.sfx('heavy');
       } else if (q === 'attack' && this.st > 4) {
         this.queued = null;
         const next = this.state === 'attack' ? (this.combo + 1) % 3 : 0;
@@ -8852,6 +8866,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
         this.st -= this.cur.st; this.stDelay = 0.6;
+        if (this.riposteT > 0) { this.cur.dmg *= 3.5; this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
         GWAudio.sfx(this.cur.heavy ? 'heavy' : 'swing');
       } else if (SKILLS[q]) {
         const sk = SKILLS[q];
@@ -8931,6 +8946,34 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; this._drank = false; }
         break;
       }
+      case 'charge': {
+        this.chargeT += dt; faceTarget();
+        vx = mv.x * speed * 0.3; vz = mv.z * speed * 0.3;
+        const full = this.chargeT >= 1.0;
+        if (full && !this._chFull) { this._chFull = true; GWAudio.sfx('socket'); G.parts.spark.burst(this.pos.x, this.pos.y + 1.2, this.pos.z, 20, 3, 0xffd060, 0.5, 1, 0); }
+        if (Math.random() < 0.5) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + 0.4 + this.chargeT, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.4, 0.8, full ? 0xffd060 : 0xc8d8ff, 0);
+        if (!input.attackHeld || this.chargeT > 1.4) {
+          const c = Math.min(1, this.chargeT);
+          this.cur = { dur: 0.62 / this.ws.speed, dmg: 1.6 + 1.8 * c, range: 3.3 + 0.5 * c, cone: 1.1, step: 4.5 + 2 * c, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c };
+          this.cur.hitAt = this.cur.dur * 0.42; this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.08;
+          this.combo = 2; this.atkN = (this.atkN || 0) + 1; this.state = 'attack'; this.t = 0; this.hitSet.clear(); this._chFull = false;
+          this.st -= this.cur.st; this.stDelay = 0.7; GWAudio.sfx('heavy'); if (c > 0.95) G.shake(0.25);
+        }
+        break;
+      }
+      case 'block': {
+        vx = mv.x * speed * 0.35; vz = mv.z * speed * 0.35; faceTarget();
+        this.stDelay = Math.max(this.stDelay, 0.25);
+        if (!input.block) { this.state = 'move'; this.t = 0; }
+        break;
+      }
+      case 'finisher': {
+        const e = this.finTarget;
+        if (e && e.alive) { const d = e.distTo(this.pos); if (d > 1.6) { vx = Math.sin(this.yaw) * 9; vz = Math.cos(this.yaw) * 9; } }
+        if (this.t > 0.42 && !this.fired) { this.fired = true; if (e && e.alive) G.finisher(e); }
+        if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; this.finTarget = null; }
+        break;
+      }
       case 'hurt': {
         vx = this.vel.x; vz = this.vel.z; this.vel.multiplyScalar(Math.max(0, 1 - dt * 8));
         if (this.t > 0.28) { this.state = 'move'; this.t = 0; }
@@ -8975,7 +9018,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const a = Math.atan2(dx, dz);
       if (Math.abs(GW.angDiff(this.yaw, a)) > cone && d > e.radius + 0.4) continue;
       this.hitSet.add(e);
-      G.hitEnemy(e, this.ws.dmg * mult, { heavy, from: this.pos, melee: true });
+      G.hitEnemy(e, this.ws.dmg * mult, { heavy, from: this.pos, melee: true, brk: (this.cur && this.cur.brk) || (heavy ? 1.6 : 0.6), riposte: this.cur && this.cur.riposte });
     }
   };
 
@@ -9020,6 +9063,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           b.rotation.x = 0.3;
         } else if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / this.cur.dur * 0.8 });
         break;
+      case 'charge': R.play('Idle_Sword', { fade: 0.15 }); b.rotation.x = -0.18 - 0.1 * Math.min(1, this.chargeT || 0); b.rotation.y = 0.35; break;
+      case 'block': R.play('Idle_Sword', { fade: 0.1 }); b.rotation.y = -0.5; b.rotation.x = 0.08; break;
+      case 'finisher': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, speed: 0.9 }); b.rotation.x = 0.3 * Math.sin(Math.min(1, this.t / 0.8) * Math.PI); break;
       case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
       case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;
       case 'dead': if (fresh) R.play('Death', { loop: false, restart: true, fade: 0.1 }); break;
@@ -9145,7 +9191,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     if (this.aggro && (P.state === 'dead' || dH > this.T.leash || dP > this.T.aggro * 2.2)) { if (!this.T.boss) { this.aggro = false; this.setState('return'); } }
     const ctx = { dt, G, P, dP, slow, W };
-    this.T.ai(this, ctx);
+    if (this.brk > 0 && G.t - this.lastHit > 2.5) this.brk = Math.max(0, this.brk - G.brkMax(this) * 0.15 * dt);
+    if (this.brokenT > 0) { this.brokenT -= dt; this.moving = false; this.model.rotation.z = Math.sin(G.t * 9) * 0.06; if (this.brokenT <= 0) this.model.rotation.z = 0; }
+    else this.T.ai(this, ctx);
     // knockback
     this.pos.x += this.kb.x * dt; this.pos.z += this.kb.z * dt; this.kb.multiplyScalar(Math.max(0, 1 - dt * 9));
     // separation
@@ -9197,8 +9245,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (d > range + 0.45) return false;
     if (half < Math.PI && Math.abs(GW.angDiff(this.yaw, Math.atan2(dx, dz))) > half) return false;
     this.didHit = true;
-    G.hurtPlayer(dmg * (this.dmgMul || 1), this.pos, opts);
-    if (this.T.onHit) this.T.onHit(G, this);
+    const parried = G.hurtPlayer(dmg * (this.dmgMul || 1), this.pos, Object.assign({ src: this }, opts));
+    if (this.T.onHit && parried !== 'parry' && parried !== 'block') this.T.onHit(G, this);
     return true;
   };
   GW.Enemy = Enemy; GW.ETYPES = TYPES;
@@ -10142,7 +10190,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     cv.addEventListener('mousedown', e => {
       GWAudio.init();
       if (e.button === 0) { I.mouse.down = true; I.press('click'); }
-      if (e.button === 2) { I.mouse.right = true; I.press('roll'); }
+      if (e.button === 2) { I.mouse.right = true; }
     });
     window.addEventListener('mouseup', e => { if (e.button === 0) I.mouse.down = false; if (e.button === 2) I.mouse.right = false; });
     cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -10183,8 +10231,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     document.addEventListener('touchend', onEnd); document.addEventListener('touchcancel', onEnd);
     document.querySelectorAll('.tb').forEach(b => {
       const act = b.dataset.act;
-      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); I.press(act); b.classList.add('down'); if (act === 'attack') { I.holdAttack = true; I.lastAttackRepeat = performance.now(); } navigator.vibrate && navigator.vibrate(8); });
-      const up = () => { b.classList.remove('down'); if (act === 'attack') I.holdAttack = false; };
+      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); I.press(act); b.classList.add('down'); if (act === 'attack') { I.holdAttack = true; I.lastAttackRepeat = performance.now(); } if (act === 'block') I.holdBlock = true; navigator.vibrate && navigator.vibrate(8); });
+      const up = () => { b.classList.remove('down'); if (act === 'attack') I.holdAttack = false; if (act === 'block') I.holdBlock = false; };
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
     });
     if (matchMedia('(pointer: coarse)').matches) I.touch = true;
@@ -10715,7 +10763,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
   function build() {
     $('t-menu').style.visibility = '';
-    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -10852,6 +10900,27 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---- your own fires: F + kindling builds one on open ground; it scorches the grass and burns out ----
   const FIRE_LIFE = 480;
   G.ownFires = [];
+  // ---------------- break bar & finishers ----------------
+  G.brkMax = e => e.T.boss ? e.maxHp * 0.1 : Math.max(30, e.maxHp * 0.55);
+  G.breakEnemy = function (e) {
+    e.brk = 0; e.brokenT = e.T.boss ? 2.6 : 3.4; e.setState && !e.T.boss && e.setState('stagger');
+    UI.float('BROKEN', e.pos, { color: '#ffb040', size: 15, y: e.T.radius * 2 + 1.4, life: 1.2 }); GWAudio.sfx('slam'); G.shake(0.35);
+    G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 18, '#ffb040');
+    if (!G.hintsShown.finisher) { G.hintsShown.finisher = true; UI.hint('<b>BROKEN</b>: strike it now for a finisher.', 3.5); }
+  };
+  G.finisherTarget = function (P) {
+    let best = null, bd = 3.4;
+    for (const e of G.enemies) if (e.alive && e.brokenT > 0.2) { const d = e.distTo(P.pos); if (d < bd + e.radius) { bd = d; best = e; } }
+    return best;
+  };
+  G.finisher = function (e) {
+    const P = G.player, dmg = e.T.boss ? e.maxHp * 0.08 + P.ws.dmg * 4 : e.maxHp * 0.5 + P.ws.dmg * 4;
+    e.brokenT = 0; e.model.rotation.z = 0;
+    G.hitEnemy(e, dmg, { heavy: true, from: P.pos, melee: true, finisher: true });
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.12); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
+    UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
+  };
+  G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
   function tickPlayerDots(dt) {
@@ -11127,7 +11196,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       }
     }
     if (G.buff && G.buff.kind === 'might' && G.t < G.buff.until) dmg *= 1.25;
+    if (!o.dot && !o.chain && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
+    if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
     dmg = Math.max(1, Math.round(dmg));
+    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
     const col = o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
     UI.float(String(dmg) + (crit ? '!' : ''), e.pos, { color: col, size: crit ? 18 : o.dot ? 11 : 14, y: e.T.radius * 2 + 0.8, life: crit ? 1.1 : 0.85 });
@@ -11224,8 +11296,29 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const P = G.player;
     if (P.state === 'dead') return;
     if (P.iframe > 0) {
-      if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
+      // perfect dodge: rolled at the last instant -> glyph-time
+      if (P.state === 'roll' && P.t < 0.22 && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
+        G.pdCd = G.t + 1.4; G.slowmo(0.3, 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
+        UI.float('PERFECT', P.pos, { color: '#ffd860', size: 15, y: 2.6, life: 1 }); GWAudio.sfx('socket'); G.addHitGlyphs(P.pos.x, P.pos.y + 1, P.pos.z, 14, '#9fd8ff');
+      } else if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
+    }
+    if (P.state === 'block' && !o.dot && !o.heavy) {
+      const ang = from ? Math.atan2(from.x - P.pos.x, from.z - P.pos.z) : P.yaw;
+      if (Math.abs(GW.angDiff(P.yaw, ang)) < 1.9) {
+        if (G.t - P.blockStart < 0.2) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
+          G.slowmo(0.25, 0.45); P.riposteT = 1.5; P.st = Math.min(100, P.st + 15);
+          GWAudio.sfx('block'); GWAudio.sfx('crit'); G.shake(0.3); G.hitstop = 0.08;
+          UI.float('PARRY', P.pos, { color: '#ffd860', size: 16, y: 2.6, life: 1 }); G.addHitGlyphs(P.pos.x + Math.sin(P.yaw) * 0.8, P.pos.y + 1.3, P.pos.z + Math.cos(P.yaw) * 0.8, 16, '#ffe8a0');
+          const s = o.src; if (s && s.alive) { s.brk = (s.brk || 0) + G.brkMax(s) * 0.5; s.lastHit = G.t; if (s.brk >= G.brkMax(s)) G.breakEnemy(s); else if (!s.T.boss && s.setState) s.setState('stagger'); }
+          return 'parry';
+        }
+        // blocked: most damage soaked, paid in stamina
+        const soak = dmg * 0.8; P.st -= soak * 1.6 + 6; P.stDelay = 0.8; GWAudio.sfx('block');
+        G.parts.spark.burst(P.pos.x + Math.sin(P.yaw) * 0.7, P.pos.y + 1.2, P.pos.z + Math.cos(P.yaw) * 0.7, 8, 3, 0xffe0a0, 0.3, 0.7, -5);
+        if (P.st <= 0) { P.st = 0; P.state = 'hurt'; P.t = 0; UI.float('GUARD BROKEN', P.pos, { color: '#ff8a60', size: 12, y: 2.5 }); dmg *= 0.5; }
+        else { P.hp -= dmg - soak; P.hurtT = 0.1; if (P.hp <= 0) { P.hp = 1; } return 'block'; }
+      }
     }
     dmg = Math.round(dmg * (1 - P.ws.ward) * (1 - (P.gs ? P.gs.reduce : 0)));
     P.hp -= dmg; P.hurtT = 0.35; G.hurtFx = Math.min(1, G.hurtFx + 0.6);
@@ -11234,7 +11327,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.parts.blood.burst(P.pos.x, P.pos.y + 1.2, P.pos.z, 8, 3, 0xa01010, 0.6, 1, -10);
     navigator.vibrate && navigator.vibrate(o.heavy ? 60 : 25);
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
-    if (P.state !== 'skill' || o.heavy) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
+    if ((P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
     if (P.hp <= 0) {
       P.hp = 0; P.state = 'dead'; P.t = 0; G.state = 'dying';
       GWAudio.sfx('die'); UI.boss(false);
@@ -11824,6 +11917,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // hitstop: freeze simulation briefly, keep rendering
     let sdt = dt;
     if (G.hitstop > 0) { G.hitstop -= dt; sdt = dt * 0.05; }
+    if (G.tsT > 0) { G.tsT -= dt; sdt *= G.ts; }
     if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || G.state === 'shop' || UI.mapOpen() || UI.invOpen()) sdt = 0;
 
     if (playing) {
@@ -11835,9 +11929,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         const mv = { x: mv0.x * cs + mv0.z * sn, z: -mv0.x * sn + mv0.z * cs };
         const aim = aimPoint();
         input = { mx: mv.x, mz: mv.z, aim, aimHeld: I.mouse.down,
-          attack: pressed.attack || pressed.click || I.mouse.down || I.holdAttack, roll: pressed.roll,
+          attack: pressed.attack || pressed.click, attackHeld: I.mouse.down || I.holdAttack || !!I.keys.KeyJ, block: I.mouse.right || I.holdBlock || !!I.keys.KeyV, roll: pressed.roll,
           s2: pressed.s2, s3: pressed.s3, s4: pressed.s4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
-        if (P.horse && P.horse.ridden) { input.attack = input.roll = input.s2 = input.s3 = input.s4 = input.potion = false; }
+        if (P.horse && P.horse.ridden) { input.attackHeld = input.block = false; input.attack = input.roll = input.s2 = input.s3 = input.s4 = input.potion = false; }
         const it = nearestInteract();
         UI.interact(it ? it.label : null);
         if (pressed.interact && it) doInteract(it);
@@ -11879,7 +11973,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           UI.label(e, '▬'.repeat(f) + '▭'.repeat(n - f), lp, 'ehp');
         }
       }
-      if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', 'Wanderer', lp, 'name', '#e8e4d8'); }
+      if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', P.riposteT > 0 ? 'RIPOSTE' : 'Wanderer', lp, 'name', P.riposteT > 0 ? '#ffd860' : '#e8e4d8'); }
+      // break bars and attack warnings: yellow ◇ = parry it, red ! = dodge it
+      const TELE = { windup: '◇', windup2: '◇', web: '◇', cast: '◇', throw: '◇', sweep: '!', stab: '!', charge: '!', slam: '!', 'pounce-wind': '!', 'charge-wind': '!', rain: '!' };
+      for (const e of G.enemies) {
+        if (!e.alive || e.type === 'husk' || e.distTo(P.pos) > 22 || !(e.aggro || e.brk > 0)) continue;
+        const idx = G.enemies.indexOf(e), top = e.pos.clone(); top.y += e.T.radius * 2 + (e.T.flying ? 2.6 : 1.95) + (e.T.boss ? 2.5 : 0);
+        if (e.brokenT > 0) UI.label('b' + idx, 'BROKEN', top, 'name', '#ffb040');
+        else if (e.brk > 0) { const n = 8, f = Math.round(GW.clamp(e.brk / G.brkMax(e), 0, 1) * n); UI.label('b' + idx, '[' + '#'.repeat(f) + '-'.repeat(n - f) + ']', top, 'ehp', '#ffc860'); }
+        const tg = TELE[e.state];
+        if (tg) { const tp = top.clone(); tp.y += 0.6; UI.label('w' + idx, tg, tp, 'name', tg === '!' ? '#ff4030' : '#ffd040'); }
+      }
       for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), (e.elite ? 'Elite ' : '') + e.T.name + ((e.lvl || 1) > 1 ? ' · lv ' + e.lvl : ''), lp, 'name', e.elite ? '#ffb040' : e.aggro ? '#ff9a8a' : '#c8ccd8'); }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       { const B = G.curBoss || G.boss; if (G.bossActive && B.alive) UI.boss(true, B.T.name, B.hp, B.maxHp); }

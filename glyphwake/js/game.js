@@ -109,7 +109,7 @@
   }
   function build() {
     $('t-menu').style.visibility = '';
-    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -246,6 +246,27 @@
   // ---- your own fires: F + kindling builds one on open ground; it scorches the grass and burns out ----
   const FIRE_LIFE = 480;
   G.ownFires = [];
+  // ---------------- break bar & finishers ----------------
+  G.brkMax = e => e.T.boss ? e.maxHp * 0.1 : Math.max(30, e.maxHp * 0.55);
+  G.breakEnemy = function (e) {
+    e.brk = 0; e.brokenT = e.T.boss ? 2.6 : 3.4; e.setState && !e.T.boss && e.setState('stagger');
+    UI.float('BROKEN', e.pos, { color: '#ffb040', size: 15, y: e.T.radius * 2 + 1.4, life: 1.2 }); GWAudio.sfx('slam'); G.shake(0.35);
+    G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 18, '#ffb040');
+    if (!G.hintsShown.finisher) { G.hintsShown.finisher = true; UI.hint('<b>BROKEN</b>: strike it now for a finisher.', 3.5); }
+  };
+  G.finisherTarget = function (P) {
+    let best = null, bd = 3.4;
+    for (const e of G.enemies) if (e.alive && e.brokenT > 0.2) { const d = e.distTo(P.pos); if (d < bd + e.radius) { bd = d; best = e; } }
+    return best;
+  };
+  G.finisher = function (e) {
+    const P = G.player, dmg = e.T.boss ? e.maxHp * 0.08 + P.ws.dmg * 4 : e.maxHp * 0.5 + P.ws.dmg * 4;
+    e.brokenT = 0; e.model.rotation.z = 0;
+    G.hitEnemy(e, dmg, { heavy: true, from: P.pos, melee: true, finisher: true });
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.12); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
+    UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
+  };
+  G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
   function tickPlayerDots(dt) {
@@ -521,7 +542,10 @@
       }
     }
     if (G.buff && G.buff.kind === 'might' && G.t < G.buff.until) dmg *= 1.25;
+    if (!o.dot && !o.chain && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
+    if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
     dmg = Math.max(1, Math.round(dmg));
+    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
     const col = o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
     UI.float(String(dmg) + (crit ? '!' : ''), e.pos, { color: col, size: crit ? 18 : o.dot ? 11 : 14, y: e.T.radius * 2 + 0.8, life: crit ? 1.1 : 0.85 });
@@ -618,8 +642,29 @@
     const P = G.player;
     if (P.state === 'dead') return;
     if (P.iframe > 0) {
-      if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
+      // perfect dodge: rolled at the last instant -> glyph-time
+      if (P.state === 'roll' && P.t < 0.22 && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
+        G.pdCd = G.t + 1.4; G.slowmo(0.3, 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
+        UI.float('PERFECT', P.pos, { color: '#ffd860', size: 15, y: 2.6, life: 1 }); GWAudio.sfx('socket'); G.addHitGlyphs(P.pos.x, P.pos.y + 1, P.pos.z, 14, '#9fd8ff');
+      } else if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
+    }
+    if (P.state === 'block' && !o.dot && !o.heavy) {
+      const ang = from ? Math.atan2(from.x - P.pos.x, from.z - P.pos.z) : P.yaw;
+      if (Math.abs(GW.angDiff(P.yaw, ang)) < 1.9) {
+        if (G.t - P.blockStart < 0.2) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
+          G.slowmo(0.25, 0.45); P.riposteT = 1.5; P.st = Math.min(100, P.st + 15);
+          GWAudio.sfx('block'); GWAudio.sfx('crit'); G.shake(0.3); G.hitstop = 0.08;
+          UI.float('PARRY', P.pos, { color: '#ffd860', size: 16, y: 2.6, life: 1 }); G.addHitGlyphs(P.pos.x + Math.sin(P.yaw) * 0.8, P.pos.y + 1.3, P.pos.z + Math.cos(P.yaw) * 0.8, 16, '#ffe8a0');
+          const s = o.src; if (s && s.alive) { s.brk = (s.brk || 0) + G.brkMax(s) * 0.5; s.lastHit = G.t; if (s.brk >= G.brkMax(s)) G.breakEnemy(s); else if (!s.T.boss && s.setState) s.setState('stagger'); }
+          return 'parry';
+        }
+        // blocked: most damage soaked, paid in stamina
+        const soak = dmg * 0.8; P.st -= soak * 1.6 + 6; P.stDelay = 0.8; GWAudio.sfx('block');
+        G.parts.spark.burst(P.pos.x + Math.sin(P.yaw) * 0.7, P.pos.y + 1.2, P.pos.z + Math.cos(P.yaw) * 0.7, 8, 3, 0xffe0a0, 0.3, 0.7, -5);
+        if (P.st <= 0) { P.st = 0; P.state = 'hurt'; P.t = 0; UI.float('GUARD BROKEN', P.pos, { color: '#ff8a60', size: 12, y: 2.5 }); dmg *= 0.5; }
+        else { P.hp -= dmg - soak; P.hurtT = 0.1; if (P.hp <= 0) { P.hp = 1; } return 'block'; }
+      }
     }
     dmg = Math.round(dmg * (1 - P.ws.ward) * (1 - (P.gs ? P.gs.reduce : 0)));
     P.hp -= dmg; P.hurtT = 0.35; G.hurtFx = Math.min(1, G.hurtFx + 0.6);
@@ -628,7 +673,7 @@
     G.parts.blood.burst(P.pos.x, P.pos.y + 1.2, P.pos.z, 8, 3, 0xa01010, 0.6, 1, -10);
     navigator.vibrate && navigator.vibrate(o.heavy ? 60 : 25);
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
-    if (P.state !== 'skill' || o.heavy) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
+    if ((P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
     if (P.hp <= 0) {
       P.hp = 0; P.state = 'dead'; P.t = 0; G.state = 'dying';
       GWAudio.sfx('die'); UI.boss(false);
@@ -1218,6 +1263,7 @@
     // hitstop: freeze simulation briefly, keep rendering
     let sdt = dt;
     if (G.hitstop > 0) { G.hitstop -= dt; sdt = dt * 0.05; }
+    if (G.tsT > 0) { G.tsT -= dt; sdt *= G.ts; }
     if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || G.state === 'shop' || UI.mapOpen() || UI.invOpen()) sdt = 0;
 
     if (playing) {
@@ -1229,9 +1275,9 @@
         const mv = { x: mv0.x * cs + mv0.z * sn, z: -mv0.x * sn + mv0.z * cs };
         const aim = aimPoint();
         input = { mx: mv.x, mz: mv.z, aim, aimHeld: I.mouse.down,
-          attack: pressed.attack || pressed.click || I.mouse.down || I.holdAttack, roll: pressed.roll,
+          attack: pressed.attack || pressed.click, attackHeld: I.mouse.down || I.holdAttack || !!I.keys.KeyJ, block: I.mouse.right || I.holdBlock || !!I.keys.KeyV, roll: pressed.roll,
           s2: pressed.s2, s3: pressed.s3, s4: pressed.s4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
-        if (P.horse && P.horse.ridden) { input.attack = input.roll = input.s2 = input.s3 = input.s4 = input.potion = false; }
+        if (P.horse && P.horse.ridden) { input.attackHeld = input.block = false; input.attack = input.roll = input.s2 = input.s3 = input.s4 = input.potion = false; }
         const it = nearestInteract();
         UI.interact(it ? it.label : null);
         if (pressed.interact && it) doInteract(it);
@@ -1273,7 +1319,17 @@
           UI.label(e, '▬'.repeat(f) + '▭'.repeat(n - f), lp, 'ehp');
         }
       }
-      if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', 'Wanderer', lp, 'name', '#e8e4d8'); }
+      if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', P.riposteT > 0 ? 'RIPOSTE' : 'Wanderer', lp, 'name', P.riposteT > 0 ? '#ffd860' : '#e8e4d8'); }
+      // break bars and attack warnings: yellow ◇ = parry it, red ! = dodge it
+      const TELE = { windup: '◇', windup2: '◇', web: '◇', cast: '◇', throw: '◇', sweep: '!', stab: '!', charge: '!', slam: '!', 'pounce-wind': '!', 'charge-wind': '!', rain: '!' };
+      for (const e of G.enemies) {
+        if (!e.alive || e.type === 'husk' || e.distTo(P.pos) > 22 || !(e.aggro || e.brk > 0)) continue;
+        const idx = G.enemies.indexOf(e), top = e.pos.clone(); top.y += e.T.radius * 2 + (e.T.flying ? 2.6 : 1.95) + (e.T.boss ? 2.5 : 0);
+        if (e.brokenT > 0) UI.label('b' + idx, 'BROKEN', top, 'name', '#ffb040');
+        else if (e.brk > 0) { const n = 8, f = Math.round(GW.clamp(e.brk / G.brkMax(e), 0, 1) * n); UI.label('b' + idx, '[' + '#'.repeat(f) + '-'.repeat(n - f) + ']', top, 'ehp', '#ffc860'); }
+        const tg = TELE[e.state];
+        if (tg) { const tp = top.clone(); tp.y += 0.6; UI.label('w' + idx, tg, tp, 'name', tg === '!' ? '#ff4030' : '#ffd040'); }
+      }
       for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), (e.elite ? 'Elite ' : '') + e.T.name + ((e.lvl || 1) > 1 ? ' · lv ' + e.lvl : ''), lp, 'name', e.elite ? '#ffb040' : e.aggro ? '#ff9a8a' : '#c8ccd8'); }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       { const B = G.curBoss || G.boss; if (G.bossActive && B.alive) UI.boss(true, B.T.name, B.hp, B.maxHp); }
