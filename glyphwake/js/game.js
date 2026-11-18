@@ -1063,16 +1063,20 @@
   }
   function updateCamera(dt, title) {
     const C = G.camera, P = G.player;
-    const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' && !title;
+    const fovN = G.R.aspect < 0.8 ? 50 : 42, flatLens = UI.settings.lens !== 'normal' || title;
     const fovF = G.R.aspect < 0.8 ? 2.4 : 2;   // near-orthographic: no parallax, so pixel snapping holds for every depth
     C.aspect = G.R.aspect; C.fov = flatLens ? fovF : fovN; C.updateProjectionMatrix();
     const lensK = flatLens ? Math.tan(fovN * Math.PI / 360) / Math.tan(fovF * Math.PI / 360) : 1;
     const VD = UI.settings.viewDist || 1;
     C.far = 400 * lensK * Math.max(1, VD); C.near = 0.5 * Math.max(1, lensK * 0.5);
     if (title) {
-      const a = G.t * 0.05, c = GW.World.L.village;
-      C.position.set(c.x + Math.sin(a) * 30, 16, c.z + Math.cos(a) * 30);
-      C.lookAt(c.x, 1, c.z);
+      // a still, high view of Emberhold through the same flat lens as play: no rotation shimmer, no horizon
+      const c = GW.World.L.village, D = 26, pitch = 0.9, Dc = D * lensK;
+      C.position.set(c.x, 1 + Math.sin(pitch) * Dc, c.z + 4 + Math.cos(pitch) * Dc);
+      C.lookAt(c.x, 1, c.z + 4);
+      GW.LU.uFogStart.value = Dc + 60;
+      const gu = GW.World.grass.mat.uniforms; gu.uSize.value = 80; gu.uWidth.value = 1.4;
+      if (Math.abs((G.R.glyphZoom || 1) - 1) > 0.03) { G.R.glyphZoom = 1; G.R.updateCells(); }
       return;
     }
     const portrait = G.R.aspect < 0.8;
