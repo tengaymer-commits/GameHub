@@ -237,6 +237,36 @@
   // ---- your own fires: F + kindling builds one on open ground; it scorches the grass and burns out ----
   const FIRE_LIFE = 480;
   G.ownFires = [];
+  // ---------------- the horse: H to whistle for it / mount / dismount ----------------
+  function toggleHorse() {
+    const P = G.player;
+    if (P.state === 'dead') return;
+    if (P.horse && P.horse.ridden) { dismount(false); return; }
+    if (P.floor || G.heroInside) { UI.toast("There's no room for a horse here.", 2); return; }
+    if (G.enemies.some(e => e.alive && e.aggro && e.distTo(P.pos) < 18)) { UI.toast('Not while you are being hunted.', 2); return; }
+    if (!P.horse) P.horse = new GW.Horse(G.scene);
+    const H = P.horse;
+    if (H.pos.distanceTo(P.pos) > 8) {   // it comes running
+      GWAudio.sfx('howl');
+      H.yaw = P.yaw; H.speed = 0; H.place(new V3(P.pos.x + Math.cos(P.yaw) * 2.2, P.pos.y, P.pos.z - Math.sin(P.yaw) * 2.2), P.yaw, 0.016);
+      G.parts.dust.burst(H.pos.x, H.pos.y + 0.3, H.pos.z, 26, 4, 0x8a8070, 0.8, 1.3, -3, 1.5);
+    }
+    H.ridden = true; H.yaw = P.yaw; H.speed = 0; P.pos.set(H.pos.x, H.pos.y, H.pos.z);
+    GWAudio.sfx('step', 3); if (!G.hintsShown.horse) { G.hintsShown.horse = true; UI.hint('Riding. Move to steer, faster on roads. <b>H</b> to dismount. A hit throws you off.', 5); }
+  }
+  function dismount(thrown) {
+    const P = G.player, H = P.horse; if (!H || !H.ridden) return;
+    H.ridden = false; H.speed = thrown ? H.speed * 0.4 : 0;
+    const sx = Math.cos(H.yaw) * 1.6, sz = -Math.sin(H.yaw) * 1.6;
+    P.pos.x += sx; P.pos.z += sz; if (thrown) { P.state = 'hurt'; P.t = 0; P.vel.set(sx * 3, 0, sz * 3); }
+  }
+  G.dismount = dismount;
+  G.updateHorse = function (dt) {   // a horse you left behind idles and grazes where it stands
+    const H = G.player.horse; if (!H || H.ridden) return;
+    H.speed = Math.max(0, H.speed - dt * 8);
+    if (H.speed > 0) { H.pos.x += Math.sin(H.yaw) * H.speed * dt; H.pos.z += Math.cos(H.yaw) * H.speed * dt; }
+    H.pos.y = GW.World.groundY(H.pos.x, H.pos.z); H.place(H.pos, H.yaw, dt);
+  };
   G.buildFire = buildFire;
   function buildFire() {
     const P = G.player, W = GW.World;
@@ -540,6 +570,7 @@
   }
   G.hurtPlayer = function (dmg, from, o) {
     o = o || {};
+    if (G.player.horse && G.player.horse.ridden && G.player.iframe <= 0) { dismount(true); UI.toast('Thrown from the saddle!', 1.5); }
     if (G.buff && G.buff.kind === 'ward' && G.t < G.buff.until) dmg *= 0.75;
     const P = G.player;
     if (P.state === 'dead') return;
@@ -1089,11 +1120,13 @@
         const aim = aimPoint();
         input = { mx: mv.x, mz: mv.z, aim, aimHeld: I.mouse.down,
           attack: pressed.attack || pressed.click || I.mouse.down || I.holdAttack, roll: pressed.roll,
-          s2: pressed.s2, s3: pressed.s3, s4: pressed.s4, potion: pressed.potion };
+          s2: pressed.s2, s3: pressed.s3, s4: pressed.s4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
+        if (P.horse && P.horse.ridden) { input.attack = input.roll = input.s2 = input.s3 = input.s4 = input.potion = false; }
         const it = nearestInteract();
         UI.interact(it ? it.label : null);
         if (pressed.interact && it) doInteract(it);
         if (pressed.fire) buildFire();
+        if (pressed.horse) toggleHorse();
       }
       if (sdt > 0) {
         for (const u of GW.World.grass.push) u.z = 0;
@@ -1105,7 +1138,7 @@
         // tutorial hints + boss trigger + zones
         world(sdt);
         // respawn timers
-        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor();
+        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt);
         if (frame % 15 === 0) explore();
         if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));

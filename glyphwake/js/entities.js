@@ -220,6 +220,32 @@
     const wading = W.inWater(this.pos.x, this.pos.z);
     if (this.webbed > 0) this.webbed -= dt;
     let speed = 6.2 * (this.moveMul || 1) * (this.buffMove || 1) * (wading ? 0.55 : 1) * (this.webbed > 0 ? 0.45 : 1);
+    // ---- riding: the horse carries you; steer with the move keys, faster on roads ----
+    if (this.horse && this.horse.ridden) {
+      const H = this.horse, onRoad = W.pathAt(this.pos.x, this.pos.z) < 3;
+      const maxS = (onRoad ? 17 : 13) * (wading ? 0.45 : 1) * (this.buffMove || 1);
+      const want = ml > 0.1 ? maxS * ml : 0;
+      H.speed += (want - H.speed) * Math.min(1, dt * (want > H.speed ? 1.5 : 3.2));
+      if (ml > 0.1) H.yaw += GW.angDiff(H.yaw, Math.atan2(mv.x, mv.z)) * Math.min(1, dt * (H.speed > 9 ? 2.4 : 3.6));
+      this.state = 'move'; this._mv = false; this._spd = 0; this.queued = null;
+      this.pos.x += Math.sin(H.yaw) * H.speed * dt; this.pos.z += Math.cos(H.yaw) * H.speed * dt;
+      if (W.collide(this.pos, 0.9, this.floor || 0) && H.speed > 5) H.speed *= 0.6;
+      const la = W.levelAt(this.pos.x, this.pos.z, this.floor || 0); this.floor = la.lv;
+      this.pos.y += (la.y - this.pos.y) * Math.min(1, dt * 12);
+      this.yaw = this.visYaw = H.yaw;
+      H.place(this.pos, H.yaw, dt);
+      this.animate(dt);
+      this.model.position.y += 1.12 + H.bob;           // in the saddle
+      this.trail.update(dt);
+      this.light.p.set(this.pos.x, this.pos.y + 2.8, this.pos.z);
+      this.shadow.visible = false;
+      G.pushGrass(0, this.pos.x, this.pos.z, 1.8);
+      return;
+    }
+    this.shadow.visible = true;
+    // ---- sprint: hold Shift while moving (costs stamina) ----
+    this.sprinting = !!(input.sprint && ml > 0.3 && this.state === 'move' && this.st > 4);
+    if (this.sprinting) { speed *= 1.55; this.st -= 16 * dt; this.stDelay = 0.5; }
     const canAct = this.state === 'move' || (this.state === 'attack' && this.t > this.cur.dur * 0.62) || (this.state === 'skill' && this.t > this.cur.dur * 0.85);
 
     // buffer inputs
@@ -442,6 +468,54 @@
   };
   function E3(k) { return 1 - Math.pow(1 - k, 2.2); }
   GW.Player = Player;
+
+  // ---------------- the horse: procedural body, four two-part legs, a walk/gallop gait ----------------
+  function Horse(scene) {
+    this.scene = scene; this.pos = new V3(); this.yaw = 0; this.speed = 0; this.ph = 0; this.bob = 0; this.ridden = false; this.t = 0;
+    const coat = GW.mat({ id: ID.LEATHER, color: 0x7a5638, rim: 0.3 }), dark = GW.mat({ id: ID.CLOTH, color: 0x2a2420, rim: 0.2 }), tack = GW.mat({ id: ID.LEATHER, color: 0x3e2618 }), hoof = GW.mat({ id: ID.METAL, color: 0x2a2a2e });
+    const g = this.model = new THREE.Group(); scene.add(g);
+    const body = this.body = new THREE.Group(); g.add(body);
+    part(body, new THREE.SphereGeometry(1, 14, 10), coat, 0, 1.28, -0.05).scale.set(0.42, 0.46, 1.12);
+    part(body, new THREE.SphereGeometry(1, 10, 8), coat, 0, 1.32, 0.72).scale.set(0.4, 0.44, 0.5);   // chest
+    part(body, new THREE.SphereGeometry(1, 10, 8), coat, 0, 1.3, -0.8).scale.set(0.42, 0.42, 0.45);   // haunch
+    part(body, box(0.5, 0.12, 0.7), tack, 0, 1.76, 0.05);                                             // saddle
+    const neck = this.neck = new THREE.Group(); neck.position.set(0, 1.5, 0.95); body.add(neck);
+    part(neck, new THREE.CylinderGeometry(0.17, 0.26, 0.9, 8), coat, 0, 0.32, 0.18, 0.62);
+    part(neck, box(0.08, 0.5, 0.75), dark, 0, 0.46, 0.08, 0.62);                                       // mane
+    const head = this.head = new THREE.Group(); head.position.set(0, 0.7, 0.46); neck.add(head);
+    part(head, box(0.24, 0.26, 0.62), coat, 0, -0.04, 0.22, 0.35);
+    part(head, box(0.06, 0.16, 0.06), coat, -0.08, 0.16, -0.02); part(head, box(0.06, 0.16, 0.06), coat, 0.08, 0.16, -0.02);   // ears
+    const tail = this.tail = new THREE.Group(); tail.position.set(0, 1.45, -1.25); body.add(tail);
+    part(tail, box(0.12, 0.75, 0.14), dark, 0, -0.36, -0.12, -0.35);
+    this.legs = [[-0.24, 0.78, 0], [0.24, 0.78, Math.PI], [-0.24, -0.82, Math.PI * 0.5], [0.24, -0.82, Math.PI * 1.5]].map(([x, z, off]) => {
+      const hip = new THREE.Group(); hip.position.set(x, 1.08, z); body.add(hip);
+      part(hip, new THREE.CylinderGeometry(0.1, 0.075, 0.55, 6), coat, 0, -0.27, 0);
+      const knee = new THREE.Group(); knee.position.set(0, -0.54, 0); hip.add(knee);
+      part(knee, new THREE.CylinderGeometry(0.065, 0.055, 0.5, 6), coat, 0, -0.25, 0);
+      part(knee, box(0.12, 0.08, 0.14), hoof, 0, -0.51, 0.02);
+      return { hip, knee, off, front: z > 0 };
+    });
+    this.shadow = shadow(scene, 1.2);
+  }
+  Horse.prototype.place = function (p, yaw, dt) {
+    this.t += dt; this.pos.copy(p); this.yaw = yaw;
+    const sp = this.speed, gallop = sp > 9;
+    this.ph += dt * (gallop ? 9 + sp * 0.25 : 2 + sp * 1.1);
+    this.bob = sp > 0.5 ? Math.abs(Math.sin(this.ph)) * (gallop ? 0.12 : 0.04) : 0;
+    this.model.position.set(p.x, p.y, p.z); this.model.rotation.y = yaw;
+    this.body.position.y = this.bob; this.body.rotation.x = gallop ? Math.sin(this.ph) * 0.06 : 0;
+    const amp = sp > 0.5 ? (gallop ? 0.75 : 0.38) : 0;
+    for (const L of this.legs) {
+      const a = this.ph + (gallop ? (L.front ? 0 : 0.6) + (L.off > Math.PI ? 0.25 : 0) : L.off);
+      L.hip.rotation.x = Math.sin(a) * amp; L.knee.rotation.x = Math.max(0, -Math.cos(a)) * amp * (L.front ? -1.2 : 1.2);
+    }
+    // grazing when idle; head nods when moving
+    const graze = !this.ridden && sp < 0.3 ? (0.6 + 0.4 * Math.sin(this.t * 0.4)) : 0;
+    this.neck.rotation.x = graze * 1.1 + (sp > 0.5 ? Math.sin(this.ph * 2) * 0.06 : 0);
+    this.tail.rotation.x = -0.2 - (gallop ? 0.5 : 0) + Math.sin(this.t * 3) * 0.08; this.tail.rotation.z = Math.sin(this.t * 1.7) * 0.15;
+    this.shadow.position.set(p.x, p.y + 0.03, p.z);
+  };
+  GW.Horse = Horse;
 
   // ======================================================================
   // ENEMIES
