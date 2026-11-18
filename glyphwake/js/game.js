@@ -38,7 +38,7 @@
   }
   function onStage() {
     const id = QUESTS[G.stage].id;
-    if (id === 'wolves') setTimeout(() => UI.hint('<b>2 · 3 · 4</b> spend focus: Whirl, Lunge, Glyphburst.<br>Focus refills over time and with every hit.', 7), 2500);
+    if (id === 'wolves') setTimeout(() => UI.hint('<b>1 · 2 · 3 · 4</b> are your ability slots (they spend focus).<br><b>B</b> opens the Book of Glyphs: swap abilities, craft new ones at a fire or anvil.', 8), 2500);
   }
   function give(kind, key, n) {
     const P = G.player; n = n || 1;
@@ -49,10 +49,17 @@
       UI.toast(`<span style="color:#${it.color.toString(16).padStart(6, '0')}">${GW.Knight.pattern(it.set)}</span> ${it.name}${isNew ? ' · <span style="color:#ffcf6a">open Gear to wear it</span>' : ''}`, 4);
     }
     else if (kind === 'shards') { const amt = key; P.inv.shards = (P.inv.shards || 0) + amt; UI.float('+' + amt + ' ◈', P.pos, { color: '#9fd8ff', size: 11, y: 2.9, life: 1.1 }); if (arguments[2] !== true) UI.toast(`<span style="color:#9fd8ff">◈</span> ${amt} shards`, 2); return; }
+    else if (kind === 'abil') {
+      const A = GW.Abil, a = A.LIST[key], isNew = A.learn(P, key);
+      if (!isNew) { give('shards', 60); return; }
+      UI.toast(`<span style="color:${a.col}">${a.g}</span> New ability: <b>${a.name}</b> · <span style="color:#ffcf6a">B to slot it</span>`, 5);
+      UI.float(a.g + ' ' + a.name, P.pos, { color: a.col, size: 14, y: 3, life: 1.6 }); GWAudio.sfx('quest'); UI.refreshAbil && UI.refreshAbil(); save(); return;
+    }
     else if (kind === 'kindling') { P.inv.kindling = (P.inv.kindling || 0) + n; UI.toast(`<span style="color:#e09040">♨</span> Kindling${n > 1 ? ' ×' + n : ''} · <span style="color:#ffcf6a">F to make a fire</span>`, 3); }
     else { P.inv.ingots[key] = (P.inv.ingots[key] || 0) + n; const M = GW.Forge.METALS[key]; UI.toast(`<span style="color:#${M.color.toString(16).padStart(6, '0')}">${M.glyph}</span> ${M.name} ingot${n > 1 ? ' ×' + n : ''}`, 3); }
     GWAudio.sfx('pickup');
   }
+  G.unknownAbil = function (pool) { const b = GW.Abil.ensure(G.player); const left = (pool || GW.Abil.FIND).filter(k => !b.known[k]); return left.length ? left[Math.floor(Math.random() * left.length)] : null; };
   function count(key) {
     const q = QUESTS[G.stage];
     if (!q.need || !q.need[key]) return;
@@ -109,7 +116,7 @@
   }
   function build() {
     $('t-menu').style.visibility = '';
-    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 2 3 4 skills · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 1-4 abilities · B book · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -356,6 +363,7 @@
     for (const f of G.ownFires.slice()) { f.left -= dt; if (f.left <= 0) { douse(f); UI.toast('Your fire has burned out.', 2.5); } }
   };
   // nearest lit fire (campfires, your own fires) within r
+  G.craftStation = function () { const P = G.player; return !!G.nearFire(P.pos.x, P.pos.z, 6) || GW.World.interact.some(it => it.type === 'forge' && Math.hypot(it.x - P.pos.x, it.z - P.pos.z) < 5); };
   G.nearFire = function (x, z, r) {
     let best = null, bd = r;
     for (const f of GW.World.fires || []) { if (f.out) continue; const d = Math.hypot(x - f.x, z - f.z); if (d < bd) { bd = d; best = f; } }
@@ -385,7 +393,7 @@
           if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
-          P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 };
+          P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 }; P.cd = {};
           P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
           if (d.tod !== undefined) G.tod = d.tod;
           G.castleLooted = !!d.castleLooted;
@@ -396,6 +404,7 @@
         }
       } else { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
       G.castleLoot();
+      GW.Abil.ensure(P); UI.refreshAbil && UI.refreshAbil();
       P.recalc(); P.hp = P.maxHp;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
@@ -542,6 +551,7 @@
       }
     }
     if (G.buff && G.buff.kind === 'might' && G.t < G.buff.until) dmg *= 1.25;
+    if (P.mightT > 0) dmg *= 1.25;
     if (!o.dot && !o.chain && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
     if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
     dmg = Math.max(1, Math.round(dmg));
@@ -606,6 +616,7 @@
     drops.push(...armorDrops.filter(([, pool]) => pool.some(k => !P.inv.armor[k])).map(([k, pool, ch]) => [k, pool.filter(x => !P.inv.armor[x]), ch]));
     for (const [kind, pool, ch] of drops) if (Math.random() < ch * luck) spawnPickup(kind, pool[Math.floor(Math.random() * pool.length)], e.pos);
     if (!e.T.boss && Math.random() < (e.hunter ? 0.5 : 0.3)) spawnPickup('kindling', 'kindling', e.pos);
+    if (e.elite && Math.random() < 0.25) { const k = G.unknownAbil(); if (k) spawnPickup('abil', k, e.pos); }
     if (e.bossKey) regionBossDefeated(e);
     else if (e.type === 'widow') widowDefeated(e);
     else if (e.T.boss) bossDefeated(e);
@@ -628,8 +639,8 @@
     });
   };
   function spawnPickup(kind, key, at, fixedY, tag) {
-    const col = kind === 'kindling' ? 0xd08040 : kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
-    const m = new THREE.Mesh(kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
+    const col = kind === 'abil' ? new THREE.Color(GW.Abil.LIST[key].col).getHex() : kind === 'kindling' ? 0xd08040 : kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
+    const m = new THREE.Mesh(kind === 'abil' ? new THREE.TorusGeometry(0.26, 0.07, 6, 12) : kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
     const p = at.clone(); p.x += (Math.random() - 0.5) * 1.2; p.z += (Math.random() - 0.5) * 1.2;
     m.position.copy(p); G.scene.add(m);
     const light = GW.World.lights.add(p.x, p.y + 1, p.z, new THREE.Color(col).multiplyScalar(0.6), 4, 0.3);
@@ -640,6 +651,7 @@
     if (G.player.horse && G.player.horse.ridden && G.player.iframe <= 0) { dismount(true); UI.toast('Thrown from the saddle!', 1.5); }
     if (G.buff && G.buff.kind === 'ward' && G.t < G.buff.until) dmg *= 0.75;
     const P = G.player;
+    if (P.wardT > 0) { dmg *= 0.4; o = Object.assign({}, o, { noStagger: true }); }
     if (P.state === 'dead') return;
     if (P.iframe > 0) {
       // perfect dodge: rolled at the last instant -> glyph-time
@@ -673,7 +685,7 @@
     G.parts.blood.burst(P.pos.x, P.pos.y + 1.2, P.pos.z, 8, 3, 0xa01010, 0.6, 1, -10);
     navigator.vibrate && navigator.vibrate(o.heavy ? 60 : 25);
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
-    if ((P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
+    if (!o.noStagger && (P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
     if (P.hp <= 0) {
       P.hp = 0; P.state = 'dead'; P.t = 0; G.state = 'dying';
       GWAudio.sfx('die'); UI.boss(false);
@@ -722,6 +734,7 @@
     give('shards', 300 + 20 * (e.lvl || 1));
     if (left.length) spawnPickup('armor', left[Math.floor(Math.random() * left.length)], e.pos);
     spawnPickup('rune', 'thirst', e.pos); spawnPickup('ingot', 'starfall', e.pos);
+    if (GW.Abil.BOSS[e.bossKey]) spawnPickup('abil', GW.Abil.BOSS[e.bossKey], e.pos);
     for (const en of G.enemies) if (en.temp && en.alive) { en.hp = 1; G.hitEnemy(en, 99, { dot: 'burn' }); }
     UI.banner('the region breathes again', e.T.name + ' FALLS', 4);
     save();
@@ -730,7 +743,7 @@
     G.bossActive = false; G.curBoss = null; G.widowDead = true; UI.boss(false);
     G.shake(1.0); GWAudio.sfx('boom'); GWAudio.sfx('quest');
     for (let k = 0; k < 60; k++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 8; G.parts.spark.emit(e.pos.x, e.pos.y + 2, e.pos.z, Math.cos(a) * s, 2 + Math.random() * 6, Math.sin(a) * s, 2, 1.3, 0xd8e4ff, -6); }
-    spawnPickup('armor', 'night', e.pos); spawnPickup('ingot', 'duskglass', e.pos); spawnPickup('rune', 'venom', e.pos); spawnPickup('kindling', 'kindling', e.pos); spawnPickup('kindling', 'kindling', e.pos);
+    spawnPickup('abil', 'snare', e.pos); spawnPickup('armor', 'night', e.pos); spawnPickup('ingot', 'duskglass', e.pos); spawnPickup('rune', 'venom', e.pos); spawnPickup('kindling', 'kindling', e.pos); spawnPickup('kindling', 'kindling', e.pos);
     UI.banner('the hollow falls silent', 'DUSK WIDOW FELLED', 4);
     save();
   }
@@ -836,6 +849,11 @@
       { label: '▬ An ingot (random)', cost: 35, buy: () => give('ingot', metalKeys[Math.floor(Math.random() * metalKeys.length)]) },
       { label: '⛨ Armour piece (random)', cost: 140, ok: () => armorLeft.length > 0, buy: () => give('armor', armorLeft[Math.floor(Math.random() * armorLeft.length)]) },
     ];
+    // abilities: this region's own art, and an old scroll of something wilder
+    const A = GW.Abil, book = A.ensure(P);
+    for (const k in A.LIST) { const a = A.LIST[k]; if (a.src === 'shop' && a.region === region) {
+      items.push({ label: `<span style="color:${a.col}">${a.g}</span> Ability: ${a.name}`, cost: 180, ok: () => !book.known[k], buy: () => give('abil', k) }); } }
+    const scroll = G.unknownAbil(); if (scroll) items.push({ label: '✎ Old glyph scroll (unknown ability)', cost: 320, ok: () => !!G.unknownAbil(), buy: () => { const k = G.unknownAbil(); if (k) give('abil', k); } });
     G.state = 'shop';
     UI.showShop(who, P.inv.shards || 0, items, it => {
       if ((P.inv.shards || 0) < it.cost || (it.ok && !it.ok())) { GWAudio.sfx('ui'); return false; }
@@ -910,6 +928,7 @@
       const loot = [['kindling', 'kindling'], R() < 0.5 ? ['rune', rk[Math.floor(R() * rk.length)]] : ['ingot', mk[Math.floor(R() * mk.length)]]];
       const left = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
       if (left.length && R() < (p.type === 'elite' ? 0.6 : 0.15)) loot.push(['armor', left[Math.floor(R() * left.length)]]);
+      if (R() < (p.type === 'elite' ? 0.5 : 0.18)) { const k = G.unknownAbil(); if (k) loot.push(['abil', k]); }
       loot.forEach(([k, key]) => spawnPickup(k, key, at, y)); return;
     }
     const armor = ['night', 'scale', 'sallet', 'hauberk'].find(k => !P.inv.armor[k]);
@@ -1223,6 +1242,7 @@
     if (pressed.menu) {
       if (UI.mapOpen()) UI.toggleMap(G, false);
       else if (UI.invOpen()) UI.toggleInv(G, false);
+      else if (UI.bookOpen()) UI.toggleBook(G, false);
       else if (G.state === 'forge') GW.Forge.UI.close();
       else if (G.state === 'gear') G.closeGear();
       else if (G.state === 'play' && !UI.inDialog()) togglePause(true);
@@ -1231,6 +1251,8 @@
     UI.tick(dt);
     if (pressed.map && (G.state === 'play' || UI.mapOpen()) && !UI.inDialog()) UI.toggleMap(G);
     if (pressed.inv && (G.state === 'play' || UI.invOpen()) && !UI.inDialog()) UI.toggleInv(G);
+    if (pressed.book && (G.state === 'play' || UI.bookOpen()) && !UI.inDialog()) UI.toggleBook(G);
+    if (UI.bookOpen()) for (let i = 0; i < 4; i++) if (pressed['a' + (i + 1)]) { UI.bookPick(G, i); pressed['a' + (i + 1)] = false; }
     if (UI.mapOpen() && frame % 10 === 0) UI.drawWorldMap(G);
     if (pressed.gear) { if (G.state === 'gear') G.closeGear(); else if (G.state === 'play' && !UI.inDialog()) openGear(); }
     if (G.state === 'gear') {
@@ -1264,7 +1286,7 @@
     let sdt = dt;
     if (G.hitstop > 0) { G.hitstop -= dt; sdt = dt * 0.05; }
     if (G.tsT > 0) { G.tsT -= dt; sdt *= G.ts; }
-    if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || G.state === 'shop' || UI.mapOpen() || UI.invOpen()) sdt = 0;
+    if (G.state === 'paused' || G.state === 'dead' || G.state === 'travel' || G.state === 'shop' || UI.mapOpen() || UI.invOpen() || UI.bookOpen()) sdt = 0;
 
     if (playing) {
       let input = { mx: 0, mz: 0 };
@@ -1276,8 +1298,8 @@
         const aim = aimPoint();
         input = { mx: mv.x, mz: mv.z, aim, aimHeld: I.mouse.down,
           attack: pressed.attack || pressed.click, attackHeld: I.mouse.down || I.holdAttack || !!I.keys.KeyJ, block: I.mouse.right || I.holdBlock || !!I.keys.KeyV, roll: pressed.roll,
-          s2: pressed.s2, s3: pressed.s3, s4: pressed.s4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
-        if (P.horse && P.horse.ridden) { input.attackHeld = input.block = false; input.attack = input.roll = input.s2 = input.s3 = input.s4 = input.potion = false; }
+          a1: pressed.a1, a2: pressed.a2, a3: pressed.a3, a4: pressed.a4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
+        if (P.horse && P.horse.ridden) { input.attackHeld = input.block = false; input.attack = input.roll = input.a1 = input.a2 = input.a3 = input.a4 = input.potion = false; }
         const it = nearestInteract();
         UI.interact(it ? it.label : null);
         if (pressed.interact && it) doInteract(it);
@@ -1285,6 +1307,7 @@
         if (pressed.horse) toggleHorse();
       }
       if (sdt > 0) {
+        GW.Abil.update(G, sdt);
         for (const u of GW.World.grass.push) u.z = 0;
         P.update(sdt, input, G);
         for (const e of G.enemies) e.update(sdt, G);
@@ -1472,7 +1495,9 @@
         if (Math.hypot(P.pos.x - p.pos.x, P.pos.z - p.pos.z) < p.r + 0.45) { G.hurtPlayer(p.dmg, p.pos, {}); boom = true; if (p.web) { P.webbed = 2.4; UI.toast('Webbed!', 1.2); } if (p.src && p.src.T.onHit && P.iframe <= 0) p.src.T.onHit(G, p.src); }
         if (boom && p.web) G.webBurst(p.pos.x, p.pos.z);
       } else {
-        for (const e of G.enemies) if (e.alive && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r + e.radius) { boom = true; break; }
+        for (const e of G.enemies) if (e.alive && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r + e.radius) {
+          if (p.pierce) { p.hitSet = p.hitSet || new Set(); if (!p.hitSet.has(e)) { p.hitSet.add(e); G.hitEnemy(e, p.dmg, { proj: true, from: p.pos, brk: 1.4 }); if (p.chill && e.alive) e.status.slow = p.chill; } continue; }
+          if (!p.aoe) G.hitEnemy(e, p.dmg, { proj: true, from: p.pos }); boom = true; break; }
       }
       if (boom) {
         G.parts.spark.burst(p.pos.x, p.pos.y, p.pos.z, p.aoe ? 26 : 10, p.aoe ? 7 : 3, p.color, 0.5, 1.1, -3);

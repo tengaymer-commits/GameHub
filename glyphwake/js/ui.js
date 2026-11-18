@@ -10,7 +10,7 @@
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', KeyH: 'horse', Digit2: 's2', Digit3: 's3', Digit4: 's4', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', Digit1: 'attack', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'inv', KeyM: 'map' };
+  const KEYMAP = { Space: 'roll', KeyH: 'horse', Digit1: 'a1', Digit2: 'a2', Digit3: 'a3', Digit4: 'a4', KeyB: 'book', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'inv', KeyM: 'map' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {
@@ -111,7 +111,7 @@
     const hb = $('hotbar'); hb.innerHTML = '';
     const slots = [
       { k: 'LMB', g: '⚔', id: 'attack' }, { k: 'SPC', g: '⟲', id: 'roll' },
-      { k: '2', g: GW.SKILLS.s2.glyph, id: 's2' }, { k: '3', g: GW.SKILLS.s3.glyph, id: 's3' }, { k: '4', g: GW.SKILLS.s4.glyph, id: 's4' },
+      { k: '1', g: '·', id: 'a1' }, { k: '2', g: '·', id: 'a2' }, { k: '3', g: '·', id: 'a3' }, { k: '4', g: '·', id: 'a4' },
       { k: 'Q', g: '♥', id: 'potion' },
     ];
     UI.hs = {};
@@ -121,6 +121,17 @@
       hb.appendChild(d); UI.hs[s.id] = d;
     });
     UI.hs.potion.querySelector('.g').style.color = '#e0484a';
+    UI.refreshAbil();
+  };
+  // slot glyphs on the hotbar and touch buttons follow the loadout
+  UI.refreshAbil = function () {
+    const G = GW.G, P = G && G.player; if (!P || !P.inv || !UI.hs) return;
+    const b = GW.Abil.ensure(P);
+    for (let i = 0; i < 4; i++) {
+      const a = b.slots[i] && GW.Abil.LIST[b.slots[i]], el = UI.hs['a' + (i + 1)]; if (!el) continue;
+      const g = el.querySelector('.g'); g.textContent = a ? a.g : '·'; g.style.color = a ? a.col : '#555a66'; el.title = a ? a.name : 'empty: B';
+      const tb = document.querySelector(`.tb[data-act=a${i + 1}] b`); if (tb) { tb.textContent = a ? a.g : '·'; tb.style.color = a ? a.col : ''; }
+    }
   };
   let hudCache = {};
   const setText = (id, t) => { if (hudCache[id] !== t) { hudCache[id] = t; $(id).textContent = t; } };
@@ -132,12 +143,13 @@
     const need = P.need();
     $('xp-fill').style.width = (P.xp / need * 100).toFixed(1) + '%';
     setText('xp-text', `LV ${P.level} · ${Math.floor(P.xp)} / ${need} XP`);
-    for (const k of ['s2', 's3', 's4']) {
-      const sk = GW.SKILLS[k], el = UI.hs[k];
-      const f = P.cd[k] / sk.cd;
+    const slots = GW.Abil.ensure(P).slots;
+    for (let i = 0; i < 4; i++) {
+      const k = 'a' + (i + 1), id = slots[i], sk = id && GW.Abil.LIST[id], el = UI.hs[k]; if (!el) continue;
+      const cd = sk ? (P.cd[id] || 0) : 0, f = sk ? cd / sk.cd : 0;
       el.querySelector('.cd').style.height = (f * 100) + '%';
-      el.querySelector('.c').textContent = P.cd[k] > 0 ? Math.ceil(P.cd[k]) : '';
-      el.classList.toggle('lack', P.fo < sk.fo);
+      el.querySelector('.c').textContent = cd > 0 ? Math.ceil(cd) : '';
+      el.classList.toggle('lack', !sk || P.fo < sk.fo);
       const tb = document.querySelector(`.tb[data-act=${k}] i`); if (tb) tb.style.height = (f * 100) + '%';
     }
     UI.hs.potion.querySelector('.c').textContent = P.flasks + '/' + P.maxFlasks;
@@ -228,6 +240,48 @@
     h += '<div class="sec">ARMOUR (wear it in Gear · C)</div>' + arm.map(it => row(`<span style="color:${hex(it.color)}">${K.pattern(it.set)}</span> ${it.name}`, '')).join('');
     $('inv-body').innerHTML = h;
     $('inv-close').onclick = () => UI.toggleInv(G, false);
+  };
+  // ---------------- Book of Glyphs: the ability loadout (B) ----------------
+  UI.bookOpen = () => !$('book').classList.contains('hidden');
+  let bookSel = 0;
+  UI.toggleBook = function (G, on) {
+    const open = on === undefined ? !UI.bookOpen() : on; $('book').classList.toggle('hidden', !open);
+    if (open) UI.renderBook(G); else UI.refreshAbil();
+  };
+  UI.bookPick = function (G, i) { bookSel = i; UI.renderBook(G); };
+  UI.renderBook = function (G) {
+    const P = G.player, A = GW.Abil, b = A.ensure(P), atStation = G.craftStation && G.craftStation();
+    $('book-slots').innerHTML = b.slots.map((k, i) => { const a = k && A.LIST[k];
+      return `<div class="bs${i === bookSel ? ' sel' : ''}" data-i="${i}"><span class="k">${i + 1}</span><span class="g" style="color:${a ? a.col : '#555a66'}">${a ? a.g : '·'}</span><span class="n">${a ? a.name : 'empty'}</span></div>`; }).join('');
+    const order = Object.keys(A.LIST).sort((x, y) => (b.known[y] ? 1 : 0) - (b.known[x] ? 1 : 0));
+    let h = `<div class="s-note">Pick a slot above, then an ability below. Right-click a slot to empty it. ${atStation ? '<span style="color:#ffcf6a">You can craft here.</span>' : 'Craft at a fire or an anvil.'}</div>`;
+    for (const k of order) {
+      const a = A.LIST[k], known = !!b.known[k], inSlot = b.slots.indexOf(k);
+      let right = '';
+      if (known) right = inSlot >= 0 ? `<span class="tag">slot ${inSlot + 1}</span>` : '<span class="tag dim">click to slot</span>';
+      else if (a.recipe) right = `<button class="btn sm${atStation && A.canCraft(P, k) ? '' : ' off'}" data-craft="${k}">Craft</button>`;
+      else right = '<span class="tag dim">not found</span>';
+      h += `<div class="ab${known ? '' : ' unk'}" data-k="${k}"><span class="g" style="color:${known ? a.col : '#4a4e5a'}">${a.g}</span>
+        <div class="t"><b>${a.name}</b> <span class="dim">· ${a.fo} focus · ${a.cd}s</span><br><span class="d">${a.desc}</span>
+        ${known ? '' : `<br><span class="w">${a.recipe ? A.recipeText(k) : A.where(k)}</span>`}</div>${right}</div>`;
+    }
+    $('book-body').innerHTML = h;
+    $('book-slots').querySelectorAll('.bs').forEach(el => {
+      el.onclick = () => UI.bookPick(G, +el.dataset.i);
+      el.oncontextmenu = ev => { ev.preventDefault(); b.slots[+el.dataset.i] = null; GWAudio.sfx('ui'); UI.renderBook(G); };
+    });
+    $('book-body').querySelectorAll('.ab').forEach(el => el.onclick = ev => {
+      const k = el.dataset.k;
+      if (ev.target.dataset.craft) {
+        if (!atStation) { UI.toast('Craft at a fire or an anvil', 1.6); return; }
+        if (!A.canCraft(P, k)) { UI.toast('Missing: ' + A.recipeText(k), 2.2); GWAudio.sfx('ui'); return; }
+        A.craft(P, k); GWAudio.sfx('anvil'); UI.toast(`<span style="color:${A.LIST[k].col}">${A.LIST[k].g}</span> Crafted <b>${A.LIST[k].name}</b>`, 3); G.save(); UI.renderBook(G); return;
+      }
+      if (!b.known[k]) return;
+      const old = b.slots.indexOf(k); if (old >= 0) b.slots[old] = b.slots[bookSel];
+      b.slots[bookSel] = k; GWAudio.sfx('socket'); bookSel = (bookSel + 1) % 4; G.save(); UI.renderBook(G);
+    });
+    $('book-close').onclick = () => UI.toggleBook(G, false);
   };
   UI.travelOpen = () => !$('travel').classList.contains('hidden');
   // compass strip: cardinal points and nearby places, relative to where the camera looks

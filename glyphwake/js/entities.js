@@ -148,12 +148,6 @@
     { dur: 0.42, h0: 0.09, h1: 0.22, arc: 'h', a0: 1.6, a1: -1.6, dmg: 1.1, range: 2.8, cone: 1.95, step: 2.6, st: 11 },
     { dur: 0.62, h0: 0.22, h1: 0.32, arc: 'v', a0: -1.5, a1: 0.7, dmg: 1.9, range: 3.2, cone: 0.8, step: 4.2, st: 17, heavy: true },
   ];
-  const SKILLS = {
-    s2: { name: 'Whirl', glyph: '◎', cd: 5, fo: 28, desc: 'spin and strike everything around you, twice' },
-    s3: { name: 'Lunge', glyph: '»', cd: 6, fo: 20, desc: 'dash through enemies; invulnerable while dashing' },
-    s4: { name: 'Glyphburst', glyph: '✶', cd: 3, fo: 32, desc: 'hurl a burst of rune-fire that explodes on impact' },
-  };
-  GW.SKILLS = SKILLS;
 
   function Player(scene) {
     this.scene = scene;
@@ -162,7 +156,7 @@
     this.maxHp = 100; this.hp = 100; this.st = 100; this.fo = 60; this.stDelay = 0;
     this.flasks = 3; this.maxFlasks = 3;
     this.state = 'move'; this.t = 0; this.combo = 0; this.queued = null; this.iframe = 0;
-    this.cd = { s2: 0, s3: 0, s4: 0 };
+    this.cd = {};
     this.weapon = { metal: 'iron', runes: [null, null, null] };
     this.gear = Object.assign({}, GW.Knight.DEFAULT);
     this.inv = { runes: {}, ingots: {}, kindling: 3, armor: { greathelm: 1, knightplate: 1, crimson: 1 } };
@@ -260,7 +254,8 @@
     // buffer inputs
     if (input.attack) this.queued = 'attack';
     if (input.roll) this.queued = 'roll';
-    for (const k of ['s2', 's3', 's4']) if (input[k]) this.queued = k;
+    for (const k of ['a1', 'a2', 'a3', 'a4']) if (input[k]) this.queued = k;
+    if (this.wardT > 0) this.wardT -= dt; if (this.mightT > 0) this.mightT -= dt;
     if (input.potion) this.queued = 'potion';
 
     const faceTarget = () => {
@@ -303,15 +298,16 @@
         this.st -= this.cur.st; this.stDelay = 0.6;
         if (this.riposteT > 0) { this.cur.dmg *= 3.5; this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
         GWAudio.sfx(this.cur.heavy ? 'heavy' : 'swing');
-      } else if (SKILLS[q]) {
-        const sk = SKILLS[q];
-        if (this.cd[q] > 0 || this.fo < sk.fo) { this.queued = null; if (this.fo < sk.fo) G.ui.toast('Not enough focus', 0.9); }
+      } else if (/^a[1-4]$/.test(q)) {
+        // an ability slot: whatever the player has slotted there
+        this.queued = null;
+        const id = GW.Abil.ensure(this).slots[+q[1] - 1], sk = id && GW.Abil.LIST[id];
+        if (!sk) G.ui.toast('Slot ' + q[1] + ' is empty · <span style="color:#ffcf6a">B</span> opens the Book of Glyphs', 1.6);
+        else if ((this.cd[id] || 0) > 0 || this.fo < sk.fo) { if (this.fo < sk.fo) G.ui.toast('Not enough focus', 0.9); }
         else {
-          this.queued = null; this.fo -= sk.fo; this.cd[q] = sk.cd; this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = q;
-          faceTarget();
-          if (q === 's2') { this.cur = { dur: 0.72 }; GWAudio.sfx('heavy'); }
-          if (q === 's3') { this.cur = { dur: 0.34 }; this.iframe = 0.36; GWAudio.sfx('roll'); GWAudio.sfx('swing', 1.4); }
-          if (q === 's4') { this.cur = { dur: 0.36 }; this.fired = false; GWAudio.sfx('cast'); }
+          this.fo -= sk.fo; this.cd[id] = sk.cd; this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = id;
+          faceTarget(); this.cur = { dur: sk.dur }; this.fired = false;
+          if (sk.start) sk.start(this, G);
         }
       } else if (q === 'potion') {
         this.queued = null;
@@ -353,25 +349,9 @@
         break;
       }
       case 'skill': {
-        const k = this.t / this.cur.dur;
-        if (this.skill === 's2') {
-          vx = mv.x * speed * 0.45; vz = mv.z * speed * 0.45;
-          if ((this.t > 0.16 && this.t < 0.3) || (this.t > 0.44 && this.t < 0.58)) {
-            if (this.t > 0.44 && !this._wh2) { this.hitSet.clear(); this._wh2 = true; GWAudio.sfx('swing', 1.3); }
-            this.meleeHits(G, 3.6, Math.PI, 1.35, true);
-          }
-        } else if (this.skill === 's3') {
-          const sp = 30 * (1 - k * 0.7);
-          vx = Math.sin(this.yaw) * sp; vz = Math.cos(this.yaw) * sp;
-          this.meleeHits(G, 2.2, Math.PI, 2.1, true);
-          if (Math.random() < 0.8) G.parts.spark.emit(this.pos.x, this.pos.y + 1, this.pos.z, 0, 0.5, 0, 0.3, 1.2, this.trail.color.getHex(), 0);
-        } else if (this.skill === 's4') {
-          if (this.t > 0.14 && !this.fired) {
-            this.fired = true;
-            const f = this.fwd();
-            G.spawnProjectile({ from: 'player', x: this.pos.x + f.x * 1.1, y: this.pos.y + 1.3, z: this.pos.z + f.z * 1.1, vx: f.x * 19, vz: f.z * 19, r: 0.55, dmg: this.ws.dmg * 2.2, color: this.ws.trail, aoe: 3.0, life: 1.2 });
-          }
-        }
+        const k = this.t / this.cur.dur, sk = GW.Abil.LIST[this.skill];
+        const r = sk && sk.tick ? sk.tick(this, G, dt, { mv, speed, k }) : null;
+        if (r) { vx = r.vx; vz = r.vz; }
         if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; this._wh2 = false; }
         break;
       }
@@ -435,7 +415,7 @@
     // trail
     const tip = new V3(), base = new V3();
     this.tipObj.getWorldPosition(tip); this.baseObj.getWorldPosition(base);
-    const on = this.state === 'attack' || (this.state === 'skill' && this.skill !== 's4');
+    const on = this.state === 'attack' || (this.state === 'skill' && !!(GW.Abil.LIST[this.skill] || {}).melee);
     this.trail.push(base, tip, on);
     this.trail.update(dt);
     if (on && Math.random() < 0.5 && this.ws.trailParticles) G.parts.spark.emit(tip.x, tip.y, tip.z, (Math.random() - 0.5), 1, (Math.random() - 0.5), 0.45, 0.9, this.ws.trail, -1);
@@ -490,13 +470,7 @@
         if (fresh) R.play('Roll', { loop: false, restart: true, fade: 0.05, speed: R.dur('Roll') / this.cur.dur });
         break;
       case 'skill':
-        if (this.skill === 's2') {
-          if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, at: 0.2, speed: 1.6 });
-          const k = this.t / this.cur.dur; b.rotation.y = -E3(k) * TAU * 2;
-        } else if (this.skill === 's3') {
-          if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.04, at: Math.max(0, pk - 0.15), speed: 1.1 });
-          b.rotation.x = 0.3;
-        } else if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / this.cur.dur * 0.8 });
+        { const sk = GW.Abil.LIST[this.skill]; if (sk && sk.anim) sk.anim(this, R, b, fresh, GW.clamp(this.t / this.cur.dur, 0, 1)); }
         break;
       case 'charge': R.play('Idle_Sword', { fade: 0.15 }); b.rotation.x = -0.18 - 0.1 * Math.min(1, this.chargeT || 0); b.rotation.y = 0.35; break;
       case 'block': R.play('Idle_Sword', { fade: 0.1 }); b.rotation.y = -0.5; b.rotation.x = 0.08; break;
@@ -610,7 +584,7 @@
       return;
     }
     // status effects
-    const s = this.status; s.slow = Math.max(0, s.slow - dt);
+    const s = this.status; s.slow = Math.max(0, s.slow - dt); if (s.root > 0) s.root -= dt;
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.5;
@@ -627,7 +601,8 @@
     if (this.aggro && (P.state === 'dead' || dH > this.T.leash || dP > this.T.aggro * 2.2)) { if (!this.T.boss) { this.aggro = false; this.setState('return'); } }
     const ctx = { dt, G, P, dP, slow, W };
     if (this.brk > 0 && G.t - this.lastHit > 2.5) this.brk = Math.max(0, this.brk - G.brkMax(this) * 0.15 * dt);
-    if (this.brokenT > 0) { this.brokenT -= dt; this.moving = false; this.model.rotation.z = Math.sin(G.t * 9) * 0.06; if (this.brokenT <= 0) this.model.rotation.z = 0; }
+    if (s.root > 0 && !(this.brokenT > 0)) { this.moving = false; if (Math.random() < 0.15) G.parts.spark.emit(this.pos.x, this.pos.y + 0.3, this.pos.z, 0, 0.4, 0, 0.6, 0.9, 0xe0e8ff, 0); }
+    else if (this.brokenT > 0) { this.brokenT -= dt; this.moving = false; this.model.rotation.z = Math.sin(G.t * 9) * 0.06; if (this.brokenT <= 0) this.model.rotation.z = 0; }
     else this.T.ai(this, ctx);
     // knockback
     this.pos.x += this.kb.x * dt; this.pos.z += this.kb.z * dt; this.kb.multiplyScalar(Math.max(0, 1 - dt * 9));

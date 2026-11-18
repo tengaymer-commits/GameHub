@@ -197,3 +197,22 @@ body.touch #hotbar { display: none; }
   #interact { bottom: calc(330px + var(--safe-b)); }
   #dialog { bottom: calc(320px + var(--safe-b)); }
 }
+/* Book of Glyphs (abilities) */
+#book-slots { display: flex; gap: 8px; margin: 8px 0 6px; }
+#book-slots .bs { flex: 1; border: 1px solid #3a3e4a; background: rgba(20,22,30,.7); padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; min-width: 0; }
+#book-slots .bs.sel { border-color: #ffcf6a; box-shadow: 0 0 0 1px #ffcf6a55 inset; }
+#book-slots .k { color: #8a90a0; font-size: 11px; }
+#book-slots .g { font-size: 22px; width: 24px; text-align: center; }
+#book-slots .n { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#book-body { max-height: 58vh; overflow: auto; min-width: min(640px, 90vw); font-size: 13px; }
+#book-body .ab { display: flex; align-items: center; gap: 12px; padding: 7px 6px; border-bottom: 1px solid #23262f; cursor: pointer; }
+#book-body .ab:hover { background: rgba(255,255,255,.04); }
+#book-body .ab.unk { cursor: default; opacity: .78; }
+#book-body .ab .g { font-size: 24px; width: 30px; text-align: center; }
+#book-body .ab .t { flex: 1; line-height: 1.45; }
+#book-body .dim, #book-body .tag.dim { color: #737888; }
+#book-body .d { color: #c0c4d0; }
+#book-body .w { color: #d8b25a; font-size: 12px; }
+#book-body .tag { color: #ffcf6a; font-size: 12px; white-space: nowrap; }
+#book-body .btn.sm { padding: 4px 12px; font-size: 12px; width: auto; flex: none; margin: 0; }
+#book-body .btn.off { opacity: .45; }

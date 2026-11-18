@@ -77,7 +77,7 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 | Charged heavy | hold left click, release (or hold J) | hold ⚔ |
 | Block / parry | hold right click (or V); tap it as the blow lands to parry | hold ⛉ |
 | Roll | Space | ⟲ |
-| Skills | 2 · 3 · 4 | ◎ » ✶ |
+| Abilities | 1 · 2 · 3 · 4 (B opens the Book of Glyphs) | four slot buttons · ✎ |
 | Flask | Q | ♥ |
 | Talk / rest / anvil | E | E |
 | Camera zoom | mouse wheel | ≡ → Settings → Camera distance |
@@ -93,6 +93,21 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Perfect dodge**: roll through a blow at the last instant. Time slows, you get +30 stamina, and your next hit crits.
 - **Break bar** `[####----]`: hits fill it. When it is full the enemy is **BROKEN** for about 3 s. Attack it then for a **finisher**: 50% of its life (8% on bosses), and you heal 12%.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
+
+## Abilities (Book of Glyphs, B)
+There are 17 abilities. You slot any 4 of them on keys 1–4. In the Book, pick a slot, then click an ability; right-click a slot to empty it. Every ability costs focus and has a cooldown.
+
+How you get them:
+
+| Source | Abilities |
+|---|---|
+| Known from the start | Whirl ◎, Lunge », Glyphburst ✶ |
+| Crafted at a fire or an anvil (runes + ingots + shards) | Ward Sigil ⛨ (2 Ward, Steel), Rime Nova ❄ (2 Frost, Silver), Chain Spark ϟ (2 Storm, Duskglass), Bloodglyph ♁ (2 Thirst, Gold) |
+| Found (chests 18%, elite chests and dungeon top floors 50%, elite kills 25%) | Earthsplitter ▼, Inkstep ◌, Ink Chain ⌐ |
+| Sold by traders | Rune Volley ⁂ (Hearthwick), War Cry ‼ (Highlands). Every trader also sells an "old glyph scroll" with a random unfound ability. |
+| Boss drops | Colossus Quake ≋, Rime Lance ⇶, Blight Cloud ☁, Skyfall ⇓, Web Snare ⌗ (Dusk Widow) |
+
+Ability definitions live in `js/abilities.js`. Each one has `start`, `tick` and `anim` hooks, so a new ability is one entry there.
 
 ## How the glyph rendering works (`js/engine.js`)
 1. Every material is a small custom shader. It writes its lit color to RGB and a **glyph-set id** to alpha (stone, water, fire, cloth, ruin letters …).
