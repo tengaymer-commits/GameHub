@@ -6810,6 +6810,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     salt: { x: 0, z: 2600 },          // S  the Salt Wastes
     mire: { x: -2250, z: 1300 },      // SW the Mire
     dusk: { x: -2250, z: -1300 },     // NW Duskwood
+    dunmaer: { x: 2620, z: -1760 },   // Castle Dunmaer, the great Highland ruin (three floors inside)
     vfrost: { x: -150, z: -2552 },    // villages beside the two landmark hubs
     vash: { x: 2250, z: 1348 },
   };
@@ -6862,6 +6863,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -2600, r: 24 },
     { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
     { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -150, z: -2552, r: 30 },
+    { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 2620, z: -1760, r: 26 },
     { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2250, z: 1220, r: 22 },
     { name: 'THE ABBEY YARD', sub: 'a knight keeps vigil', x: -150, z: -2650, r: 22 },
     { name: "THE HAG'S POOL", sub: 'green light under the water', x: -2050, z: 1560, r: 22 },
@@ -6944,7 +6946,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
-    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash', 'dunmaer']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
     flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
     return h;
   }
@@ -7104,14 +7106,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     SIZE, L, ZONES, WATER_Y, BIOMES, HUBS,
     colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], occluders: [], lights: null, fireflies: null,
   };
-  W.heightAt = (x, z) => sample('H', x, z);
+  W.heightAt = (x, z) => x > 9000 ? 0 : sample('H', x, z);
   W.riverAt = (x, z) => sample('R', x, z);
   W.waterYAt = (x, z) => sample('RY', x, z);
-  W.biomeAt = (x, z) => { const b = biomeSample(x, z), o = { vale: 1 }; BIOMES.forEach((n, k) => { o[n] = b[k]; o.vale -= b[k]; }); return o; };
-  W.regionAt = (x, z) => { const b = biomeSample(x, z); let best = 'vale', bv = 0.5; b.forEach((v, k) => { if (v > bv) { bv = v; best = BIOMES[k]; } }); return best; };
+  W.biomeAt = (x, z) => { if (x > 9000) return { vale: 1, frost: 0, high: 0, ash: 0, salt: 0, mire: 0, dusk: 0 }; const b = biomeSample(x, z), o = { vale: 1 }; BIOMES.forEach((n, k) => { o[n] = b[k]; o.vale -= b[k]; }); return o; };
+  W.regionAt = (x, z) => { if (x > 9000) return 'vale'; const b = biomeSample(x, z); let best = 'vale', bv = 0.5; b.forEach((v, k) => { if (v > bv) { bv = v; best = BIOMES[k]; } }); return best; };
   W.REGIONS = REGIONS; W.CORE = CORE;
-  W.pathAt = (x, z) => sample('P', x, z);
-  W.inWater = (x, z) => sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
+  W.pathAt = (x, z) => x > 9000 ? 99 : sample('P', x, z);
+  W.inWater = (x, z) => x < 9000 && sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
   W.onBridge = (x, z) => {
     const b = W.bridge; if (!b) return false;
     const dx = x - b.x, dz = z - b.z;
@@ -7159,6 +7161,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       }
     }
     const lim = 3880;   // the mountains at the world's edge
+    if (p.x > 9000) return hit;   // inside a dungeon level
     if (Math.abs(p.x) > lim) { p.x = Math.sign(p.x) * lim; hit = true; }
     if (Math.abs(p.z) > lim) { p.z = Math.sign(p.z) * lim; hit = true; }
     return hit;
@@ -7675,7 +7678,25 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
 
   // ----- hubs & landmarks beyond the Vale: reuse the chapel/tower models with region palettes -----
+  function buildDunmaer(scene) {
+    const g = GW.Assets.gltf.castle; if (!g) return;
+    const C = L.dunmaer, base = W.heightAt(C.x, C.z) - 0.05;
+    mergeByMat(g, {
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a8a84, fill: 0.1 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5e5e5a, fill: 0.08 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x7a8a5a, fill: 0.1 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a5a44 }),
+      woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x4a3e30 }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
+    }, null, C.x, base, C.z, scene);
+    const tw = (lx, ly) => [C.x + lx, C.z - ly], R = 11;
+    const seg = (x0, y0, x1, y1, r, skip) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
+      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; W.addCollider(...tw(lx, ly), r, 'castle'); } };
+    seg(-R, -R, R, -R, 0.7, lx => Math.abs(lx) < 1.6); seg(-R, -R, -R, R, 0.7); seg(-R, R, R, R, 0.7); seg(R, -R, R, R, 0.7);
+    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => W.addCollider(...tw(lx, ly), 2.7, 'castle'));
+    seg(-6, 2, 6, 2, 0.55); seg(-6, 2, -6, 10, 0.55); seg(-6, 10, 6, 10, 0.55); seg(6, 2, 6, 10, 0.55);   // the keep: entered through its door
+    W.interact.push({ type: 'castle', x: C.x, z: C.z - 1.2, r: 2.4, label: 'Enter Castle Dunmaer' });
+    campfire(scene, C.x - 5, C.z + 16, 'Dunmaer Gate');
+  }
   function buildHubs(scene) {
+    buildDunmaer(scene);
     for (const h of HUBS) {
       const c = L[h.at]; campfire(scene, c.x, c.z, h.name);
       // a smith's anvil in every village
@@ -7741,7 +7762,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
     if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
-    for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
+    for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash, L.dunmaer]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
     if (W.poisNear(x, z, 13 + r).length) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
@@ -7749,13 +7770,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------- points of interest: one per 150 m cell (most cells), seeded, typed by region ----------
   const POI_CELL = 150, poiCache = new Map();
   const POI_W = {
-    vale: { camp: 0.26, ruin: 0.14, chest: 0.14, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08 },
-    frost: { camp: 0.3, ruin: 0.12, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09 },
-    high: { camp: 0.24, ruin: 0.2, chest: 0.12, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08 },
-    ash: { camp: 0.32, ruin: 0.16, chest: 0.1, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1 },
-    salt: { camp: 0.22, ruin: 0.18, chest: 0.16, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06 },
-    mire: { camp: 0.28, ruin: 0.14, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08 },
-    dusk: { camp: 0.26, ruin: 0.16, chest: 0.12, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08 },
+    vale: { cave: 0.05, camp: 0.21, ruin: 0.14, chest: 0.14, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08 },
+    frost: { cave: 0.05, camp: 0.25, ruin: 0.12, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09 },
+    high: { cave: 0.06, camp: 0.18, ruin: 0.2, chest: 0.12, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08 },
+    ash: { cave: 0.05, camp: 0.27, ruin: 0.16, chest: 0.1, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1 },
+    salt: { cave: 0.05, camp: 0.17, ruin: 0.18, chest: 0.16, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06 },
+    mire: { cave: 0.05, camp: 0.23, ruin: 0.14, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08 },
+    dusk: { cave: 0.06, camp: 0.2, ruin: 0.16, chest: 0.12, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08 },
   };
   W.poiAt = function (i, j) {
     const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
@@ -7764,7 +7785,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 90, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 90;
     const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
-      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && sample('R', x, z) > 14 && sample('P', x, z) > 9;
+      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && sample('R', x, z) > 14 && sample('P', x, z) > 9;
     if (ok) {
       const region = W.regionAt(x, z), w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
@@ -7794,6 +7815,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
       case 'elite': ring(5, 6, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
+      case 'cave':     // a rock mound with a black mouth: walk in to go underground
+        ring(6, 3.4, (x, z, a) => { if (Math.abs(GW.angDiff(a, Math.PI / 2)) > 0.5) kit('kit_rock_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.6, 0.9, bio); });
+        kit('kit_arch', p.x, p.z + 2.5, 1.0, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
+        inter.push({ type: 'cave', x: p.x, z: p.z + 3.4, r: 2.4, label: 'Enter the cave', poi: p }); break;
       default: break;   // ambush: nothing to see until it is too late
     }
   }
@@ -8400,6 +8425,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       ff.im.instanceMatrix.needsUpdate = true;
     }
     W.grass.mat.uniforms.uCenter.value.set(px, pz);
+    if (px > 9000) return;   // in a dungeon: the overworld sleeps
     prefetch(px, pz);
     W.dataWindow(px, pz);
     if (Math.abs(px - W._tc[0]) > 96 || Math.abs(pz - W._tc[1]) > 96) W.terrainRefresh(false, px, pz);
@@ -8441,6 +8467,97 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     for (const [ch, x, y, col] of glyphs) { g.fillStyle = `rgb(${col[0] | 0},${col[1] | 0},${col[2] | 0})`; g.fillText(ch, x, y); }
     return c;
   };
+})();
+
+</script>
+<script>
+// Glyphwake: instanced dungeons. Caves and castle floors are built far outside the 8 km world
+// (x >= 20 km) while the overworld is hidden, then torn down when you leave.
+(function () {
+  'use strict';
+  const GW = window.GW, ID = GW.ID;
+  const TILE = 2, TN = 72;                       // 72 x 72 tiles of 2 m = 144 m per level
+  const X0 = 20000;                              // where levels are built
+  const D = GW.Dungeon = { X0 };
+  const STYLE = {
+    cave: { wall: { id: ID.ROCK, tex: 6, color: 0x6a6660, fill: 0.08 }, floor: { id: ID.STONE, tex: 8, color: 0x2e2c2a }, rooms: [6, 8], size: [6, 11], torch: 1.2 },
+    castle: { wall: { id: ID.MASONRY, tex: 8, color: 0x8a8c90, fill: 0.1 }, floor: { id: ID.STONE, tex: 8, color: 0x46484c }, rooms: [5, 7], size: [7, 12], torch: 1.6 },
+  };
+  // carve rooms joined by corridors on a tile grid
+  function layout(rnd, st) {
+    const floor = new Uint8Array(TN * TN), rooms = [];
+    const nRooms = st.rooms[0] + Math.floor(rnd() * (st.rooms[1] - st.rooms[0] + 1));
+    const carve = (x0, z0, x1, z1) => { for (let z = Math.max(1, z0); z <= Math.min(TN - 2, z1); z++) for (let x = Math.max(1, x0); x <= Math.min(TN - 2, x1); x++) floor[z * TN + x] = 1; };
+    const overlaps = r => rooms.some(o => r.x0 - 2 < o.x1 && r.x1 + 2 > o.x0 && r.z0 - 2 < o.z1 && r.z1 + 2 > o.z0);
+    let cx = 10, cz = TN / 2;
+    for (let i = 0; i < nRooms; i++) {
+      let r = null;
+      for (let tries = 0; tries < 60 && !r; tries++) {
+        const w = st.size[0] + Math.floor(rnd() * (st.size[1] - st.size[0])), h = st.size[0] + Math.floor(rnd() * (st.size[1] - st.size[0]));
+        let x0, z0;
+        if (!rooms.length) { x0 = 3; z0 = Math.floor(TN / 2 - h / 2); }
+        else { const a = (rnd() - 0.5) * Math.PI * 1.3, d = 14 + rnd() * 8; x0 = Math.round(cx + Math.cos(a) * d - w / 2); z0 = Math.round(cz + Math.sin(a) * d - h / 2); }
+        const c = { x0, z0, x1: x0 + w, z1: z0 + h };
+        if (c.x0 < 2 || c.z0 < 2 || c.x1 > TN - 3 || c.z1 > TN - 3 || overlaps(c)) continue;
+        r = c;
+      }
+      if (!r) break;
+      r.cx = Math.floor((r.x0 + r.x1) / 2); r.cz = Math.floor((r.z0 + r.z1) / 2);
+      carve(r.x0, r.z0, r.x1, r.z1);
+      if (rooms.length) {   // L-shaped corridor, 3 tiles wide, from the previous room
+        const p = rooms[rooms.length - 1];
+        if (rnd() < 0.5) { carve(Math.min(p.cx, r.cx), p.cz - 1, Math.max(p.cx, r.cx), p.cz + 1); carve(r.cx - 1, Math.min(p.cz, r.cz), r.cx + 1, Math.max(p.cz, r.cz)); }
+        else { carve(p.cx - 1, Math.min(p.cz, r.cz), p.cx + 1, Math.max(p.cz, r.cz)); carve(Math.min(p.cx, r.cx), r.cz - 1, Math.max(p.cx, r.cx), r.cz + 1); }
+      }
+      rooms.push(r); cx = r.cx; cz = r.cz;
+    }
+    return { floor, rooms };
+  }
+  // build one level: walls (letters), floor, torches. Returns everything needed to tear it down.
+  D.build = function (scene, seed, kind, slot) {
+    const W = GW.World, st = STYLE[kind], rnd = GW.rand(seed), { floor, rooms } = layout(rnd, st);
+    const ox = X0 + slot * 400, oz = 0, at = (tx, tz) => [ox + tx * TILE + TILE / 2, oz + tz * TILE + TILE / 2];
+    const lv = { kind, rooms, meshes: [], cols: [], lights: [], flames: [], inter: [], at, floor };
+    const isF = (x, z) => x >= 0 && z >= 0 && x < TN && z < TN && floor[z * TN + x];
+    // walls: every solid tile touching the floor becomes a block
+    const walls = [];
+    for (let z = 0; z < TN; z++) for (let x = 0; x < TN; x++) {
+      if (floor[z * TN + x]) continue;
+      let near = false; for (let dz = -1; dz <= 1 && !near; dz++) for (let dx = -1; dx <= 1; dx++) if (isF(x + dx, z + dz)) { near = true; break; }
+      if (near) walls.push([x, z]);
+    }
+    const wg = new THREE.BoxGeometry(TILE, 3.6, TILE); wg.translate(0, 1.8, 0);
+    const wm = GW.mat(Object.assign({ side: THREE.DoubleSide }, st.wall));
+    const im = new THREE.InstancedMesh(wg, wm, walls.length), m4 = new THREE.Matrix4(), col = new THREE.Color();
+    walls.forEach(([x, z], i) => { const [wx, wz] = at(x, z), hgt = 0.85 + 0.3 * rnd(); m4.makeScale(1, hgt, 1); m4.setPosition(wx, 0, wz); im.setMatrixAt(i, m4); im.setColorAt(i, col.setScalar(0.8 + rnd() * 0.35)); lv.cols.push(W.addCollider(wx, wz, 1.25, 'dwall')); });
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.computeBoundingSphere(); scene.add(im); lv.meshes.push(im); W.occluders.push(im);
+    // floor
+    const fg = new THREE.PlaneGeometry(TN * TILE, TN * TILE, 1, 1); fg.rotateX(-Math.PI / 2); fg.translate(ox + TN * TILE / 2, 0, oz + TN * TILE / 2);
+    const fl = new THREE.Mesh(fg, GW.mat(st.floor)); scene.add(fl); lv.meshes.push(fl);
+    // torches on room walls
+    const fm = GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }), pm = GW.mat({ id: ID.WOOD, color: 0x4a3420 });
+    for (const r of rooms) {
+      const n = Math.max(1, Math.round(2 * st.torch + rnd()));
+      for (let k = 0; k < n; k++) {
+        const side = Math.floor(rnd() * 4), tx = side < 2 ? r.x0 + 1 + Math.floor(rnd() * (r.x1 - r.x0 - 1)) : (side === 2 ? r.x0 : r.x1), tz = side >= 2 ? r.z0 + 1 + Math.floor(rnd() * (r.z1 - r.z0 - 1)) : (side === 0 ? r.z0 : r.z1);
+        const [x, z] = at(tx, tz);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.8, 5), pm); pole.position.set(x, 0.9, z); scene.add(pole); lv.meshes.push(pole);
+        const f = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 5), fm); f.position.set(x, 2.05, z); scene.add(f); lv.meshes.push(f);
+        const fe = { m: f, s: rnd() * 10, base: 1 }; W.flames.push(fe); lv.flames.push(fe);
+        lv.lights.push(W.lights.add(x, 2.3, z, new THREE.Color(1.0, 0.55, 0.22), 9, 0.8));
+      }
+    }
+    lv.start = at(rooms[0].cx, rooms[0].cz); lv.end = at(rooms[rooms.length - 1].cx, rooms[rooms.length - 1].cz);
+    return lv;
+  };
+  D.destroy = function (scene, lv) {
+    const W = GW.World;
+    lv.meshes.forEach(m => { scene.remove(m); if (m.isInstancedMesh) m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); });
+    lv.cols.forEach(W.removeCollider); lv.lights.forEach(l => W.lights.remove(l));
+    W.flames = W.flames.filter(f => !lv.flames.includes(f));
+    W.interact = W.interact.filter(it => !lv.inter.includes(it));
+  };
+  D.TILE = TILE;
 })();
 
 </script>
@@ -10292,6 +10409,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const c = $('minimap'), g = c.getContext('2d'), P = G.player;
     const span = 80; // world units shown
     g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+    if (G.dungeon) { g.fillStyle = '#5a6070'; g.font = '10px monospace'; g.textAlign = 'center'; g.fillText('underground', 64, 64); return; }
     const LM = GW.World.getLocalMap(); g.imageSmoothingEnabled = false;
     g.drawImage(LM.canvas, (P.pos.x - span / 2 - LM.x0) / LM.mpp, (P.pos.z - span / 2 - LM.z0) / LM.mpp, span / LM.mpp, span / LM.mpp, 0, 0, 128, 128);
     const to = (x, z) => [(x - P.pos.x) / span * 128 + 64, (z - P.pos.z) / span * 128 + 64];
@@ -10307,6 +10425,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const WM = { open: false, zoom: 1, cx: 0, cz: 0, drag: null };
   UI.mapOpen = () => WM.open;
   UI.toggleMap = function (G, on) {
+    if (G.dungeon && on !== false) { UI.toast('No map down here.', 1.5); return; }
     WM.open = on === undefined ? !WM.open : on;
     $('worldmap').classList.toggle('hidden', !WM.open);
     if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 5; UI.drawWorldMap(G); }
@@ -10694,6 +10813,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const CAMP_REFILL = 300, CAMP_FAR = 60;
   function updateSpawns(dt) {
     const P = G.player, S = UI.settings;
+    if (G.dungeon) return;
     for (const c of G.camps || []) {
       const cleared = c.members.every(e => !e.alive);
       if (!cleared) { c.clearedAt = -1; continue; }
@@ -10766,7 +10886,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const P = G.player;
     if (P.state === 'dead') return;
     if (P.horse && P.horse.ridden) { dismount(false); return; }
-    if (P.floor || G.heroInside) { UI.toast("There's no room for a horse here.", 2); return; }
+    if (P.floor || G.heroInside || G.dungeon) { UI.toast("There's no room for a horse here.", 2); return; }
     if (G.enemies.some(e => e.alive && e.aggro && e.distTo(P.pos) < 18)) { UI.toast('Not while you are being hunted.', 2); return; }
     if (!P.horse) P.horse = new GW.Horse(G.scene);
     const H = P.horse;
@@ -10921,6 +11041,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---- exploration: fog of war, discovered fires, compass, regions ----
   G.FOG_CELL = 20; G.FOG_N = Math.ceil(GW.World.SIZE / 20); G.fog = new Uint8Array(G.FOG_N * G.FOG_N); G.discovered = {};
   function explore() {
+    if (G.dungeon) return;
     const P = G.player, S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N, R = 70;
     const i0 = Math.floor((P.pos.x - R + S / 2) / FC), i1 = Math.floor((P.pos.x + R + S / 2) / FC), j0 = Math.floor((P.pos.z - R + S / 2) / FC), j1 = Math.floor((P.pos.z + R + S / 2) / FC);
     for (let j = Math.max(0, j0); j <= Math.min(FN - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(FN - 1, i1); i++)
@@ -10968,6 +11089,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function respawnPlayer() {
     $('death').classList.add('hidden');
     fade(() => {
+      if (G.dungeon) leaveLevel(true);
       const P = G.player, sp = G.respawn || { x: GW.World.L.start.x, z: GW.World.L.start.z + 5 };
       P.state = 'move'; P.hp = P.maxHp; P.flasks = P.maxFlasks; P.st = 100; P.fo = 60;
       resetEnemies(); P.place(sp.x, sp.z + 2.2);
@@ -11198,6 +11320,55 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
     else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); }
     else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
+    else if (it.type === 'cave') enterLevel({ kind: 'cave', id: 'cave:' + it.poi.id, seed: it.poi.seed, region: it.poi.region, lvl: it.poi.lvl + 2, floors: 1, names: ['THE CAVE'], back: { x: it.x, z: it.z + 2 } });
+    else if (it.type === 'castle') { const L = GW.World.L; enterLevel({ kind: 'castle', id: 'dunmaer', seed: 9137, region: 'high', lvl: 1 + Math.floor(Math.hypot(L.dunmaer.x, L.dunmaer.z) / 280) + 3, floors: 3,
+      names: ['THE GATEHALL', 'THE GREAT HALL', 'THE CROWN TOWER'], back: { x: it.x, z: it.z + 2.5 } }); }
+    else if (it.type === 'dexit') fade(() => leaveLevel(false));
+    else if (it.type === 'dstairs') fade(() => buildFloor(G.dungeon.floor + 1));
+  }
+  // ---------------- dungeons: caves and Castle Dunmaer are separate levels ----------------
+  G.dungeon = null;
+  const DPOOL = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['highguard', 'cragwolf'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
+  function enterLevel(def) {
+    const P = G.player; if (P.horse && P.horse.ridden) dismount(false);
+    fade(() => {
+      // hide the overworld (its own enemies hide themselves by distance)
+      const keep = [P.model, P.shadow, P.trail && P.trail.mesh];
+      G.hiddenWorld = []; for (const o of G.scene.children) if (o.visible && !keep.includes(o)) { o.visible = false; G.hiddenWorld.push(o); }
+      G.dungeon = Object.assign({ floor: -1, enemies: [], lv: null }, def);
+      buildFloor(0);
+    });
+  }
+  function clearFloor() {
+    const d = G.dungeon; if (!d || !d.lv) return;
+    GW.Dungeon.destroy(G.scene, d.lv);
+    d.enemies.forEach(e => { e.alive = false; G.scene.remove(e.model); G.scene.remove(e.shadow); if (e.ring) G.scene.remove(e.ring); if (e.T.onDeath && e.light) e.T.onDeath(e); });
+    G.enemies = G.enemies.filter(e => !d.enemies.includes(e)); d.enemies = []; d.lv = null;
+  }
+  function buildFloor(f) {
+    const d = G.dungeon, P = G.player, W = GW.World; clearFloor();
+    d.floor = f;
+    const lv = d.lv = GW.Dungeon.build(G.scene, d.seed + f * 977, d.kind, 0), last = lv.rooms.length - 1, pool = DPOOL[d.region] || DPOOL.vale, R = GW.rand(d.seed + f * 31);
+    // enemies in every room but the first; the last room is guarded harder
+    lv.rooms.forEach((r, i) => { if (i === 0) return;
+      const n = i === last ? 2 : 2 + Math.floor(R() * 3);
+      for (let k = 0; k < n; k++) { const tx = r.x0 + 1 + Math.floor(R() * (r.x1 - r.x0 - 1)), tz = r.z0 + 1 + Math.floor(R() * (r.z1 - r.z0 - 1)), [x, z] = lv.at(tx, tz);
+        const e = G.spawnEnemy(pool[Math.floor(R() * pool.length)], x, z, { x, z }, false, d.lvl + f, i === last && k === 0); e.dungeon = true; d.enemies.push(e); } });
+    const top = f >= d.floors - 1, [ex, ez] = lv.end, [sx, sz] = lv.start;
+    const glow = (x, z, col) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24).rotateX(-Math.PI / 2), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true, side: THREE.DoubleSide })); m.position.set(x, 0.05, z); G.scene.add(m); lv.meshes.push(m); lv.lights.push(W.lights.add(x, 1.5, z, new THREE.Color(col).multiplyScalar(0.8), 6, 0.3)); };
+    const add = it => { W.interact.push(it); lv.inter.push(it); };
+    glow(sx, sz, 0x6ab8ff); add({ type: 'dexit', x: sx, z: sz, r: 2.2, label: f === 0 ? 'Leave' : 'Leave the castle' });
+    if (top) { const id = d.id + ':chest'; if (!G.opened[id]) { add({ type: 'chest', x: ex, z: ez, r: 1.8, label: 'Open the chest', id, poi: { seed: d.seed + 5, lvl: d.lvl + f, type: 'elite' } });
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.65), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x9a7040 })); box.position.set(ex, 0.3, ez); G.scene.add(box); lv.meshes.push(box); } }
+    else { glow(ex, ez, 0xffd070); add({ type: 'dstairs', x: ex, z: ez, r: 2.2, label: 'Climb to ' + (d.names[f + 1] || 'the next floor').toLowerCase() }); }
+    P.place(sx + 2.5, sz); P.floor = 0; G.snapCam = true;
+    UI.banner(d.kind === 'castle' ? 'floor ' + (f + 1) + ' of ' + d.floors : 'level ' + d.lvl, d.names[f] || 'THE DEPTHS', 2.8);
+  }
+  function leaveLevel(silent) {
+    const d = G.dungeon; if (!d) return;
+    clearFloor(); (G.hiddenWorld || []).forEach(o => { o.visible = true; }); G.hiddenWorld = null;
+    G.dungeon = null;
+    if (!silent) { const P = G.player; P.place(d.back.x, d.back.z); G.snapCam = true; GW.World._streamBudget = 99; GW.World.dataWindow(d.back.x, d.back.z, true); GW.World.terrainRefresh(true, d.back.x, d.back.z); }
   }
   // ---------------- travel targets: found fires and attuned waystones ----------------
   function travelList(x, z, exclude) {
@@ -11252,6 +11423,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const POI_ENEMY = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['cragwolf', 'highguard'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
   function poiTick() {
     const P = G.player, W = GW.World;
+    if (G.dungeon) return;
     for (const p of W.poisNear(P.pos.x, P.pos.z, 115)) {
       const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z);
       if (d < 60 && p.type !== 'ambush' && !G.poiSeen[p.id]) G.poiSeen[p.id] = p.type;
@@ -11394,9 +11566,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function drawWeather(dt) {
     if (!fxCx || !(dt > 0)) return;
     const S = UI.settings, on = S.weather !== false && (G.state === 'play' || G.state === 'paused');
-    const b = GW.World.biomeAt(G.player.pos.x, G.player.pos.z);
+    const b = GW.World.biomeAt(G.player.pos.x, G.player.pos.z), under = !!G.dungeon;
     const rainy = Math.max(0, Math.sin(G.t / 190) * 0.6 + Math.sin(G.t / 73 + 1.7) * 0.5);   // showers come and go
-    const tgt = { rain: on ? GW.clamp(rainy, 0, 1) * (1 - b.frost) * (1 - b.ash) : 0, snow: on ? b.frost : 0, ash: on ? b.ash * 0.7 : 0 };
+    const tgt = { rain: on && !under ? GW.clamp(rainy, 0, 1) * (1 - b.frost) * (1 - b.ash) : 0, snow: on && !under ? b.frost : 0, ash: on && !under ? b.ash * 0.7 : 0 };
     for (const k of ['rain', 'snow', 'ash']) WX[k] += (tgt[k] - WX[k]) * Math.min(1, dt * 0.6);
     const W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, want = Math.round(WX.rain * 260 + WX.snow * 170 + WX.ash * 90);
     while (WX.parts.length < want) WX.parts.push({ x: Math.random() * W, y: Math.random() * H, k: Math.random(), s: 0.6 + Math.random() * 0.8 });
@@ -11758,6 +11930,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   let lastPhase = null;
   function updateDayNight(dt) {
     const S = UI.settings, mode = S.time || 'cycle';
+    if (G.dungeon) {   // underground: only torchlight
+      const LU = GW.LU; LU.uAmb.value.setRGB(0.1, 0.105, 0.125); LU.uMoonCol.value.setRGB(0.16, 0.17, 0.22); LU.uFogCol.value.setRGB(0, 0, 0); LU.uDayLight.value = 0.6;
+      if (GW.World.skyDome) GW.World.skyDome.visible = false; return;
+    }
+    if (GW.World.skyDome) GW.World.skyDome.visible = true;
     if (mode === 'cycle' && G.state === 'play') G.tod = (G.tod + dt / ((S.dayLen || 16) * 60)) % 1;
     const tod = mode === 'day' ? 0.5 : mode === 'night' ? 0.0 : G.tod;
     const sunH = -Math.cos(tod * Math.PI * 2);                    // -1 midnight .. 1 noon

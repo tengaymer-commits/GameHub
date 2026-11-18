@@ -1325,7 +1325,7 @@
   function updateDayNight(dt) {
     const S = UI.settings, mode = S.time || 'cycle';
     if (G.dungeon) {   // underground: only torchlight
-      const LU = GW.LU; LU.uAmb.value.setRGB(0.045, 0.05, 0.065); LU.uMoonCol.value.setRGB(0.07, 0.08, 0.11); LU.uFogCol.value.setRGB(0, 0, 0); LU.uDayLight.value = 0.6;
+      const LU = GW.LU; LU.uAmb.value.setRGB(0.1, 0.105, 0.125); LU.uMoonCol.value.setRGB(0.16, 0.17, 0.22); LU.uFogCol.value.setRGB(0, 0, 0); LU.uDayLight.value = 0.6;
       if (GW.World.skyDome) GW.World.skyDome.visible = false; return;
     }
     if (GW.World.skyDome) GW.World.skyDome.visible = true;
