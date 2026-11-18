@@ -523,7 +523,7 @@
   const TYPES = {};
   function Enemy(scene, type, x, z, home) {
     const T = TYPES[type];
-    this.type = type; this.T = T; this.scene = scene;
+    this.type = type; this.T = T; this.scene = scene; this.base = T.base || type;
     this.pos = new V3(x, GW.World.heightAt(x, z), z); this.home = home || { x, z };
     this.spawn = { x, z };
     this.vel = new V3(); this.kb = new V3(); this.yaw = Math.random() * TAU;
@@ -595,7 +595,7 @@
     this.pos.y += (gy - this.pos.y) * Math.min(1, dt * 15);
     this.model.position.copy(this.pos); this.model.rotation.y = this.yaw;
     this.shadow.position.set(this.pos.x, gy + 0.03, this.pos.z);
-    const far = dP > 42 && !this.T.boss;   // off-screen: skip skinning and animation work
+    const far = dP > (this.T.boss ? 90 : 42) && G.curBoss !== this;   // off-screen: skip skinning and animation work
     this.model.visible = !far; this.shadow.visible = !far;
     this.ring.visible = !far && this.aggro && !this.T.boss && this.type !== 'husk';
     if (this.ring.visible) { this.ring.position.set(this.pos.x, gy + 0.06, this.pos.z); const k = this.state === 'windup' || this.state === 'windup2' ? 2.2 : 1; this.ring.material.uniforms.uEmissive.value.setRGB(0.48 * k, 0.08 * k, 0.03 * k); }
@@ -634,6 +634,7 @@
     if (half < Math.PI && Math.abs(GW.angDiff(this.yaw, Math.atan2(dx, dz))) > half) return false;
     this.didHit = true;
     G.hurtPlayer(dmg * (this.dmgMul || 1), this.pos, opts);
+    if (this.T.onHit) this.T.onHit(G, this);
     return true;
   };
   GW.Enemy = Enemy; GW.ETYPES = TYPES;
@@ -800,7 +801,7 @@
           e.moving = false;
           if (e.t > 0.65) {
             const a = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z);
-            G.spawnProjectile({ from: 'enemy', x: e.pos.x, y: e.pos.y + 1.6, z: e.pos.z, vx: Math.sin(a) * 10.5, vz: Math.cos(a) * 10.5, r: 0.45, dmg: TYPES.wisp.dmg, color: 0xa070ff, life: 2.6, homing: 1.2 });
+            G.spawnProjectile({ from: 'enemy', x: e.pos.x, y: e.pos.y + 1.6, z: e.pos.z, vx: Math.sin(a) * 10.5, vz: Math.cos(a) * 10.5, r: 0.45, dmg: TYPES.wisp.dmg * (e.dmgMul || 1), color: e.T.projCol || 0xa070ff, life: 2.6, homing: 1.2, src: e });
             GWAudio.sfx('cast'); e.setState('chase'); e.cool = 2.4 + Math.random() * 1.2;
           }
           break;
@@ -827,8 +828,9 @@
       e.shellM.rotation.set(e.t * 1.3, e.t * 0.9, 0);
       const k = e.state === 'cast' ? 1 + e.t * 2.5 : 1;
       e.core.scale.setScalar(k * (0.9 + 0.1 * Math.sin(e.t * 9)));
-      e.coreMat.uniforms.uEmissive.value.setRGB(0.6 * k, 0.4 * k, 1.0 * k);
-      if (Math.random() < 0.3) c.G.parts.spark.emit(e.pos.x + (Math.random() - 0.5) * 0.4, e.pos.y + 1.4 + bob, e.pos.z + (Math.random() - 0.5) * 0.4, 0, 0.6, 0, 0.7, 0.8, 0x7a5aff, 0.2);
+      const wc = e.T.wispCol || [0.6, 0.4, 1.0];
+      e.coreMat.uniforms.uEmissive.value.setRGB(wc[0] * k, wc[1] * k, wc[2] * k);
+      if (Math.random() < 0.3) c.G.parts.spark.emit(e.pos.x + (Math.random() - 0.5) * 0.4, e.pos.y + 1.4 + bob, e.pos.z + (Math.random() - 0.5) * 0.4, 0, 0.6, 0, 0.7, 0.8, e.T.projCol || 0x7a5aff, 0.2);
     },
     onDeath(e) { GW.World.lights.remove(e.light); },
     onRespawn(e) { GW.World.lights.list.push(e.light); },
@@ -864,12 +866,12 @@
       const { dt, G, P, dP } = c;
       const T = TYPES.warden;
       e.light.p.set(e.pos.x + Math.sin(e.yaw) * 1.5, e.pos.y + 3, e.pos.z + Math.cos(e.yaw) * 1.5);
-      if (!G.bossActive) { e.moving = false; e.face(P.pos, dt, 1); return; }
+      if (!G.bossActive || (G.curBoss && G.curBoss !== e)) { e.moving = false; e.face(P.pos, dt, 1); return; }
       const rage = e.hp < e.maxHp * 0.25 ? 1.3 : 1;
       if (e.phase === 1 && e.hp < e.maxHp * 0.5) {
         e.phase = 2; e.setState('roar');
-        G.ui.banner('', 'THE WARDEN AWAKENS FULLY'); GWAudio.sfx('roar'); G.shake(0.8);
-        for (let k = 0; k < 2; k++) { const a = Math.random() * TAU; G.spawnEnemy('wisp', e.pos.x + Math.cos(a) * 8, e.pos.z + Math.sin(a) * 8, { x: W_.L.arena.x, z: W_.L.arena.z }, true); }
+        G.ui.banner('', e.T.phase2 || 'THE WARDEN AWAKENS FULLY'); GWAudio.sfx('roar'); G.shake(0.8);
+        for (let k = 0; k < 2; k++) { const a = Math.random() * TAU; G.spawnEnemy(e.T.summon || 'wisp', e.pos.x + Math.cos(a) * 8, e.pos.z + Math.sin(a) * 8, { x: e.spawn.x, z: e.spawn.z }, true, e.lvl); }
       }
       switch (e.state) {
         case 'roar': e.moving = false; if (e.t > 1.4) { e.setState('chase'); e.cool = 0.4; } break;
@@ -907,7 +909,7 @@
           e.pos.x += Math.sin(e.yaw) * 21 * dt; e.pos.z += Math.cos(e.yaw) * 21 * dt; e.moving = true;
           e.strike(G, 2.4, Math.PI, T.dmg + 4, { heavy: true });
           if (Math.random() < 0.5) G.parts.dust.burst(e.pos.x, e.pos.y + 0.2, e.pos.z, 3, 3, 0x8890a0, 0.6, 1.4, -3, 1);
-          { const A = GW.World.L.arena; if (e.t > 0.85 || Math.hypot(e.pos.x - A.x, e.pos.z - A.z) > 17) { e.setState('recover'); G.shake(0.6); GWAudio.sfx('slam'); } }
+          { const A = e.type === 'warden' ? GW.World.L.arena : e.spawn; if (e.t > 0.85 || Math.hypot(e.pos.x - A.x, e.pos.z - A.z) > 17) { e.setState('recover'); G.shake(0.6); GWAudio.sfx('slam'); } }
           break;
         case 'recover': e.moving = false; if (e.t > 1.1) { e.setState('chase'); e.cool = 0.5; } break;
         default: {
@@ -947,6 +949,130 @@
     onDeath(e) { GW.World.lights.remove(e.light); },
   };
   const W_ = { get L() { return GW.World.L; } };
+
+  // ---------------- region variants: same bodies and fighting styles, new colours, stats and on-hit effects ----------------
+  const burn = (G) => { G.pdot.burn = 3; }, chill = (G) => { G.player.webbed = Math.max(G.player.webbed || 0, 1.4); }, venom = (G) => { G.pdot.poison = 5; };
+  function tint(e, col, eyes) {
+    const c = new THREE.Color(col);
+    for (const m of e.mats) { if (!m.uniforms) continue; if (m.uniforms.uUnlit.value > 0) { if (eyes !== undefined) m.uniforms.uEmissive.value.set(eyes); } else m.uniforms.uColor.value.lerp(c, 0.65); }
+  }
+  function variant(id, base, o) {
+    const B = TYPES[base];
+    TYPES[id] = Object.assign({}, B, { name: o.name, hp: Math.round(B.hp * (o.hp || 1)), xp: Math.round(B.xp * (o.xp || 1.3)), base, onHit: o.onHit, projCol: o.projCol, wispCol: o.wispCol,
+      build(e) { B.build(e); if (o.col !== undefined) tint(e, o.col, o.eyes); e.dmgK = o.dmg || 1; if (o.scale) e.model.scale.setScalar(o.scale);
+        if (e.light && o.projCol) { e.light.c.set(o.projCol).multiplyScalar(0.8); e.light.base.copy(e.light.c); } } });
+  }
+  variant('frostwolf', 'wolf', { name: 'Rime Wolf', col: 0xd8e4f0, eyes: 0x60c8ff, hp: 1.2, onHit: chill });
+  variant('cragwolf', 'wolf', { name: 'Crag Wolf', col: 0x8a8070, hp: 1.4, dmg: 1.2, scale: 1.1 });
+  variant('ashhound', 'wolf', { name: 'Ash Hound', col: 0x4a3a32, eyes: 0xff7a20, hp: 1.2, onHit: burn });
+  variant('duskwolf', 'wolf', { name: 'Dusk Wolf', col: 0x2a3a4a, eyes: 0x80ffff, hp: 1.3, dmg: 1.1 });
+  variant('highguard', 'hollow', { name: 'Highland Guard', col: 0x9a9a8a, hp: 1.4, dmg: 1.15, scale: 1.08 });
+  variant('dunehollow', 'hollow', { name: 'Dune Hollow', col: 0xd0c0a0, hp: 1.3 });
+  variant('mirehollow', 'hollow', { name: 'Bog Hollow', col: 0x5a6a3a, eyes: 0x8aff6a, hp: 1.2, onHit: venom });
+  variant('rimeshade', 'wisp', { name: 'Rimeshade', wispCol: [0.6, 0.9, 1.2], projCol: 0x9fd8ff, hp: 1.2, onHit: chill });
+  variant('cinderling', 'wisp', { name: 'Cinderling', wispCol: [1.3, 0.55, 0.15], projCol: 0xff8a30, hp: 1.1, onHit: burn });
+  variant('saltwraith', 'wisp', { name: 'Salt Wraith', wispCol: [1.1, 1.05, 0.9], projCol: 0xf0e8d0, hp: 1.4 });
+  variant('bogwisp', 'wisp', { name: 'Bog Wisp', wispCol: [0.5, 1.2, 0.4], projCol: 0x8aff6a, hp: 1.1, onHit: venom });
+
+  // ---------------- region bosses ----------------
+  // The Ash Colossus: the Warden's body in charred stone with burning runes; its blows set you alight
+  TYPES.colossus = Object.assign({}, TYPES.warden, { name: 'THE ASH COLOSSUS', hp: 2600, xp: 1400, base: 'warden', phase2: 'THE COLOSSUS BURNS', summon: 'cinderling', onHit: burn,
+    build(e) { TYPES.warden.build(e); tint(e, 0x4a403a); e.model.scale.setScalar(1.25); e.light.c.setRGB(1.4, 0.5, 0.15); e.light.base.copy(e.light.c); e.light.base0 = null; e.runeMat.uniforms.uEmissive.value.setRGB(1.0, 0.4, 0.1); },
+    anim(e, dt, c) { TYPES.warden.anim(e, dt, c); const k = 0.7 + 0.3 * Math.sin(e.t * 6); e.runeMat.uniforms.uEmissive.value.setRGB(1.2 * k, 0.45 * k, 0.1 * k); if (Math.random() < 0.4) c.G.parts.spark.emit(e.pos.x + (Math.random() - 0.5) * 3, e.pos.y + 2 + Math.random() * 3, e.pos.z + (Math.random() - 0.5) * 3, 0, 2, 0, 0.8, 1.1, 0xff7a20, -1); } });
+  // knight-bodied bosses: the hollow's sword-and-shield fighting plus timed specials
+  function knightBoss(id, o) {
+    const H = TYPES.hollow;
+    TYPES[id] = Object.assign({}, H, { name: o.name, hp: o.hp, xp: o.xp, poise: 999, radius: 0.9, aggro: 18, leash: 999, boss: true, base: 'hollow', onHit: o.onHit,
+      build(e) { H.build(e); tint(e, o.col, o.eyes); e.model.scale.setScalar(o.scale); e.spT = 4; e.phase = 1; },
+      ai(e, c) {
+        const { dt, G, P } = c;
+        if (!G.bossActive || G.curBoss !== e) { e.moving = false; e.aggro = false; e.face(P.pos, dt, 1); return; }
+        e.aggro = true; e.spT -= dt;
+        if (e.state === 'special') { o.special(e, c); return; }
+        if (e.spT <= 0 && e.state !== 'windup' && e.state !== 'slash') { e.setState('special'); e.didHit = false; e.spT = (e.hp < e.maxHp * 0.5 ? 0.65 : 1) * o.every; o.begin(e, c); return; }
+        H.ai(e, c);
+      },
+      anim(e, dt, c) { H.anim(e, dt, c); if (e.state === 'special' && e.jt) e.model.position.y += Math.sin(GW.clamp((e.t - 0.35) / 0.55, 0, 1) * Math.PI) * 4; } });
+  }
+  knightBoss('rimeknight', { name: 'THE RIME KNIGHT', hp: 2300, xp: 1400, col: 0xc8d8ec, eyes: 0x60d0ff, scale: 1.75, every: 7, onHit: chill,
+    begin(e, c) { c.G.telegraph({ shape: 'circle', x: e.pos.x, z: e.pos.z, r: 5.5, dur: 1.0 }); GWAudio.sfx('cast'); },
+    special(e, c) {
+      const { G, P } = c; e.moving = false;
+      if (e.t > 1.0 && !e.didHit) {
+        e.didHit = true; G.shake(0.6); GWAudio.sfx('slam');
+        G.parts.spark.burst(e.pos.x, e.pos.y + 0.5, e.pos.z, 50, 8, 0x9fd8ff, 0.9, 1.4, -2, 2);
+        if (e.distTo(P.pos) < 5.9) { G.hurtPlayer(26 * (e.dmgMul || 1), e.pos, { heavy: true }); P.webbed = 2.2; }
+        if (e.hp < e.maxHp * 0.5) for (let k = -2; k <= 2; k++) { const a = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z) + k * 0.22;
+          G.spawnProjectile({ from: 'enemy', x: e.pos.x, y: e.pos.y + 1.6, z: e.pos.z, vx: Math.sin(a) * 14, vz: Math.cos(a) * 14, r: 0.45, dmg: 14 * (e.dmgMul || 1), color: 0x9fd8ff, life: 1.6, src: e }); }
+      }
+      if (e.t > 1.6) e.setState('chase');
+    } });
+  knightBoss('cragwarlord', { name: 'THE CRAG WARLORD', hp: 2500, xp: 1400, col: 0x8a8678, eyes: 0xffb040, scale: 1.6, every: 8,
+    begin(e, c) { e.jt = { x: c.P.pos.x, z: c.P.pos.z }; e.j0 = { x: e.pos.x, z: e.pos.z }; c.G.telegraph({ shape: 'circle', x: e.jt.x, z: e.jt.z, r: 4.5, dur: 0.9 }); GWAudio.sfx('roar'); },
+    special(e, c) {
+      const { G, P } = c, k = GW.clamp((e.t - 0.35) / 0.55, 0, 1);
+      e.pos.x = GW.lerp(e.j0.x, e.jt.x, k); e.pos.z = GW.lerp(e.j0.z, e.jt.z, k);
+      if (k >= 1 && !e.didHit) {
+        e.didHit = true; e.jt = null; G.shake(1.0); GWAudio.sfx('slam'); G.parts.dust.burst(e.pos.x, e.pos.y + 0.3, e.pos.z, 40, 8, 0x8a8070, 0.9, 1.5, -4, 2);
+        if (e.distTo(P.pos) < 4.8) G.hurtPlayer(30 * (e.dmgMul || 1), e.pos, { heavy: true });
+        const ph = e.hp < e.maxHp * 0.35 ? 3 : e.hp < e.maxHp * 0.65 ? 2 : 1;
+        if (ph > e.phase) { e.phase = ph; G.ui.banner('', 'THE WARLORD CALLS HIS GUARD', 2.2); for (let q = 0; q < 2; q++) { const a = Math.random() * TAU; G.spawnEnemy('highguard', e.pos.x + Math.cos(a) * 6, e.pos.z + Math.sin(a) * 6, { x: e.spawn.x, z: e.spawn.z }, true, e.lvl); } }
+      }
+      if (e.t > 1.4) e.setState('chase');
+    } });
+  // The Mire Hag: a floating, hooded caster who keeps her distance, spits venom and calls bog wisps
+  TYPES.mirehag = {
+    name: 'THE MIRE HAG', hp: 2000, radius: 0.8, poise: 999, aggro: 18, leash: 999, xp: 1400, dmg: 16, speed: 4.6, kind: 'undead', boss: true, flying: true, onHit: venom, projCol: 0x8aff6a,
+    build(e) {
+      const robe = e.mat({ id: ID.CLOTH, color: 0x2a3a24, rim: 0.4 }), skin = e.mat({ id: ID.BONE, color: 0x9aa088, rim: 0.3 }), wood = e.mat({ id: ID.WOOD, color: 0x3a2a1a });
+      const orb = e.coreMat = e.mat({ id: ID.FIRE, color: 0, emissive: 0x6aff4a, unlit: true });
+      const b = e.body = new THREE.Group(); e.model.add(b);
+      part(b, new THREE.ConeGeometry(0.85, 2.6, 12), robe, 0, 1.6, 0);
+      part(b, new THREE.SphereGeometry(0.3, 10, 8), skin, 0, 3.0, 0.1);
+      part(b, new THREE.ConeGeometry(0.45, 0.9, 10), robe, 0, 3.25, -0.05);
+      for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; part(b, box(0.12, 0.9, 0.05), robe, Math.cos(a) * 0.7, 0.6, Math.sin(a) * 0.7, 0.3, a, 0); }   // tattered hem
+      const st = e.staff = new THREE.Group(); st.position.set(0.7, 1.6, 0.3); b.add(st);
+      part(st, new THREE.CylinderGeometry(0.05, 0.06, 2.8, 5), wood, 0, 0.4, 0);
+      e.orbM = part(st, new THREE.IcosahedronGeometry(0.22, 1), orb, 0, 1.9, 0);
+      e.light = GW.World.lights.add(e.pos.x, 3, e.pos.z, new THREE.Color(0.4, 1.0, 0.3), 9, 0.4);
+      e.phase = 1; e.sumT = 6;
+    },
+    ai(e, c) {
+      const { dt, G, P, dP, slow } = c, T = TYPES.mirehag;
+      e.light.p.set(e.pos.x, e.pos.y + 3, e.pos.z);
+      if (!G.bossActive || G.curBoss !== e) { e.moving = false; e.face(P.pos, dt, 1); return; }
+      e.face(P.pos, dt, 5);
+      if (e.phase === 1 && e.hp < e.maxHp * 0.5) { e.phase = 2; G.ui.banner('', 'THE HAG SHRIEKS', 2.2); GWAudio.sfx('roar'); }
+      e.sumT -= dt;
+      if (e.sumT <= 0) { e.sumT = e.phase === 2 ? 9 : 13; for (let q = 0; q < 2; q++) { const a = Math.random() * TAU; G.spawnEnemy('bogwisp', e.pos.x + Math.cos(a) * 5, e.pos.z + Math.sin(a) * 5, { x: e.spawn.x, z: e.spawn.z }, true, e.lvl); } GWAudio.sfx('cast'); }
+      switch (e.state) {
+        case 'cast':
+          e.moving = false;
+          if (e.t > 0.6 && !e.didHit) {
+            e.didHit = true; GWAudio.sfx('cast'); const n = e.phase === 2 ? 5 : 3;
+            for (let k = 0; k < n; k++) { const a = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z) + (k - (n - 1) / 2) * 0.3;
+              G.spawnProjectile({ from: 'enemy', x: e.pos.x, y: e.pos.y + 2.4, z: e.pos.z, vx: Math.sin(a) * 11, vz: Math.cos(a) * 11, r: 0.5, dmg: T.dmg * (e.dmgMul || 1), color: 0x8aff6a, life: 2.2, homing: 0.6, src: e }); }
+          }
+          if (e.t > 1.0) { e.setState('chase'); e.cool = e.phase === 2 ? 1.3 : 2.0; }
+          break;
+        default: {
+          if (e.state !== 'chase') e.setState('chase');
+          const a = Math.atan2(e.pos.x - P.pos.x, e.pos.z - P.pos.z) + dt * 0.6;
+          e.moveTo(P.pos.x + Math.sin(a) * 10, P.pos.z + Math.cos(a) * 10, T.speed * slow, dt);
+          if (dP < 3.5 && (e.blinkCd || 0) <= 0) { const b = a + (Math.random() - 0.5) * 1.5; e.blinkCd = 3.5;
+            G.parts.spark.burst(e.pos.x, e.pos.y + 1.6, e.pos.z, 24, 5, 0x6aff4a, 0.6, 1.2, 0); e.pos.x = P.pos.x + Math.sin(b) * 11; e.pos.z = P.pos.z + Math.cos(b) * 11; GWAudio.sfx('zap'); }
+          if (e.cool <= 0 && dP < 18) e.setState('cast');
+        }
+      }
+      e.blinkCd = (e.blinkCd || 0) - dt;
+    },
+    anim(e, dt) {
+      e.body.position.y = 0.5 + Math.sin(e.t * 1.8) * 0.25;
+      e.staff.rotation.x = e.state === 'cast' ? -0.6 * Math.min(1, e.t / 0.4) : Math.sin(e.t) * 0.1;
+      const k = 0.8 + 0.4 * Math.sin(e.t * 5) + (e.state === 'cast' ? 1 : 0); e.coreMat.uniforms.uEmissive.value.setRGB(0.4 * k, 1.0 * k, 0.3 * k);
+    },
+    onDeath(e) { GW.World.lights.remove(e.light); },
+  };
 
   // ---------------- The Dusk Widow: a giant furry spider (procedural legs, IK walk, three phases) ----------------
   const UPV = new V3(0, 1, 0), _q = new THREE.Quaternion(), _a = new V3(), _b = new V3(), _d = new V3();

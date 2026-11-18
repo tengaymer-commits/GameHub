@@ -178,6 +178,14 @@
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, r = 6 + (k % 2) * 6; G.spawnEnemy('wisp', Lw.grove.x + Math.cos(a) * r, Lw.grove.z + Math.sin(a) * r); }
     G.boss = G.spawnEnemy('warden', Lw.arena.x, Lw.arena.z - 4);
     G.widow = G.spawnEnemy('widow', Lw.lair.x, Lw.lair.z);
+    // the region bosses, each in its own lair
+    G.regionBosses = [
+      { key: 'colossus', type: 'colossus', x: 2250, z: 1220, title: 'THE ASH COLOSSUS', sub: 'the ground cracks open' },
+      { key: 'rimeknight', type: 'rimeknight', x: -150, z: -2650, title: 'THE RIME KNIGHT', sub: 'frost climbs your armour' },
+      { key: 'mirehag', type: 'mirehag', x: -2050, z: 1560, title: 'THE MIRE HAG', sub: 'the water starts to boil' },
+      { key: 'cragwarlord', type: 'cragwarlord', x: 2470, z: -1520, title: 'THE CRAG WARLORD', sub: 'kneel, or be broken' },
+    ];
+    G.regionBosses.forEach(b => { b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / 280)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
     [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
@@ -237,6 +245,35 @@
   // ---- your own fires: F + kindling builds one on open ground; it scorches the grass and burns out ----
   const FIRE_LIFE = 480;
   G.ownFires = [];
+  // ---------------- burning / poison on the hero (from region enemies) ----------------
+  G.pdot = { burn: 0, poison: 0, t: 0 };
+  function tickPlayerDots(dt) {
+    const P = G.player, D = G.pdot; if (P.state === 'dead') { D.burn = D.poison = 0; return; }
+    D.burn = Math.max(0, D.burn - dt); D.poison = Math.max(0, D.poison - dt); D.t -= dt;
+    if (D.t > 0 || (!D.burn && !D.poison)) return;
+    D.t = 0.5;
+    const dmg = (D.burn ? P.maxHp * 0.012 : 0) + (D.poison ? P.maxHp * 0.008 : 0);
+    P.hp -= dmg; UI.float(String(Math.ceil(dmg)), P.pos, { color: D.burn ? '#ff9a40' : '#8aff6a', size: 10, y: 2.2, life: 0.7 });
+    G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 4, 1.5, D.burn ? 0xff7a2a : 0x7aff5a, 0.5, 0.9, 2, 1);
+    if (P.hp <= 0) { P.hp = 1; G.hurtPlayer(9999, P.pos, { heavy: true }); }
+  }
+  // glyph sparks thrown off by hits, drawn on the overlay
+  G.hitGlyphs = [];
+  G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
+    G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
+  const _hg = new THREE.Vector3();
+  function drawHitGlyphs(dt) {
+    if (!fxCx || !G.hitGlyphs.length) return;
+    const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth;
+    cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.font = `bold ${Math.round(13 * dpr)}px ui-monospace, Menlo, monospace`; cx.globalCompositeOperation = 'lighter';
+    G.hitGlyphs = G.hitGlyphs.filter(g => {
+      g.t += dt; if (g.t > g.life) return false;
+      g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt;
+      _hg.set(g.x, g.y, g.z).project(G.camera); if (_hg.z > 1) return true;
+      cx.globalAlpha = 1 - g.t / g.life; cx.fillStyle = g.col; cx.fillText(g.ch, (_hg.x * 0.5 + 0.5) * W, (-_hg.y * 0.5 + 0.5) * H); return true;
+    });
+    cx.restore();
+  }
   // ---------------- the horse: H to whistle for it / mount / dismount ----------------
   function toggleHorse() {
     const P = G.player;
@@ -307,7 +344,7 @@
     e.temp = !!temp; if (temp) { e.aggro = true; }
     // level rings: farther from the Vale = tougher; elites are much tougher
     e.lvl = lvl || 1; const hk = (1 + 0.22 * (e.lvl - 1)) * (elite ? 3 : 1);
-    e.maxHp = e.hp = Math.round(e.T.hp * hk); e.dmgMul = (1 + 0.12 * (e.lvl - 1)) * (elite ? 1.4 : 1); e.elite = !!elite;
+    e.maxHp = e.hp = Math.round(e.T.hp * hk); e.dmgMul = (1 + 0.12 * (e.lvl - 1)) * (elite ? 1.4 : 1) * (e.dmgK || 1); e.elite = !!elite;
     if (elite) e.model.scale.setScalar(1.25);
     G.enemies.push(e); return e;
   };
@@ -333,6 +370,7 @@
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
           G.widowDead = !!d.widowDead; if (G.widowDead) killSilently(G.widow);
+          G.bossesDead = d.bossesDead || {}; G.regionBosses.forEach(b => { if (G.bossesDead[b.key]) killSilently(b.e); });
         }
       } else { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
       G.castleLoot();
@@ -438,7 +476,7 @@
     e.pos.set(e.spawn.x, GW.World.heightAt(e.spawn.x, e.spawn.z), e.spawn.z); e.setState('idle'); e.aggro = false;
     e.status = { burn: 0, burnD: 0, poison: 0, poisonD: 0, slow: 0 }; e.kb.set(0, 0, 0); e.cool = 1;
     if (wasDead && e.T.onRespawn) e.T.onRespawn(e);
-    if (e.rig) { e._deathPlayed = false; e._ast = null; e.model.position.y = e.pos.y; e.rig.play(e.type === 'wolf' ? 'Idle' : 'Idle_Sword', { restart: true, fade: 0 }); }
+    if (e.rig) { e._deathPlayed = false; e._ast = null; e.model.position.y = e.pos.y; e.rig.play(e.base === 'wolf' ? 'Idle' : 'Idle_Sword', { restart: true, fade: 0 }); }
   }
   function respawnPlayer() {
     $('death').classList.add('hidden');
@@ -454,7 +492,7 @@
   G.onAggro = function (e) {
     if (e.T.boss) return;
     UI.float('!', e.pos, { cls: 'alert', life: 0.8, rise: 0.6, y: e.T.radius * 2 + 1.6 });
-    if (e.type === 'wolf' && Math.random() < 0.5) GWAudio.sfx('howl');
+    if (e.base === 'wolf' && Math.random() < 0.5) GWAudio.sfx('howl');
     if (e.type === 'wolf' && !G.hintsShown.roll) { G.hintsShown.roll = true; UI.hint(I.touch ? 'Wolves lunge. Tap <b>⟲</b> to roll through them: you can\'t be hit mid-roll.' : 'Wolves lunge. Press <b>Space</b> to roll through them: you can\'t be hit mid-roll.', 6); }
     if (e.type === 'hollow' && !G.hintsShown.block) { G.hintsShown.block = true; UI.hint('Hollows raise their shields. Your <b>third combo hit</b> and skills break the guard.', 6); }
   };
@@ -462,14 +500,14 @@
     o = o || {};
     if (!e.alive) return;
     const P = G.player, ws = P.ws;
-    if (e.T.boss && !G.bossActive) return;
+    if (e.T.boss && (!G.bossActive || (G.curBoss && G.curBoss !== e && e.type !== 'warden'))) return;
     if (e.type === 'husk' && QUESTS[G.stage].id !== 'wake' && e.hp <= dmg) { /* husks keep standing after the tutorial */ }
     let crit = false;
     if (!o.dot && !o.chain) {
       if (Math.random() < ws.crit) { crit = true; dmg *= 1.8; }
       if (e.T.kind === 'undead') dmg *= 1 + ws.undead;
       // hollow guard
-      if (o.melee && e.type === 'hollow' && !o.heavy && (e.state === 'chase' || e.state === 'recover' || e.state === 'block') && Math.random() < 0.38) {
+      if (o.melee && e.base === 'hollow' && !e.T.boss && !o.heavy && (e.state === 'chase' || e.state === 'recover' || e.state === 'block') && Math.random() < 0.38) {
         const a = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z);
         if (Math.abs(GW.angDiff(e.yaw, a)) < 1.0) {
           e.setState('block'); e.aggro = true; GWAudio.sfx('block');
@@ -488,6 +526,7 @@
       GWAudio.sfx(crit ? 'crit' : 'hit', o.heavy ? 1.3 : 1);
       const hx = e.pos.x, hy = e.pos.y + Math.min(1.2, e.T.radius * 1.6), hz = e.pos.z;
       G.parts.spark.burst(hx, hy, hz, crit ? 16 : 9, crit ? 7 : 5, P.ws.trail, 0.35, 0.8, -8);
+      G.addHitGlyphs(hx, hy, hz, crit ? 10 : 5, crit ? '#ffd860' : '#f0f0ff');
       if (e.T.kind === 'beast') G.parts.blood.burst(hx, hy, hz, 6, 3, 0x8a1010, 0.6, 1, -10);
       if (e.T.kind === 'construct' || e.T.kind === 'undead') G.parts.dust.burst(hx, hy, hz, 5, 3, 0xb8b0a0, 0.5, 1, -9);
       if (o.from && !e.T.boss) {
@@ -535,12 +574,13 @@
     const luck = 1 + P.ws.xp;
     const drops = { wolf: [['rune', ['ember', 'frost', 'venom', 'swift'], 0.12], ['ingot', ['bronze'], 0.12]],
       hollow: [['rune', ['keen', 'ward', 'storm', 'vigor'], 0.16], ['ingot', ['steel', 'silver'], 0.2]],
-      wisp: [['rune', ['storm', 'frost', 'thirst'], 0.16], ['ingot', ['duskglass', 'gold'], 0.14]] }[e.type] || [];
-    const armorDrops = { wolf: [['armor', ['leather', 'coif'], 0.05]], hollow: [['armor', ['hauberk', 'coif', 'sallet'], 0.08]], wisp: [['armor', ['scale', 'night'], 0.07]] }[e.type] || [];
+      wisp: [['rune', ['storm', 'frost', 'thirst'], 0.16], ['ingot', ['duskglass', 'gold'], 0.14]] }[e.base] || [];
+    const armorDrops = { wolf: [['armor', ['leather', 'coif'], 0.05]], hollow: [['armor', ['hauberk', 'coif', 'sallet'], 0.08]], wisp: [['armor', ['scale', 'night'], 0.07]] }[e.base] || [];
     drops.push(...armorDrops.filter(([, pool]) => pool.some(k => !P.inv.armor[k])).map(([k, pool, ch]) => [k, pool.filter(x => !P.inv.armor[x]), ch]));
     for (const [kind, pool, ch] of drops) if (Math.random() < ch * luck) spawnPickup(kind, pool[Math.floor(Math.random() * pool.length)], e.pos);
     if (!e.T.boss && Math.random() < (e.hunter ? 0.5 : 0.3)) spawnPickup('kindling', 'kindling', e.pos);
-    if (e.type === 'widow') widowDefeated(e);
+    if (e.bossKey) regionBossDefeated(e);
+    else if (e.type === 'widow') widowDefeated(e);
     else if (e.T.boss) bossDefeated(e);
   }
   function gainXP(n) {
@@ -625,6 +665,19 @@
     save();
   }
 
+  G.bossesDead = {};
+  function regionBossDefeated(e) {
+    G.bossActive = false; G.curBoss = null; G.bossesDead[e.bossKey] = true; UI.boss(false);
+    G.shake(1.0); GWAudio.sfx('boom'); GWAudio.sfx('quest');
+    for (let k = 0; k < 60; k++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 8; G.parts.spark.emit(e.pos.x, e.pos.y + 2, e.pos.z, Math.cos(a) * s, 2 + Math.random() * 6, Math.sin(a) * s, 2, 1.3, 0xffd070, -6); }
+    const P = G.player, left = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
+    give('shards', 300 + 20 * (e.lvl || 1));
+    if (left.length) spawnPickup('armor', left[Math.floor(Math.random() * left.length)], e.pos);
+    spawnPickup('rune', 'thirst', e.pos); spawnPickup('ingot', 'starfall', e.pos);
+    for (const en of G.enemies) if (en.temp && en.alive) { en.hp = 1; G.hitEnemy(en, 99, { dot: 'burn' }); }
+    UI.banner('the region breathes again', e.T.name + ' FALLS', 4);
+    save();
+  }
   function widowDefeated(e) {
     G.bossActive = false; G.curBoss = null; G.widowDead = true; UI.boss(false);
     G.shake(1.0); GWAudio.sfx('boom'); GWAudio.sfx('quest');
@@ -709,7 +762,7 @@
   }
   // ---------------- points of interest: enemies appear as you approach, vanish when you leave ----------------
   G.cleared = {}; G.poiSeen = {}; G.poiLive = {}; G.waystones = {}; G.bounty = {};
-  const POI_ENEMY = { vale: ['wolf', 'hollow'], frost: ['wolf'], high: ['wolf', 'hollow'], ash: ['hollow'], salt: ['hollow'], mire: ['hollow', 'wolf'], dusk: ['wolf', 'wisp'] };
+  const POI_ENEMY = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['cragwolf', 'highguard'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
   function poiTick() {
     const P = G.player, W = GW.World;
     for (const p of W.poisNear(P.pos.x, P.pos.z, 115)) {
@@ -771,7 +824,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
@@ -1138,7 +1191,7 @@
         // tutorial hints + boss trigger + zones
         world(sdt);
         // respawn timers
-        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt);
+        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt);
         if (frame % 15 === 0) explore();
         if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));
@@ -1196,6 +1249,7 @@
     drawFireGlyphs();
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);
+    drawHitGlyphs(dt);
     drawWeather(dt);
     drawDarkOutside();
     perfGovernor(dt);
@@ -1268,6 +1322,19 @@
       G.bossActive = true; G.curBoss = G.widow; G.widow.aggro = true; G.widow.setState('roar');
       GWAudio.sfx('roar'); G.shake(0.8); UI.banner('something vast uncurls', 'DUSK WIDOW', 3.5);
     }
+    // region bosses wake when you step into their lair, and give up if you run far away
+    for (const b of G.regionBosses || []) {
+      const d = Math.hypot(P.pos.x - b.x, P.pos.z - b.z);
+      if (!G.bossActive && b.e.alive && d < 16) {
+        G.bossActive = true; G.curBoss = b.e; b.e.aggro = true; b.e.setState(b.type === 'colossus' ? 'roar' : 'chase');
+        GWAudio.sfx('roar'); G.shake(0.8); UI.banner(b.sub, b.title, 3.5);
+      }
+      if (G.bossActive && G.curBoss === b.e && d > 55) {
+        G.bossActive = false; G.curBoss = null; UI.boss(false);
+        b.e.hp = b.e.maxHp; b.e.phase = 1; b.e.aggro = false; b.e.pos.set(b.x, GW.World.heightAt(b.x, b.z), b.z); b.e.setState('idle');
+        G.enemies = G.enemies.filter(en => { if (en.temp && en.alive && !en.hunter) { en.alive = false; G.scene.remove(en.model); G.scene.remove(en.shadow); if (en.T.onDeath && en.light) en.T.onDeath(en); return false; } return true; });
+      }
+    }
     if (G.bossActive && G.curBoss === G.boss) W.arenaStones.forEach((s, i) => { const k = 0.7 + 0.3 * Math.sin(G.t * 4 + i); s.band.material.uniforms.uEmissive.value.setRGB(1.0 * k, 0.25 * k, 0.1 * k); });
   }
 
@@ -1284,7 +1351,7 @@
       if (Math.random() < 0.8) G.parts.spark.emit(p.pos.x, p.pos.y, p.pos.z, (Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5), 0.35, 1, p.color, 0);
       let boom = p.age > p.life || W.blocked(p.pos.x, p.pos.z, 0.2);
       if (p.from === 'enemy') {
-        if (Math.hypot(P.pos.x - p.pos.x, P.pos.z - p.pos.z) < p.r + 0.45) { G.hurtPlayer(p.dmg, p.pos, {}); boom = true; if (p.web) { P.webbed = 2.4; UI.toast('Webbed!', 1.2); } }
+        if (Math.hypot(P.pos.x - p.pos.x, P.pos.z - p.pos.z) < p.r + 0.45) { G.hurtPlayer(p.dmg, p.pos, {}); boom = true; if (p.web) { P.webbed = 2.4; UI.toast('Webbed!', 1.2); } if (p.src && p.src.T.onHit && P.iframe <= 0) p.src.T.onHit(G, p.src); }
         if (boom && p.web) G.webBurst(p.pos.x, p.pos.z);
       } else {
         for (const e of G.enemies) if (e.alive && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r + e.radius) { boom = true; break; }
