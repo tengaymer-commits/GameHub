@@ -207,6 +207,7 @@
   const CAMP_REFILL = 300, CAMP_FAR = 60;
   function updateSpawns(dt) {
     const P = G.player, S = UI.settings;
+    if (G.dungeon) return;
     for (const c of G.camps || []) {
       const cleared = c.members.every(e => !e.alive);
       if (!cleared) { c.clearedAt = -1; continue; }
@@ -279,7 +280,7 @@
     const P = G.player;
     if (P.state === 'dead') return;
     if (P.horse && P.horse.ridden) { dismount(false); return; }
-    if (P.floor || G.heroInside) { UI.toast("There's no room for a horse here.", 2); return; }
+    if (P.floor || G.heroInside || G.dungeon) { UI.toast("There's no room for a horse here.", 2); return; }
     if (G.enemies.some(e => e.alive && e.aggro && e.distTo(P.pos) < 18)) { UI.toast('Not while you are being hunted.', 2); return; }
     if (!P.horse) P.horse = new GW.Horse(G.scene);
     const H = P.horse;
@@ -434,6 +435,7 @@
   // ---- exploration: fog of war, discovered fires, compass, regions ----
   G.FOG_CELL = 20; G.FOG_N = Math.ceil(GW.World.SIZE / 20); G.fog = new Uint8Array(G.FOG_N * G.FOG_N); G.discovered = {};
   function explore() {
+    if (G.dungeon) return;
     const P = G.player, S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N, R = 70;
     const i0 = Math.floor((P.pos.x - R + S / 2) / FC), i1 = Math.floor((P.pos.x + R + S / 2) / FC), j0 = Math.floor((P.pos.z - R + S / 2) / FC), j1 = Math.floor((P.pos.z + R + S / 2) / FC);
     for (let j = Math.max(0, j0); j <= Math.min(FN - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(FN - 1, i1); i++)
@@ -481,6 +483,7 @@
   function respawnPlayer() {
     $('death').classList.add('hidden');
     fade(() => {
+      if (G.dungeon) leaveLevel(true);
       const P = G.player, sp = G.respawn || { x: GW.World.L.start.x, z: GW.World.L.start.z + 5 };
       P.state = 'move'; P.hp = P.maxHp; P.flasks = P.maxFlasks; P.st = 100; P.fo = 60;
       resetEnemies(); P.place(sp.x, sp.z + 2.2);
@@ -711,6 +714,55 @@
       const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
     else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); }
     else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
+    else if (it.type === 'cave') enterLevel({ kind: 'cave', id: 'cave:' + it.poi.id, seed: it.poi.seed, region: it.poi.region, lvl: it.poi.lvl + 2, floors: 1, names: ['THE CAVE'], back: { x: it.x, z: it.z + 2 } });
+    else if (it.type === 'castle') { const L = GW.World.L; enterLevel({ kind: 'castle', id: 'dunmaer', seed: 9137, region: 'high', lvl: 1 + Math.floor(Math.hypot(L.dunmaer.x, L.dunmaer.z) / 280) + 3, floors: 3,
+      names: ['THE GATEHALL', 'THE GREAT HALL', 'THE CROWN TOWER'], back: { x: it.x, z: it.z + 2.5 } }); }
+    else if (it.type === 'dexit') fade(() => leaveLevel(false));
+    else if (it.type === 'dstairs') fade(() => buildFloor(G.dungeon.floor + 1));
+  }
+  // ---------------- dungeons: caves and Castle Dunmaer are separate levels ----------------
+  G.dungeon = null;
+  const DPOOL = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['highguard', 'cragwolf'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
+  function enterLevel(def) {
+    const P = G.player; if (P.horse && P.horse.ridden) dismount(false);
+    fade(() => {
+      // hide the overworld (its own enemies hide themselves by distance)
+      const keep = [P.model, P.shadow, P.trail && P.trail.mesh];
+      G.hiddenWorld = []; for (const o of G.scene.children) if (o.visible && !keep.includes(o)) { o.visible = false; G.hiddenWorld.push(o); }
+      G.dungeon = Object.assign({ floor: -1, enemies: [], lv: null }, def);
+      buildFloor(0);
+    });
+  }
+  function clearFloor() {
+    const d = G.dungeon; if (!d || !d.lv) return;
+    GW.Dungeon.destroy(G.scene, d.lv);
+    d.enemies.forEach(e => { e.alive = false; G.scene.remove(e.model); G.scene.remove(e.shadow); if (e.ring) G.scene.remove(e.ring); if (e.T.onDeath && e.light) e.T.onDeath(e); });
+    G.enemies = G.enemies.filter(e => !d.enemies.includes(e)); d.enemies = []; d.lv = null;
+  }
+  function buildFloor(f) {
+    const d = G.dungeon, P = G.player, W = GW.World; clearFloor();
+    d.floor = f;
+    const lv = d.lv = GW.Dungeon.build(G.scene, d.seed + f * 977, d.kind, 0), last = lv.rooms.length - 1, pool = DPOOL[d.region] || DPOOL.vale, R = GW.rand(d.seed + f * 31);
+    // enemies in every room but the first; the last room is guarded harder
+    lv.rooms.forEach((r, i) => { if (i === 0) return;
+      const n = i === last ? 2 : 2 + Math.floor(R() * 3);
+      for (let k = 0; k < n; k++) { const tx = r.x0 + 1 + Math.floor(R() * (r.x1 - r.x0 - 1)), tz = r.z0 + 1 + Math.floor(R() * (r.z1 - r.z0 - 1)), [x, z] = lv.at(tx, tz);
+        const e = G.spawnEnemy(pool[Math.floor(R() * pool.length)], x, z, { x, z }, false, d.lvl + f, i === last && k === 0); e.dungeon = true; d.enemies.push(e); } });
+    const top = f >= d.floors - 1, [ex, ez] = lv.end, [sx, sz] = lv.start;
+    const glow = (x, z, col) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24).rotateX(-Math.PI / 2), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true, side: THREE.DoubleSide })); m.position.set(x, 0.05, z); G.scene.add(m); lv.meshes.push(m); lv.lights.push(W.lights.add(x, 1.5, z, new THREE.Color(col).multiplyScalar(0.8), 6, 0.3)); };
+    const add = it => { W.interact.push(it); lv.inter.push(it); };
+    glow(sx, sz, 0x6ab8ff); add({ type: 'dexit', x: sx, z: sz, r: 2.2, label: f === 0 ? 'Leave' : 'Leave the castle' });
+    if (top) { const id = d.id + ':chest'; if (!G.opened[id]) { add({ type: 'chest', x: ex, z: ez, r: 1.8, label: 'Open the chest', id, poi: { seed: d.seed + 5, lvl: d.lvl + f, type: 'elite' } });
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.65), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x9a7040 })); box.position.set(ex, 0.3, ez); G.scene.add(box); lv.meshes.push(box); } }
+    else { glow(ex, ez, 0xffd070); add({ type: 'dstairs', x: ex, z: ez, r: 2.2, label: 'Climb to ' + (d.names[f + 1] || 'the next floor').toLowerCase() }); }
+    P.place(sx + 2.5, sz); P.floor = 0; G.snapCam = true;
+    UI.banner(d.kind === 'castle' ? 'floor ' + (f + 1) + ' of ' + d.floors : 'level ' + d.lvl, d.names[f] || 'THE DEPTHS', 2.8);
+  }
+  function leaveLevel(silent) {
+    const d = G.dungeon; if (!d) return;
+    clearFloor(); (G.hiddenWorld || []).forEach(o => { o.visible = true; }); G.hiddenWorld = null;
+    G.dungeon = null;
+    if (!silent) { const P = G.player; P.place(d.back.x, d.back.z); G.snapCam = true; GW.World._streamBudget = 99; GW.World.dataWindow(d.back.x, d.back.z, true); GW.World.terrainRefresh(true, d.back.x, d.back.z); }
   }
   // ---------------- travel targets: found fires and attuned waystones ----------------
   function travelList(x, z, exclude) {
@@ -765,6 +817,7 @@
   const POI_ENEMY = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['cragwolf', 'highguard'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
   function poiTick() {
     const P = G.player, W = GW.World;
+    if (G.dungeon) return;
     for (const p of W.poisNear(P.pos.x, P.pos.z, 115)) {
       const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z);
       if (d < 60 && p.type !== 'ambush' && !G.poiSeen[p.id]) G.poiSeen[p.id] = p.type;
@@ -907,9 +960,9 @@
   function drawWeather(dt) {
     if (!fxCx || !(dt > 0)) return;
     const S = UI.settings, on = S.weather !== false && (G.state === 'play' || G.state === 'paused');
-    const b = GW.World.biomeAt(G.player.pos.x, G.player.pos.z);
+    const b = GW.World.biomeAt(G.player.pos.x, G.player.pos.z), under = !!G.dungeon;
     const rainy = Math.max(0, Math.sin(G.t / 190) * 0.6 + Math.sin(G.t / 73 + 1.7) * 0.5);   // showers come and go
-    const tgt = { rain: on ? GW.clamp(rainy, 0, 1) * (1 - b.frost) * (1 - b.ash) : 0, snow: on ? b.frost : 0, ash: on ? b.ash * 0.7 : 0 };
+    const tgt = { rain: on && !under ? GW.clamp(rainy, 0, 1) * (1 - b.frost) * (1 - b.ash) : 0, snow: on && !under ? b.frost : 0, ash: on && !under ? b.ash * 0.7 : 0 };
     for (const k of ['rain', 'snow', 'ash']) WX[k] += (tgt[k] - WX[k]) * Math.min(1, dt * 0.6);
     const W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, want = Math.round(WX.rain * 260 + WX.snow * 170 + WX.ash * 90);
     while (WX.parts.length < want) WX.parts.push({ x: Math.random() * W, y: Math.random() * H, k: Math.random(), s: 0.6 + Math.random() * 0.8 });
@@ -1271,6 +1324,11 @@
   let lastPhase = null;
   function updateDayNight(dt) {
     const S = UI.settings, mode = S.time || 'cycle';
+    if (G.dungeon) {   // underground: only torchlight
+      const LU = GW.LU; LU.uAmb.value.setRGB(0.045, 0.05, 0.065); LU.uMoonCol.value.setRGB(0.07, 0.08, 0.11); LU.uFogCol.value.setRGB(0, 0, 0); LU.uDayLight.value = 0.6;
+      if (GW.World.skyDome) GW.World.skyDome.visible = false; return;
+    }
+    if (GW.World.skyDome) GW.World.skyDome.visible = true;
     if (mode === 'cycle' && G.state === 'play') G.tod = (G.tod + dt / ((S.dayLen || 16) * 60)) % 1;
     const tod = mode === 'day' ? 0.5 : mode === 'night' ? 0.0 : G.tod;
     const sunH = -Math.cos(tod * Math.PI * 2);                    // -1 midnight .. 1 noon

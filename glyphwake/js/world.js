@@ -36,6 +36,7 @@
     salt: { x: 0, z: 2600 },          // S  the Salt Wastes
     mire: { x: -2250, z: 1300 },      // SW the Mire
     dusk: { x: -2250, z: -1300 },     // NW Duskwood
+    dunmaer: { x: 2620, z: -1760 },   // Castle Dunmaer, the great Highland ruin (three floors inside)
     vfrost: { x: -150, z: -2552 },    // villages beside the two landmark hubs
     vash: { x: 2250, z: 1348 },
   };
@@ -88,6 +89,7 @@
     { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -2600, r: 24 },
     { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
     { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -150, z: -2552, r: 30 },
+    { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 2620, z: -1760, r: 26 },
     { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2250, z: 1220, r: 22 },
     { name: 'THE ABBEY YARD', sub: 'a knight keeps vigil', x: -150, z: -2650, r: 22 },
     { name: "THE HAG'S POOL", sub: 'green light under the water', x: -2050, z: 1560, r: 22 },
@@ -170,7 +172,7 @@
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
-    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash', 'dunmaer']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
     flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
     return h;
   }
@@ -330,14 +332,14 @@
     SIZE, L, ZONES, WATER_Y, BIOMES, HUBS,
     colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], occluders: [], lights: null, fireflies: null,
   };
-  W.heightAt = (x, z) => sample('H', x, z);
+  W.heightAt = (x, z) => x > 9000 ? 0 : sample('H', x, z);
   W.riverAt = (x, z) => sample('R', x, z);
   W.waterYAt = (x, z) => sample('RY', x, z);
-  W.biomeAt = (x, z) => { const b = biomeSample(x, z), o = { vale: 1 }; BIOMES.forEach((n, k) => { o[n] = b[k]; o.vale -= b[k]; }); return o; };
-  W.regionAt = (x, z) => { const b = biomeSample(x, z); let best = 'vale', bv = 0.5; b.forEach((v, k) => { if (v > bv) { bv = v; best = BIOMES[k]; } }); return best; };
+  W.biomeAt = (x, z) => { if (x > 9000) return { vale: 1, frost: 0, high: 0, ash: 0, salt: 0, mire: 0, dusk: 0 }; const b = biomeSample(x, z), o = { vale: 1 }; BIOMES.forEach((n, k) => { o[n] = b[k]; o.vale -= b[k]; }); return o; };
+  W.regionAt = (x, z) => { if (x > 9000) return 'vale'; const b = biomeSample(x, z); let best = 'vale', bv = 0.5; b.forEach((v, k) => { if (v > bv) { bv = v; best = BIOMES[k]; } }); return best; };
   W.REGIONS = REGIONS; W.CORE = CORE;
-  W.pathAt = (x, z) => sample('P', x, z);
-  W.inWater = (x, z) => sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
+  W.pathAt = (x, z) => x > 9000 ? 99 : sample('P', x, z);
+  W.inWater = (x, z) => x < 9000 && sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
   W.onBridge = (x, z) => {
     const b = W.bridge; if (!b) return false;
     const dx = x - b.x, dz = z - b.z;
@@ -385,6 +387,7 @@
       }
     }
     const lim = 3880;   // the mountains at the world's edge
+    if (p.x > 9000) return hit;   // inside a dungeon level
     if (Math.abs(p.x) > lim) { p.x = Math.sign(p.x) * lim; hit = true; }
     if (Math.abs(p.z) > lim) { p.z = Math.sign(p.z) * lim; hit = true; }
     return hit;
@@ -901,7 +904,25 @@
   }
 
   // ----- hubs & landmarks beyond the Vale: reuse the chapel/tower models with region palettes -----
+  function buildDunmaer(scene) {
+    const g = GW.Assets.gltf.castle; if (!g) return;
+    const C = L.dunmaer, base = W.heightAt(C.x, C.z) - 0.05;
+    mergeByMat(g, {
+      cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a8a84, fill: 0.1 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5e5e5a, fill: 0.08 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x7a8a5a, fill: 0.1 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a5a44 }),
+      woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x4a3e30 }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
+    }, null, C.x, base, C.z, scene);
+    const tw = (lx, ly) => [C.x + lx, C.z - ly], R = 11;
+    const seg = (x0, y0, x1, y1, r, skip) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
+      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; W.addCollider(...tw(lx, ly), r, 'castle'); } };
+    seg(-R, -R, R, -R, 0.7, lx => Math.abs(lx) < 1.6); seg(-R, -R, -R, R, 0.7); seg(-R, R, R, R, 0.7); seg(R, -R, R, R, 0.7);
+    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => W.addCollider(...tw(lx, ly), 2.7, 'castle'));
+    seg(-6, 2, 6, 2, 0.55); seg(-6, 2, -6, 10, 0.55); seg(-6, 10, 6, 10, 0.55); seg(6, 2, 6, 10, 0.55);   // the keep: entered through its door
+    W.interact.push({ type: 'castle', x: C.x, z: C.z - 1.2, r: 2.4, label: 'Enter Castle Dunmaer' });
+    campfire(scene, C.x - 5, C.z + 16, 'Dunmaer Gate');
+  }
   function buildHubs(scene) {
+    buildDunmaer(scene);
     for (const h of HUBS) {
       const c = L[h.at]; campfire(scene, c.x, c.z, h.name);
       // a smith's anvil in every village
@@ -967,7 +988,7 @@
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
     if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
-    for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
+    for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash, L.dunmaer]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
     if (W.poisNear(x, z, 13 + r).length) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
@@ -975,13 +996,13 @@
   // ---------- points of interest: one per 150 m cell (most cells), seeded, typed by region ----------
   const POI_CELL = 150, poiCache = new Map();
   const POI_W = {
-    vale: { camp: 0.26, ruin: 0.14, chest: 0.14, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08 },
-    frost: { camp: 0.3, ruin: 0.12, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09 },
-    high: { camp: 0.24, ruin: 0.2, chest: 0.12, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08 },
-    ash: { camp: 0.32, ruin: 0.16, chest: 0.1, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1 },
-    salt: { camp: 0.22, ruin: 0.18, chest: 0.16, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06 },
-    mire: { camp: 0.28, ruin: 0.14, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08 },
-    dusk: { camp: 0.26, ruin: 0.16, chest: 0.12, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08 },
+    vale: { cave: 0.05, camp: 0.21, ruin: 0.14, chest: 0.14, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08 },
+    frost: { cave: 0.05, camp: 0.25, ruin: 0.12, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09 },
+    high: { cave: 0.06, camp: 0.18, ruin: 0.2, chest: 0.12, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08 },
+    ash: { cave: 0.05, camp: 0.27, ruin: 0.16, chest: 0.1, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1 },
+    salt: { cave: 0.05, camp: 0.17, ruin: 0.18, chest: 0.16, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06 },
+    mire: { cave: 0.05, camp: 0.23, ruin: 0.14, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08 },
+    dusk: { cave: 0.06, camp: 0.2, ruin: 0.16, chest: 0.12, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08 },
   };
   W.poiAt = function (i, j) {
     const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
@@ -990,7 +1011,7 @@
     const x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 90, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 90;
     const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
-      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && sample('R', x, z) > 14 && sample('P', x, z) > 9;
+      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && sample('R', x, z) > 14 && sample('P', x, z) > 9;
     if (ok) {
       const region = W.regionAt(x, z), w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
@@ -1020,6 +1041,10 @@
       case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
       case 'elite': ring(5, 6, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
+      case 'cave':     // a rock mound with a black mouth: walk in to go underground
+        ring(6, 3.4, (x, z, a) => { if (Math.abs(GW.angDiff(a, Math.PI / 2)) > 0.5) kit('kit_rock_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.6, 0.9, bio); });
+        kit('kit_arch', p.x, p.z + 2.5, 1.0, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
+        inter.push({ type: 'cave', x: p.x, z: p.z + 3.4, r: 2.4, label: 'Enter the cave', poi: p }); break;
       default: break;   // ambush: nothing to see until it is too late
     }
   }
@@ -1626,6 +1651,7 @@
       ff.im.instanceMatrix.needsUpdate = true;
     }
     W.grass.mat.uniforms.uCenter.value.set(px, pz);
+    if (px > 9000) return;   // in a dungeon: the overworld sleeps
     prefetch(px, pz);
     W.dataWindow(px, pz);
     if (Math.abs(px - W._tc[0]) > 96 || Math.abs(pz - W._tc[1]) > 96) W.terrainRefresh(false, px, pz);

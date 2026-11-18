@@ -314,6 +314,7 @@
     const c = $('minimap'), g = c.getContext('2d'), P = G.player;
     const span = 80; // world units shown
     g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+    if (G.dungeon) { g.fillStyle = '#5a6070'; g.font = '10px monospace'; g.textAlign = 'center'; g.fillText('underground', 64, 64); return; }
     const LM = GW.World.getLocalMap(); g.imageSmoothingEnabled = false;
     g.drawImage(LM.canvas, (P.pos.x - span / 2 - LM.x0) / LM.mpp, (P.pos.z - span / 2 - LM.z0) / LM.mpp, span / LM.mpp, span / LM.mpp, 0, 0, 128, 128);
     const to = (x, z) => [(x - P.pos.x) / span * 128 + 64, (z - P.pos.z) / span * 128 + 64];
@@ -329,6 +330,7 @@
   const WM = { open: false, zoom: 1, cx: 0, cz: 0, drag: null };
   UI.mapOpen = () => WM.open;
   UI.toggleMap = function (G, on) {
+    if (G.dungeon && on !== false) { UI.toast('No map down here.', 1.5); return; }
     WM.open = on === undefined ? !WM.open : on;
     $('worldmap').classList.toggle('hidden', !WM.open);
     if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 5; UI.drawWorldMap(G); }
