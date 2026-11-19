@@ -99,7 +99,7 @@
       }
     }
     const g = this.mesh.geometry; g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true;
-    this.mesh.visible = this.pts.some(p => p.on && p.age < 0.2);
+    this.mesh.visible = false;   // the ribbon is retired: swings are drawn as glyph arcs on the fx layer (game.js drawSlashGlyphs)
   };
 
   // ---------------- telegraphs ----------------
@@ -302,6 +302,7 @@
         const CB = GW.Arms.cur(this).combo;
         const next = this.state === 'attack' ? (this.combo + 1) % CB.length : 0;
         this.combo = next; this.cur = Object.assign({}, CB[next]);
+        { const ck = GW.Arms.curKey(this), ML = GW.Moves.MOVES[ck]; this.cur.mv = ML[next % ML.length]; }
         this.cur.dur /= this.ws.speed; this.cur.hitAt = this.cur.dur * (this.cur.heavy ? 0.5 : 0.42); this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.07; this.atkN = (this.atkN || 0) + 1;
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
@@ -383,7 +384,7 @@
         if (Math.random() < 0.5) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + 0.4 + this.chargeT, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.4, 0.8, full ? 0xffd060 : 0xc8d8ff, 0);
         if (!input.attackHeld || this.chargeT > 1.4) {
           const c = Math.min(1, this.chargeT), HV = GW.Arms.cur(this).heavy;
-          this.cur = { dur: 0.62 / this.ws.speed, dmg: (1.6 + 1.8 * c) * HV.dmgK, range: (3.3 + 0.5 * c) * HV.rangeK, cone: 1.1, step: (4.5 + 2 * c) * HV.stepK, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c, a: 2, shot: HV.shot, pierce: HV.shot };
+          this.cur = { dur: 0.62 / this.ws.speed, dmg: (1.6 + 1.8 * c) * HV.dmgK, range: (3.3 + 0.5 * c) * HV.rangeK, cone: 1.1, step: (4.5 + 2 * c) * HV.stepK, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c, a: 2, shot: HV.shot, pierce: HV.shot, mv: GW.Moves.HEAVY[GW.Arms.curKey(this)] };
           this.cur.hitAt = this.cur.dur * 0.42; this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.08;
           this.combo = 2; this.atkN = (this.atkN || 0) + 1; this.state = 'attack'; this.t = 0; this.hitSet.clear(); this._chFull = false;
           this.st -= this.cur.st; this.stDelay = 0.7; GWAudio.sfx('heavy'); if (c > 0.95) G.shake(0.25);
@@ -429,7 +430,7 @@
     // trail
     const tip = new V3(), base = new V3();
     this.tipObj.getWorldPosition(tip); this.baseObj.getWorldPosition(base);
-    const on = this.state === 'attack' || (this.state === 'skill' && !!(GW.Abil.LIST[this.skill] || {}).melee);
+    const on = (this.state === 'attack' && !(this.cur && this.cur.shot)) || this.state === 'finisher' || (this.state === 'skill' && !!(GW.Abil.LIST[this.skill] || {}).melee);
     this.trail.push(base, tip, on);
     this.trail.update(dt);
     if (on && Math.random() < 0.5 && this.ws.trailParticles) G.parts.spark.emit(tip.x, tip.y, tip.z, (Math.random() - 0.5), 1, (Math.random() - 0.5), 0.45, 0.9, this.ws.trail, -1);
@@ -461,6 +462,7 @@
     const tok = this.state + ':' + (this.state === 'attack' ? this.combo + ':' + this.atkN : this.state === 'skill' ? this.skill + ':' + this.atkN : '');
     const fresh = tok !== this._tok; this._tok = tok;
     const slashD = R.dur('Sword_Slash'), pk = this.slashPeak || 0.4;
+    let pose = null;
     switch (this.state) {
       case 'move':
         if (this._mv) {
@@ -472,15 +474,10 @@
       case 'attack': {
         const c = this.cur, at = c.heavy ? 0.0 : 0.12;
         const speed = (pk - at) * slashD / Math.max(0.05, c.hitAt);
-        const k = GW.clamp(this.t / c.dur, 0, 1), e = Math.sin(k * Math.PI), a = c.a === undefined ? Math.min(2, this.combo) : c.a;
-        if (a >= 3) { if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / c.dur * (a === 4 ? 0.7 : 0.9) }); }
+        // authored key poses (moves.js): hold the anticipation, snap, hold the follow-through
+        R.play('Idle_Sword', { fade: 0.08 });
+        if (c.mv) pose = GW.Moves.attackPose(c.mv[0], c.mv[1], this.t, c.hitAt, c.dur);
         else if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.06, at, speed });
-        // vary the swings: twist the body so arcs come from different sides, lean into the heavy
-        if (a === 0) b.rotation.y = -0.45 * e;
-        else if (a === 1) b.rotation.y = 0.55 * e;
-        else if (a === 3) { b.rotation.x = 0.28 * e; b.position.z = 0.12 * e; }   // spear thrust
-        else if (a === 4) { b.rotation.y = 0.5; b.rotation.x = -0.05; }           // bow draw
-        else { b.rotation.x = 0.22 * e; b.position.y = 0.05 * e; }
         break;
       }
       case 'roll':
@@ -489,14 +486,24 @@
       case 'skill':
         { const sk = GW.Abil.LIST[this.skill]; if (sk && sk.anim) sk.anim(this, R, b, fresh, GW.clamp(this.t / this.cur.dur, 0, 1)); }
         break;
-      case 'charge': R.play('Idle_Sword', { fade: 0.15 }); b.rotation.x = -0.18 - 0.1 * Math.min(1, this.chargeT || 0); b.rotation.y = 0.35; break;
-      case 'block': R.play('Idle_Sword', { fade: 0.1 }); b.rotation.y = -0.5; b.rotation.x = 0.08; break;
-      case 'finisher': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, speed: 0.9 }); b.rotation.x = 0.3 * Math.sin(Math.min(1, this.t / 0.8) * Math.PI); break;
+      case 'charge': {   // hold the heavy's anticipation, trembling harder as it fills
+        R.play('Idle_Sword', { fade: 0.15 });
+        const hv = GW.Moves.K[GW.Moves.HEAVY[GW.Arms.curKey(this)][0]], c = Math.min(1, this.chargeT || 0);
+        pose = GW.Moves.mix(null, hv, Math.min(1, this.t / 0.12));
+        b.position.x = (Math.random() - 0.5) * 0.03 * c; b.position.y = -0.04 * c;
+        break;
+      }
+      case 'block': R.play('Idle_Sword', { fade: 0.1 }); pose = GW.Moves.mix(null, GW.Moves.K[GW.Moves.BLOCK[GW.Arms.curKey(this)]], Math.min(1, this.t / 0.07)); break;
+      case 'finisher': { R.play('Idle_Sword', { fade: 0.05 }); const hv = GW.Moves.HEAVY[GW.Arms.curKey(this)]; pose = GW.Moves.attackPose(hv[0], hv[1], this.t, 0.42, 0.8); b.position.y += Math.sin(GW.clamp(this.t / 0.42, 0, 1) * Math.PI) * 0.5; break; }
       case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
       case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;
       case 'dead': if (fresh) R.play('Death', { loop: false, restart: true, fade: 0.1 }); break;
     }
     R.update(dt);
+    // pose layer: fade the last pose out over a few frames when an action ends
+    if (pose) { this._lastPose = pose; this._poseFade = 0.1; }
+    else if (this._poseFade > 0 && this._lastPose) { this._poseFade -= dt; pose = GW.Moves.mix(this._lastPose, null, 1 - Math.max(0, this._poseFade) / 0.1); }
+    if (pose) { const w = pose.w === undefined ? 1 : pose.w; b.position.y += (pose.y || 0) * w; b.position.z += (pose.z || 0) * w; GW.Moves.apply(this, pose); }
     if (this.cloak) this.cloak.rotation.x = -0.1 - (this._mv ? Math.min(0.55, this._spd * 0.07) : 0) - (this.state === 'roll' ? 0.3 : 0) + Math.sin(this.t * 2.3) * 0.03;
     if (this.plume) this.plume.rotation.x = Math.sin(this.t * 3) * 0.08 - (this._mv ? 0.25 : 0);
     const fl = this.hurtT > 0 ? this.hurtT * 3 : 0;

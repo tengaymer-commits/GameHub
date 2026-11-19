@@ -306,6 +306,40 @@
   G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
+  // ---------------- slash arcs: each swing leaves a crescent of bright characters that flicker and scatter ----------------
+  const _sa = new V3(), _sb = new V3(), SLASH_LIFE = 0.26;
+  const slashCh = ang => { const a = ((ang % Math.PI) + Math.PI) % Math.PI; return a < 0.39 || a > 2.75 ? '-' : a < 1.18 ? '\\' : a < 1.96 ? '|' : '/'; };
+  function drawSlashGlyphs(dt) {
+    const P = G.player, tr = P && P.trail; if (!fxCx || !tr) return;
+    const pts = tr.pts.filter(p => p.on && p.age < SLASH_LIFE); if (pts.length < 2) return;
+    const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, step = 9 * dpr;
+    const col = '#' + tr.color.getHexString();
+    cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.globalCompositeOperation = 'lighter';
+    const rows = [[1.0, 1, 15, 'bold '], [0.86, 0.7, 13, ''], [0.72, 0.4, 12, '']];
+    for (const [r, alpha, size, wt] of rows) {
+      cx.font = `${wt}${Math.round(size * dpr)}px ui-monospace, Menlo, monospace`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = pts[i], q = pts[i + 1];
+        _sa.copy(p.a).lerp(p.b, r).project(G.camera); _sb.copy(q.a).lerp(q.b, r).project(G.camera);
+        if (_sa.z > 1 || _sb.z > 1) continue;
+        const x0 = (_sa.x * 0.5 + 0.5) * W, y0 = (-_sa.y * 0.5 + 0.5) * H, x1 = (_sb.x * 0.5 + 0.5) * W, y1 = (-_sb.y * 0.5 + 0.5) * H;
+        const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(len / step)), ch = slashCh(Math.atan2(y1 - y0, x1 - x0));
+        const fade = 1 - p.age / SLASH_LIFE;
+        for (let k = 0; k < n; k++) {
+          const t = k / n, flick = Math.random();
+          cx.globalAlpha = alpha * fade * (0.75 + 0.25 * flick);
+          cx.fillStyle = r === 1 && p.age < 0.06 ? '#ffffff' : col;
+          cx.fillText(flick < 0.07 ? '*' : flick < 0.12 ? '~' : ch, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+        }
+        // the edge sheds a few characters that drift off and fade (hit-glyph pool)
+        if (r === 1 && p.age > 0.08 && Math.random() < 3 * dt) {
+          const w = new V3().copy(p.a).lerp(p.b, 0.95);
+          G.hitGlyphs.push({ x: w.x, y: w.y, z: w.z, vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 2, t: 0, life: 0.35 + Math.random() * 0.3, ch: '.,\'`:'[Math.floor(Math.random() * 5)], col });
+        }
+      }
+    }
+    cx.restore();
+  }
   function drawHitGlyphs(dt) {
     if (!fxCx || !G.hitGlyphs.length) return;
     const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth;
@@ -1404,7 +1438,7 @@
     drawFireGlyphs();
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);
-    drawHitGlyphs(dt);
+    drawSlashGlyphs(dt); drawHitGlyphs(dt);
     drawWeather(dt);
     drawDarkOutside();
     perfGovernor(dt);

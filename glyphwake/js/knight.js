@@ -200,7 +200,7 @@
     // ---- sword in the right fist ----
     // weapon: the active form from arms.js (sword+shield, greatsword, spear, twin daggers, bow)
     const sw = GW.Arms.build(P.swordMats, GW.Arms.curKey(P));
-    P.sword = sw.right; P.tipObj = sw.tip; P.baseObj = sw.base;
+    P.sword = sw.right; P.tipObj = sw.tip; P.baseObj = sw.base; P.leftProp = sw.left || null;
     P.attachments.push(rig.attach('Wrist.R', sw.right, K.gripPlace(rig, 'R')));
     if (sw.left) { try { P.attachments.push(rig.attach('Wrist.L', sw.left, K.gripPlace(rig, 'L'))); } catch (err) { /* no left hand bones */ } }
     P.mats = rig.mats.concat(mats, [P.swordMats.blade]);

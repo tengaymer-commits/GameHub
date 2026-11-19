@@ -63,9 +63,11 @@
     } else if (k === 'bow') {
       // bow in the left fist; the right hand is empty (tip/base still exist for the trail code)
       L = new THREE.Group();
-      const arc = new THREE.TorusGeometry(0.62, 0.025, 5, 18, Math.PI * 0.9); arc.rotateZ(Math.PI / 2 - Math.PI * 0.45); arc.rotateY(Math.PI / 2);
-      mesh(L, arc, sm.blade, 0, -0.25, 0); mesh(L, box(0.05, 0.05, 0.16), sm.hilt, 0, 0.36, 0);
-      const s = new THREE.CylinderGeometry(0.004, 0.004, 1.2, 3).rotateX(Math.PI / 2); mesh(L, s, sm.guard, 0, -0.06, 0).rotation.set(Math.PI / 2, 0, 0);
+      // limbs run along the fist axis (+z), the belly bulges toward +x; the string closes the arc
+      const r = 0.62, arc = new THREE.TorusGeometry(r, 0.026, 5, 20, Math.PI * 0.9); arc.rotateZ(-Math.PI * 0.45); arc.rotateX(Math.PI / 2); arc.translate(-r, 0, 0);
+      mesh(L, arc, sm.blade, 0, 0, 0); mesh(L, box(0.06, 0.06, 0.16), sm.hilt, 0, 0, 0);
+      const sx = -r + r * Math.cos(Math.PI * 0.45), sl = 2 * r * Math.sin(Math.PI * 0.45);
+      mesh(L, new THREE.CylinderGeometry(0.005, 0.005, sl, 3).rotateX(Math.PI / 2), sm.guard, sx, 0, 0);
       e = ends(R, 0.1, 0.4);
     } else {
       mesh(R, box(0.04, 0.04, 0.22), sm.hilt, 0, 0, -0.01); mesh(R, new THREE.OctahedronGeometry(0.035, 0), sm.guard, 0, 0, -0.14);
@@ -73,8 +75,8 @@
       const b = blade(sm, 1.0, 0.07, 0.14); R.add(b.parent); e = ends(R, 0.24, 1.14);
       // kite shield on the left forearm
       L = new THREE.Group();
-      const sg = new THREE.CylinderGeometry(0.3, 0.3, 0.04, 7, 1); sg.scale(1, 1, 1.3); sg.rotateZ(Math.PI / 2);
-      mesh(L, sg, sm.guard, -0.08, 0, 0.02); mesh(L, new THREE.CylinderGeometry(0.24, 0.24, 0.05, 7).scale(1, 1, 1.3).rotateZ(Math.PI / 2), sm.shield, -0.1, 0, 0.02);
+      const sg = new THREE.CylinderGeometry(0.26, 0.26, 0.04, 7, 1); sg.scale(1, 1, 1.3); sg.rotateZ(Math.PI / 2);
+      mesh(L, sg, sm.guard, -0.08, 0, 0.02); mesh(L, new THREE.CylinderGeometry(0.2, 0.2, 0.05, 7).scale(1, 1, 1.3).rotateZ(Math.PI / 2), sm.shield, -0.1, 0, 0.02);
     }
     return { right: R, left: L, tip: e.tip, base: e.base };
   };
