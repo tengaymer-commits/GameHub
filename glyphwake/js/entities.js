@@ -454,6 +454,7 @@
 
   Player.prototype.animate = function (dt) {
     const m = this.model, b = this.body, R = this.rig;
+    GW.Moves.restore(R);
     m.position.copy(this.pos);
     this.visYaw += GW.angDiff(this.visYaw, this.yaw) * Math.min(1, dt * (this.state === 'move' ? 20 : 32));
     m.rotation.y = this.visYaw;
@@ -868,6 +869,7 @@
     },
     anim(e, dt) {
       const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
+      GW.Moves.restore(R);
       const pk = TYPES.hollow.pk || 0.45, D = R.dur('Sword_Slash');
       switch (e.state) {
         case 'windup': case 'windup2': case 'slash': case 'feint': case 'bash': R.play('Idle_Sword', { fade: 0.08 }); break;

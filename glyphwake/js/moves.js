@@ -135,6 +135,8 @@
     const rig = P.rig, body = P.body;
     body.updateMatrixWorld(true);
     const orig = SAVE.map(n => { const b = rig.bone(n); return b ? b.quaternion.clone() : null; });
+    // remember the clip's pose: bones the clip doesn't key would otherwise keep this frame's turn and add the next on top
+    rig._poseRestore = SAVE.map((n, i) => [rig.bone(n), orig[i]]).filter(r => r[0] && r[1]);
     if (pose.H) twist(rig, 'Hips', pose.H[0], 0);
     if (pose.T) twist(rig, 'Torso', pose.T[0], pose.T[1]);
     if (pose.R && pose.R.h) solveArm(rig, body, 'R', pose.R.h, P.sword, pose.R.b);
@@ -146,5 +148,7 @@
     if (L && L.h) solveArm(rig, body, 'L', L.h, P.leftProp, L.b);
     if (w < 0.999) SAVE.forEach((n, i) => { const b = rig.bone(n); if (b && orig[i]) b.quaternion.slerpQuaternions(orig[i], b.quaternion.clone(), w); });
   }
-  GW.Moves = { K, MOVES, HEAVY, BLOCK, attackPose, enemyPose, apply, mix };
+  // undo last frame's pose layer (call before the mixer updates)
+  function restore(rig) { if (!rig || !rig._poseRestore) return; for (const [b, q] of rig._poseRestore) b.quaternion.copy(q); rig._poseRestore = null; }
+  GW.Moves = { restore, K, MOVES, HEAVY, BLOCK, attackPose, enemyPose, apply, mix };
 })();
