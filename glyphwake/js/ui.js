@@ -10,7 +10,7 @@
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ndcX: 0, ndcY: 0, down: false, right: false, used: false },
     stick: { x: 0, y: 0, id: null, ox: 0, oy: 0 }, touch: false, holdAttack: false, lastAttackRepeat: 0,
   };
-  const KEYMAP = { Space: 'roll', KeyH: 'horse', Digit1: 'a1', Digit2: 'a2', Digit3: 'a3', Digit4: 'a4', KeyB: 'book', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'inv', KeyM: 'map' };
+  const KEYMAP = { Space: 'roll', KeyH: 'horse', Digit1: 'a1', Digit2: 'a2', Digit3: 'a3', Digit4: 'a4', KeyB: 'book', KeyX: 'swap', KeyQ: 'potion', KeyE: 'interact', KeyF: 'fire', KeyR: 'potion', KeyJ: 'attack', KeyK: 'roll', KeyC: 'gear', KeyI: 'inv', KeyM: 'map' };
   I.press = function (a) { I.pressed[a] = true; };
   I.consume = function () { const p = I.pressed; I.pressed = {}; return p; };
   UI.initInput = function (game) {
@@ -121,7 +121,13 @@
       hb.appendChild(d); UI.hs[s.id] = d;
     });
     UI.hs.potion.querySelector('.g').style.color = '#e0484a';
-    UI.refreshAbil();
+    UI.refreshAbil(); UI.refreshArms();
+  };
+  UI.refreshArms = function () {
+    const G = GW.G, P = G && G.player; if (!P || !P.inv || !UI.hs || !UI.hs.attack) return;
+    const c = GW.Arms.cur(P), a = GW.Arms.ensure(P), o = a.set[1 - a.act] && GW.Arms.CLS[a.set[1 - a.act]];
+    const g = UI.hs.attack.querySelector('.g'); g.textContent = c.g; g.style.color = c.col;
+    UI.hs.attack.title = c.name + (o ? ' · X: ' + o.name : '');
   };
   // slot glyphs on the hotbar and touch buttons follow the loadout
   UI.refreshAbil = function () {
@@ -251,6 +257,20 @@
   UI.bookPick = function (G, i) { bookSel = i; UI.renderBook(G); };
   UI.renderBook = function (G) {
     const P = G.player, A = GW.Abil, b = A.ensure(P), atStation = G.craftStation && G.craftStation();
+    // weapons: two carried, X swaps between them
+    const AR = GW.Arms, ar = AR.ensure(P);
+    let wh = '<div class="sec2">WEAPONS · carry two, <b>X</b> swaps · click a carried slot, then a form</div><div class="wrow">';
+    wh += ar.set.map((k, i) => { const c = k && AR.CLS[k]; return `<div class="bs w${UI._armSel === i ? ' sel' : ''}${ar.act === i ? ' act' : ''}" data-w="${i}"><span class="k">${i ? 'II' : 'I'}</span><span class="g" style="color:${c ? c.col : '#555a66'}">${c ? c.g : '·'}</span><span class="n">${c ? c.name : 'empty'}${ar.act === i ? ' · in hand' : ''}</span></div>`; }).join('') + '</div><div class="wlist">';
+    for (const k in AR.CLS) { const c = AR.CLS[k], own = !!ar.owned[k];
+      wh += `<div class="wf${own ? '' : ' unk'}" data-f="${k}" title="${c.desc}${own ? '' : ' · ' + AR.where(k)}"><span class="g" style="color:${own ? c.col : '#4a4e5a'}">${c.g}</span> ${c.name}${own ? '' : ' <span class="dim">· ' + AR.where(k) + '</span>'}</div>`; }
+    $('book-arms').innerHTML = wh + '</div>';
+    if (UI._armSel === undefined) UI._armSel = 1;
+    $('book-arms').querySelectorAll('[data-w]').forEach(el => el.onclick = () => { UI._armSel = +el.dataset.w; UI.renderBook(G); });
+    $('book-arms').querySelectorAll('[data-f]').forEach(el => el.onclick = () => {
+      const k = el.dataset.f; if (!ar.owned[k]) return; const i = UI._armSel, j = ar.set.indexOf(k);
+      if (j >= 0 && j !== i) ar.set[j] = ar.set[i]; ar.set[i] = k; if (!ar.set[ar.act]) ar.act = i;
+      GW.Knight.dress(P); P.recalc(); GWAudio.sfx('socket'); UI.refreshArms(); G.save(); UI.renderBook(G);
+    });
     $('book-slots').innerHTML = b.slots.map((k, i) => { const a = k && A.LIST[k];
       return `<div class="bs${i === bookSel ? ' sel' : ''}" data-i="${i}"><span class="k">${i + 1}</span><span class="g" style="color:${a ? a.col : '#555a66'}">${a ? a.g : '·'}</span><span class="n">${a ? a.name : 'empty'}</span></div>`; }).join('');
     const order = Object.keys(A.LIST).sort((x, y) => (b.known[y] ? 1 : 0) - (b.known[x] ? 1 : 0));

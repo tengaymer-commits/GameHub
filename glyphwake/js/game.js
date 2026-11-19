@@ -49,6 +49,11 @@
       UI.toast(`<span style="color:#${it.color.toString(16).padStart(6, '0')}">${GW.Knight.pattern(it.set)}</span> ${it.name}${isNew ? ' · <span style="color:#ffcf6a">open Gear to wear it</span>' : ''}`, 4);
     }
     else if (kind === 'shards') { const amt = key; P.inv.shards = (P.inv.shards || 0) + amt; UI.float('+' + amt + ' ◈', P.pos, { color: '#9fd8ff', size: 11, y: 2.9, life: 1.1 }); if (arguments[2] !== true) UI.toast(`<span style="color:#9fd8ff">◈</span> ${amt} shards`, 2); return; }
+    else if (kind === 'arms') {
+      const c = GW.Arms.CLS[key]; if (!GW.Arms.learn(P, key)) { give('shards', 80); return; }
+      UI.toast(`<span style="color:${c.col}">${c.g}</span> New weapon: <b>${c.name}</b> · <span style="color:#ffcf6a">B to carry it · X swaps</span>`, 5);
+      GWAudio.sfx('quest'); UI.refreshArms && UI.refreshArms(); save(); return;
+    }
     else if (kind === 'abil') {
       const A = GW.Abil, a = A.LIST[key], isNew = A.learn(P, key);
       if (!isNew) { give('shards', 60); return; }
@@ -116,7 +121,7 @@
   }
   function build() {
     $('t-menu').style.visibility = '';
-    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 1-4 abilities · B book · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
+    $('t-foot').textContent = 'WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · X swap weapon · 1-4 abilities · B book · Q flask · E interact · C gear · wheel zoom · hold middle mouse to turn the camera';
     const R = G.R = new GW.Renderer($('gl'));
     const scene = G.scene = new THREE.Scene();
     G.camera = new THREE.PerspectiveCamera(42, R.aspect, 0.5, 400);
@@ -404,7 +409,7 @@
         }
       } else { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
       G.castleLoot();
-      GW.Abil.ensure(P); UI.refreshAbil && UI.refreshAbil();
+      GW.Abil.ensure(P); GW.Arms.ensure(P); GW.Knight.dress(P); UI.refreshAbil && UI.refreshAbil(); UI.refreshArms && UI.refreshArms();
       P.recalc(); P.hp = P.maxHp;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
@@ -639,8 +644,8 @@
     });
   };
   function spawnPickup(kind, key, at, fixedY, tag) {
-    const col = kind === 'abil' ? new THREE.Color(GW.Abil.LIST[key].col).getHex() : kind === 'kindling' ? 0xd08040 : kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
-    const m = new THREE.Mesh(kind === 'abil' ? new THREE.TorusGeometry(0.26, 0.07, 6, 12) : kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
+    const col = kind === 'arms' ? new THREE.Color(GW.Arms.CLS[key].col).getHex() : kind === 'abil' ? new THREE.Color(GW.Abil.LIST[key].col).getHex() : kind === 'kindling' ? 0xd08040 : kind === 'rune' ? GW.Forge.RUNES[key].color : kind === 'armor' ? (GW.Knight.GEAR[GW.Knight.SLOTS.find(sl => GW.Knight.GEAR[sl][key])][key].color) : GW.Forge.METALS[key].color;
+    const m = new THREE.Mesh(kind === 'arms' ? new THREE.BoxGeometry(0.12, 0.08, 0.9) : kind === 'abil' ? new THREE.TorusGeometry(0.26, 0.07, 6, 12) : kind === 'rune' ? new THREE.OctahedronGeometry(0.28, 0) : new THREE.BoxGeometry(0.5, 0.2, 0.3), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true }));
     const p = at.clone(); p.x += (Math.random() - 0.5) * 1.2; p.z += (Math.random() - 0.5) * 1.2;
     m.position.copy(p); G.scene.add(m);
     const light = GW.World.lights.add(p.x, p.y + 1, p.z, new THREE.Color(col).multiplyScalar(0.6), 4, 0.3);
@@ -664,7 +669,8 @@
     if (P.state === 'block' && !o.dot && !o.heavy) {
       const ang = from ? Math.atan2(from.x - P.pos.x, from.z - P.pos.z) : P.yaw;
       if (Math.abs(GW.angDiff(P.yaw, ang)) < 1.9) {
-        if (G.t - P.blockStart < 0.2) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
+        const BK = GW.Arms.cur(P).block;
+        if (G.t - P.blockStart < BK.parry) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
           G.slowmo(0.25, 0.45); P.riposteT = 1.5; P.st = Math.min(100, P.st + 15);
           GWAudio.sfx('block'); GWAudio.sfx('crit'); G.shake(0.3); G.hitstop = 0.08;
           UI.float('PARRY', P.pos, { color: '#ffd860', size: 16, y: 2.6, life: 1 }); G.addHitGlyphs(P.pos.x + Math.sin(P.yaw) * 0.8, P.pos.y + 1.3, P.pos.z + Math.cos(P.yaw) * 0.8, 16, '#ffe8a0');
@@ -672,7 +678,7 @@
           return 'parry';
         }
         // blocked: most damage soaked, paid in stamina
-        const soak = dmg * 0.8; P.st -= soak * 1.6 + 6; P.stDelay = 0.8; GWAudio.sfx('block');
+        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st; P.stDelay = 0.8; GWAudio.sfx('block');
         G.parts.spark.burst(P.pos.x + Math.sin(P.yaw) * 0.7, P.pos.y + 1.2, P.pos.z + Math.cos(P.yaw) * 0.7, 8, 3, 0xffe0a0, 0.3, 0.7, -5);
         if (P.st <= 0) { P.st = 0; P.state = 'hurt'; P.t = 0; UI.float('GUARD BROKEN', P.pos, { color: '#ff8a60', size: 12, y: 2.5 }); dmg *= 0.5; }
         else { P.hp -= dmg - soak; P.hurtT = 0.1; if (P.hp <= 0) { P.hp = 1; } return 'block'; }
@@ -853,6 +859,8 @@
     const A = GW.Abil, book = A.ensure(P);
     for (const k in A.LIST) { const a = A.LIST[k]; if (a.src === 'shop' && a.region === region) {
       items.push({ label: `<span style="color:${a.col}">${a.g}</span> Ability: ${a.name}`, cost: 180, ok: () => !book.known[k], buy: () => give('abil', k) }); } }
+    const arms = GW.Arms.ensure(P);
+    for (const k in GW.Arms.CLS) { const c = GW.Arms.CLS[k]; if (c.region === region) items.push({ label: `<span style="color:${c.col}">${c.g}</span> Weapon: ${c.name}`, cost: 240, ok: () => !arms.owned[k], buy: () => give('arms', k) }); }
     const scroll = G.unknownAbil(); if (scroll) items.push({ label: '✎ Old glyph scroll (unknown ability)', cost: 320, ok: () => !!G.unknownAbil(), buy: () => { const k = G.unknownAbil(); if (k) give('abil', k); } });
     G.state = 'shop';
     UI.showShop(who, P.inv.shards || 0, items, it => {
@@ -929,6 +937,7 @@
       const left = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
       if (left.length && R() < (p.type === 'elite' ? 0.6 : 0.15)) loot.push(['armor', left[Math.floor(R() * left.length)]]);
       if (R() < (p.type === 'elite' ? 0.5 : 0.18)) { const k = G.unknownAbil(); if (k) loot.push(['abil', k]); }
+      if (p.type === 'elite' && R() < 0.3) { const ow = GW.Arms.ensure(P).owned, left = Object.keys(GW.Arms.CLS).filter(k => !ow[k]); if (left.length) loot.push(['arms', left[Math.floor(R() * left.length)]]); }
       loot.forEach(([k, key]) => spawnPickup(k, key, at, y)); return;
     }
     const armor = ['night', 'scale', 'sallet', 'hauberk'].find(k => !P.inv.armor[k]);
@@ -1298,8 +1307,8 @@
         const aim = aimPoint();
         input = { mx: mv.x, mz: mv.z, aim, aimHeld: I.mouse.down,
           attack: pressed.attack || pressed.click, attackHeld: I.mouse.down || I.holdAttack || !!I.keys.KeyJ, block: I.mouse.right || I.holdBlock || !!I.keys.KeyV, roll: pressed.roll,
-          a1: pressed.a1, a2: pressed.a2, a3: pressed.a3, a4: pressed.a4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
-        if (P.horse && P.horse.ridden) { input.attackHeld = input.block = false; input.attack = input.roll = input.a1 = input.a2 = input.a3 = input.a4 = input.potion = false; }
+          swap: pressed.swap, a1: pressed.a1, a2: pressed.a2, a3: pressed.a3, a4: pressed.a4, potion: pressed.potion, sprint: !!(I.keys.ShiftLeft || I.keys.ShiftRight) };
+        if (P.horse && P.horse.ridden) { input.attackHeld = input.block = false; input.swap = input.attack = input.roll = input.a1 = input.a2 = input.a3 = input.a4 = input.potion = false; }
         const it = nearestInteract();
         UI.interact(it ? it.label : null);
         if (pressed.interact && it) doInteract(it);
@@ -1497,7 +1506,7 @@
       } else {
         for (const e of G.enemies) if (e.alive && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r + e.radius) {
           if (p.pierce) { p.hitSet = p.hitSet || new Set(); if (!p.hitSet.has(e)) { p.hitSet.add(e); G.hitEnemy(e, p.dmg, { proj: true, from: p.pos, brk: 1.4 }); if (p.chill && e.alive) e.status.slow = p.chill; } continue; }
-          if (!p.aoe) G.hitEnemy(e, p.dmg, { proj: true, from: p.pos }); boom = true; break; }
+          if (!p.aoe) G.hitEnemy(e, p.dmg, { proj: true, from: p.pos, brk: p.brk }); boom = true; break; }
       }
       if (boom) {
         G.parts.spark.burst(p.pos.x, p.pos.y, p.pos.z, p.aoe ? 26 : 10, p.aoe ? 7 : 3, p.color, 0.5, 1.1, -3);

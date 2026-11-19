@@ -170,12 +170,13 @@
   Player.prototype.buildModel = function (scene) {
     const g = this.model = new THREE.Group(); scene.add(g);
     this.body = new THREE.Group(); g.add(this.body);
-    this.swordMats = { blade: GW.mat({ id: ID.METAL, color: 0xb8c0cc, rim: 1.0 }), hilt: GW.mat({ id: ID.LEATHER, color: 0x4a3020 }), guard: GW.mat({ id: ID.METAL, color: 0xc8a050, rim: 0.6 }) };
+    this.swordMats = { blade: GW.mat({ id: ID.METAL, color: 0xb8c0cc, rim: 1.0 }), hilt: GW.mat({ id: ID.LEATHER, color: 0x4a3020 }), guard: GW.mat({ id: ID.METAL, color: 0xc8a050, rim: 0.6 }), shield: GW.mat({ id: ID.LEATHER, color: 0x7a2228, rim: 0.4 }) };
     GW.Knight.dress(this);
   };
   Player.prototype.recalc = function () {
     const s = GW.Forge.weaponStats(this.weapon, this.level);
     this.ws = s;
+    const WC = GW.Arms.cur(this); s.crit += WC.crit; s.speed *= WC.speed;
     const gs = this.gs = GW.Knight.stats(this.gear);
     s.crit += gs.crit; s.focusRegen *= 1 + gs.focus;
     this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
@@ -188,6 +189,13 @@
     this.swordMats.blade.uniforms.uColor.value.set(m.color);
     this.swordMats.blade.uniforms.uEmissive.value.set(s.glow).multiplyScalar(0.25);
     this.trail.color.set(s.trail);
+  };
+  Player.prototype.swapArms = function (G) {
+    const a = GW.Arms.ensure(this), o = 1 - a.act;
+    if (!a.set[o]) { G.ui.toast('Only one weapon carried · <span style="color:#ffcf6a">B</span> to choose a second', 1.6); return; }
+    a.act = o; GW.Knight.dress(this); this.recalc(); this.combo = 0; GWAudio.sfx('socket');
+    const C = GW.Arms.CLS[a.set[o]]; G.ui.float(C.g + ' ' + C.name, this.pos, { color: C.col, size: 12, y: 2.8, life: 1 });
+    if (G.ui.refreshArms) G.ui.refreshArms();
   };
   Player.prototype.need = function () { return Math.round(80 * Math.pow(this.level, 1.6)); };
   Player.prototype.place = function (x, z) { this.pos.set(x, GW.World.groundY(x, z), z); this.vel.set(0, 0, 0); this.floor = 0; };
@@ -255,6 +263,7 @@
     if (input.attack) this.queued = 'attack';
     if (input.roll) this.queued = 'roll';
     for (const k of ['a1', 'a2', 'a3', 'a4']) if (input[k]) this.queued = k;
+    if (input.swap && (this.state === 'move' || this.state === 'block')) this.swapArms(G);
     if (this.wardT > 0) this.wardT -= dt; if (this.mightT > 0) this.mightT -= dt;
     if (input.potion) this.queued = 'potion';
 
@@ -279,10 +288,10 @@
 
     if (this.queued && canAct) {
       const q = this.queued;
-      if (q === 'roll' && this.st >= 15) {
+      if (q === 'roll' && this.st >= Math.min(15, GW.Arms.cur(this).roll)) {
         this.queued = null; this.state = 'roll'; this.t = 0; this.cur = { dur: 0.48 };
         this.rollDir = ml > 0.1 ? Math.atan2(mv.x, mv.z) : this.yaw; this.yaw = this.rollDir;
-        this.st -= 24; this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
+        this.st -= GW.Arms.cur(this).roll; this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
         G.parts.dust.burst(this.pos.x, this.pos.y + 0.2, this.pos.z, 8, 2, 0x6a6458, 0.5, 1.2, 0);
       } else if (q === 'attack' && this.st > 4 && G.finisherTarget && G.finisherTarget(this)) {
         // a broken enemy within reach: execute it
@@ -290,8 +299,9 @@
         this.yaw = Math.atan2(this.finTarget.pos.x - this.pos.x, this.finTarget.pos.z - this.pos.z); GWAudio.sfx('heavy');
       } else if (q === 'attack' && this.st > 4) {
         this.queued = null;
-        const next = this.state === 'attack' ? (this.combo + 1) % 3 : 0;
-        this.combo = next; this.cur = Object.assign({}, COMBO[next]);
+        const CB = GW.Arms.cur(this).combo;
+        const next = this.state === 'attack' ? (this.combo + 1) % CB.length : 0;
+        this.combo = next; this.cur = Object.assign({}, CB[next]);
         this.cur.dur /= this.ws.speed; this.cur.hitAt = this.cur.dur * (this.cur.heavy ? 0.5 : 0.42); this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.07; this.atkN = (this.atkN || 0) + 1;
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
@@ -338,7 +348,11 @@
         const c = this.cur, k = this.t / c.dur;
         const stepT = Math.max(0, 1 - this.t / (c.dur * 0.45));
         vx = Math.sin(this.yaw) * c.step * stepT * 1.6 + mv.x * speed * 0.15; vz = Math.cos(this.yaw) * c.step * stepT * 1.6 + mv.z * speed * 0.15;
-        if (this.t >= c.h0 && this.t <= c.h1) this.meleeHits(G, c.range, c.cone, c.dmg, c.heavy);
+        if (c.shot) {   // bow: loose an arrow at the release point
+          if (this.t >= c.hitAt && !c.loosed) { c.loosed = true; const f = this.fwd(), sp = c.pierce ? 46 : 34;
+            GWAudio.sfx('swing', 1.6);
+            G.spawnProjectile({ from: 'player', x: this.pos.x + f.x * 0.9, y: this.pos.y + 1.35, z: this.pos.z + f.z * 0.9, vx: f.x * sp, vz: f.z * sp, r: c.pierce ? 0.42 : 0.3, dmg: this.ws.dmg * c.dmg, color: c.pierce ? 0xfff0a0 : this.ws.trail, aoe: 0, life: c.pierce ? 0.9 : 0.75, pierce: c.pierce, arrow: true, brk: c.brk, crit: this.critNext }); }
+        } else if (this.t >= c.h0 && this.t <= c.h1) this.meleeHits(G, c.range, c.cone, c.dmg, c.heavy);
         if (this.t >= c.dur) { this.state = 'move'; this.t = 0; }
         break;
       }
@@ -368,8 +382,8 @@
         if (full && !this._chFull) { this._chFull = true; GWAudio.sfx('socket'); G.parts.spark.burst(this.pos.x, this.pos.y + 1.2, this.pos.z, 20, 3, 0xffd060, 0.5, 1, 0); }
         if (Math.random() < 0.5) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + 0.4 + this.chargeT, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.4, 0.8, full ? 0xffd060 : 0xc8d8ff, 0);
         if (!input.attackHeld || this.chargeT > 1.4) {
-          const c = Math.min(1, this.chargeT);
-          this.cur = { dur: 0.62 / this.ws.speed, dmg: 1.6 + 1.8 * c, range: 3.3 + 0.5 * c, cone: 1.1, step: 4.5 + 2 * c, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c };
+          const c = Math.min(1, this.chargeT), HV = GW.Arms.cur(this).heavy;
+          this.cur = { dur: 0.62 / this.ws.speed, dmg: (1.6 + 1.8 * c) * HV.dmgK, range: (3.3 + 0.5 * c) * HV.rangeK, cone: 1.1, step: (4.5 + 2 * c) * HV.stepK, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c, a: 2, shot: HV.shot, pierce: HV.shot };
           this.cur.hitAt = this.cur.dur * 0.42; this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.08;
           this.combo = 2; this.atkN = (this.atkN || 0) + 1; this.state = 'attack'; this.t = 0; this.hitSet.clear(); this._chFull = false;
           this.st -= this.cur.st; this.stDelay = 0.7; GWAudio.sfx('heavy'); if (c > 0.95) G.shake(0.25);
@@ -458,11 +472,14 @@
       case 'attack': {
         const c = this.cur, at = c.heavy ? 0.0 : 0.12;
         const speed = (pk - at) * slashD / Math.max(0.05, c.hitAt);
-        if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.06, at, speed });
-        // vary the three swings: twist the body so arcs come from different sides, lean into the heavy
-        const k = GW.clamp(this.t / c.dur, 0, 1), e = Math.sin(k * Math.PI);
-        if (this.combo === 0) b.rotation.y = -0.45 * e;
-        else if (this.combo === 1) b.rotation.y = 0.55 * e;
+        const k = GW.clamp(this.t / c.dur, 0, 1), e = Math.sin(k * Math.PI), a = c.a === undefined ? Math.min(2, this.combo) : c.a;
+        if (a >= 3) { if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / c.dur * (a === 4 ? 0.7 : 0.9) }); }
+        else if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.06, at, speed });
+        // vary the swings: twist the body so arcs come from different sides, lean into the heavy
+        if (a === 0) b.rotation.y = -0.45 * e;
+        else if (a === 1) b.rotation.y = 0.55 * e;
+        else if (a === 3) { b.rotation.x = 0.28 * e; b.position.z = 0.12 * e; }   // spear thrust
+        else if (a === 4) { b.rotation.y = 0.5; b.rotation.x = -0.05; }           // bow draw
         else { b.rotation.x = 0.22 * e; b.position.y = 0.05 * e; }
         break;
       }

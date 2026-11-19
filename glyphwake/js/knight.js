@@ -198,9 +198,11 @@
       P.attachments.push(rig.attach('Chest', holder, new THREE.Matrix4().makeTranslation(0, sh.y + 0.04, -0.08)));
     }
     // ---- sword in the right fist ----
-    const sw = K.buildSword(P.swordMats, 1);
-    P.sword = sw.sword; P.blade = sw.blade; P.tipObj = sw.tip; P.baseObj = sw.base;
-    P.attachments.push(rig.attach('Wrist.R', sw.sword, K.gripPlace(rig, 'R')));
+    // weapon: the active form from arms.js (sword+shield, greatsword, spear, twin daggers, bow)
+    const sw = GW.Arms.build(P.swordMats, GW.Arms.curKey(P));
+    P.sword = sw.right; P.tipObj = sw.tip; P.baseObj = sw.base;
+    P.attachments.push(rig.attach('Wrist.R', sw.right, K.gripPlace(rig, 'R')));
+    if (sw.left) { try { P.attachments.push(rig.attach('Wrist.L', sw.left, K.gripPlace(rig, 'L'))); } catch (err) { /* no left hand bones */ } }
     P.mats = rig.mats.concat(mats, [P.swordMats.blade]);
     if (P.slashPeak === undefined) P.slashPeak = rig.peakFraction('Sword_Slash', 'Wrist.R');
     rig.play('Idle_Sword', { fade: 0 }); rig.update(0);

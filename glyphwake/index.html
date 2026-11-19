@@ -51,6 +51,7 @@
       <button class="tb sm" data-act="fire">♨<em id="t-kind"></em></button>
       <button class="tb sm" data-act="map">⌖</button>
       <button class="tb sm" data-act="book">✎</button>
+      <button class="tb sm" data-act="swap">⇄</button>
       <button class="tb sm" data-act="horse">♞</button>
     </div>
   </div>
@@ -99,7 +100,7 @@
     <button class="btn" id="t-new">New journey</button>
     <button class="btn ghost" id="t-settings">Settings</button>
   </div>
-  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · 1-4 abilities · B book · Q flask · E interact · F make fire · M map · I inventory · H horse · Shift sprint</div>
+  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · X swap weapon · 1-4 abilities · B book · Q flask · E interact · F make fire · M map · I inventory · H horse · Shift sprint</div>
 </div>
 
 <!-- ================= MENUS ================= -->
@@ -193,7 +194,7 @@
 <canvas id="compass" width="720" height="44"></canvas>
 <div id="shop" class="panel hidden"><h2 id="shop-who">TRADER</h2><div class="s-note">Your shards: <b id="shop-shards" style="color:#9fd8ff"></b> ◈</div><div id="shop-list"></div><button class="btn ghost" id="shop-close">Leave</button></div>
 <div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
-<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
+<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
 <div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
 <div id="worldmap" class="hidden"><canvas id="wm"></canvas><div class="wm-foot">M / Esc to close · wheel to zoom · drag to pan</div></div>
 
@@ -206,6 +207,7 @@
 <script src="js/knight.js"></script>
 <script src="js/world.js"></script>
 <script src="js/dungeon.js"></script>
+<script src="js/arms.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/abilities.js"></script>
 <script src="js/forge.js"></script>
