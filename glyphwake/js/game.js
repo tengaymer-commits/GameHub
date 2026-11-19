@@ -307,9 +307,10 @@
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
   // the glint: a star flashes on the enemy's weapon as the parry window opens (red = unblockable, dodge it)
-  G.glint = function (e, red) {
+  G.glint = function (e, red, sp) {
     let p;
-    if (e.sword) { p = e.sword.localToWorld(new V3(0, 0, 0.9)); } else { p = new V3(e.pos.x + Math.sin(e.yaw) * 0.9, e.pos.y + 0.8, e.pos.z + Math.cos(e.yaw) * 0.9); }
+    if (sp && sp.y !== undefined) { const f = (sp.f || 0) * (e.model.scale.x || 1); p = new V3(e.pos.x + Math.sin(e.yaw) * f, e.pos.y + sp.y * (e.model.scale.y || 1), e.pos.z + Math.cos(e.yaw) * f); }
+    else if (e.sword) { p = e.sword.localToWorld(new V3(0, 0, 0.9)); } else { p = new V3(e.pos.x + Math.sin(e.yaw) * 0.9, e.pos.y + 0.8, e.pos.z + Math.cos(e.yaw) * 0.9); }
     const col = red ? '#ff4030' : '#fffbe8';
     G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 46, pop: true, t: 0, life: 0.34, ch: red ? '!' : '✦', col });
     G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 70, pop: true, t: 0, life: 0.2, ch: '+', col: red ? '#ff8060' : '#ffe9a0' });

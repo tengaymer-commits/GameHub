@@ -586,7 +586,7 @@
   Enemy.prototype.mat = function (o) { const m = GW.mat(o); this.mats.push(m); return m; };
   Enemy.prototype.distTo = function (p) { return Math.hypot(p.x - this.pos.x, p.z - this.pos.z); };
   Enemy.prototype.face = function (p, dt, rate) { const a = Math.atan2(p.x - this.pos.x, p.z - this.pos.z); this.yaw += GW.angDiff(this.yaw, a) * Math.min(1, dt * (rate || 8)); };
-  Enemy.prototype.setState = function (s) { this.state = s; this.t = 0; this.didHit = false; };
+  Enemy.prototype.setState = function (s) { this.state = s; this.t = 0; this.didHit = false; this._gl = false; };
   Enemy.prototype.update = function (dt, G) {
     const W = GW.World, P = G.player;
     this.t += dt; this.flash = Math.max(0, this.flash - dt * 5);
@@ -630,6 +630,9 @@
     if (s.root > 0 && !(this.brokenT > 0)) { this.moving = false; if (Math.random() < 0.15) G.parts.spark.emit(this.pos.x, this.pos.y + 0.3, this.pos.z, 0, 0.4, 0, 0.6, 0.9, 0xe0e8ff, 0); }
     else if (this.brokenT > 0) { this.brokenT -= dt; this.moving = false; this.model.rotation.z = Math.sin(G.t * 9) * 0.06; if (this.brokenT <= 0) this.model.rotation.z = 0; }
     else this.T.ai(this, ctx);
+    // glint schedule: a star (or a red !) flashes 0.2 s before the blow lands — parry on white, dodge on red
+    { const gl = this.T.glints && this.T.glints[this.state];
+      if (gl && !this._gl && this.alive && this.t >= gl.hit(this) - 0.2) { this._gl = true; G.glint(this, gl.red, gl); } }
     // knockback
     this.pos.x += this.kb.x * dt; this.pos.z += this.kb.z * dt; this.kb.multiplyScalar(Math.max(0, 1 - dt * 9));
     // separation
@@ -948,6 +951,7 @@
     onRespawn(e) { GW.World.lights.list.push(e.light); },
   };
 
+  TYPES.wisp.glints = { cast: { hit: () => 0.65, y: 1.6, f: 0.4 } };
   // ---------------- The Mire Warden (boss) ----------------
   TYPES.warden = {
     name: 'THE MIRE WARDEN', hp: 1500, radius: 1.8, poise: 999, aggro: 16, leash: 999, xp: 700, dmg: 26, speed: 3.1, kind: 'construct', boss: true,
@@ -1088,6 +1092,9 @@
 
   // ---------------- region bosses ----------------
   // The Ash Colossus: the Warden's body in charred stone with burning runes; its blows set you alight
+  { const rg = e => e.hp < e.maxHp * 0.25 ? 1.3 : 1;
+    TYPES.warden.glints = { slam: { hit: e => 1.05 / rg(e), red: true, y: 4.4, f: 0.6 }, sweep: { hit: e => 0.75 / rg(e), red: true, y: 3, f: 2.4 },
+      'charge-wind': { hit: e => 0.85 / rg(e), red: true, y: 2.6, f: 1.8 } }; }
   TYPES.colossus = Object.assign({}, TYPES.warden, { name: 'THE ASH COLOSSUS', hp: 2600, xp: 1400, base: 'warden', phase2: 'THE COLOSSUS BURNS', summon: 'cinderling', onHit: burn,
     build(e) { TYPES.warden.build(e); tint(e, 0x4a403a); e.model.scale.setScalar(1.25); e.light.c.setRGB(1.4, 0.5, 0.15); e.light.base.copy(e.light.c); e.light.base0 = null; e.runeMat.uniforms.uEmissive.value.setRGB(1.0, 0.4, 0.1); },
     anim(e, dt, c) { TYPES.warden.anim(e, dt, c); const k = 0.7 + 0.3 * Math.sin(e.t * 6); e.runeMat.uniforms.uEmissive.value.setRGB(1.2 * k, 0.45 * k, 0.1 * k); if (Math.random() < 0.4) c.G.parts.spark.emit(e.pos.x + (Math.random() - 0.5) * 3, e.pos.y + 2 + Math.random() * 3, e.pos.z + (Math.random() - 0.5) * 3, 0, 2, 0, 0.8, 1.1, 0xff7a20, -1); } });
@@ -1132,6 +1139,8 @@
       }
       if (e.t > 1.4) e.setState('chase');
     } });
+  TYPES.rimeknight.glints = { special: { hit: () => 1.0, red: true, y: 3.2, f: 0.5 } };
+  TYPES.cragwarlord.glints = { special: { hit: () => 0.9, red: true, y: 3.0, f: 0.5 } };
   // The Mire Hag: a floating, hooded caster who keeps her distance, spits venom and calls bog wisps
   TYPES.mirehag = {
     name: 'THE MIRE HAG', hp: 2000, radius: 0.8, poise: 999, aggro: 18, leash: 999, xp: 1400, dmg: 16, speed: 4.6, kind: 'undead', boss: true, flying: true, onHit: venom, projCol: 0x8aff6a,
@@ -1344,6 +1353,10 @@
     },
     onDeath(e) { GW.World.lights.remove(e.light); },
   };
+  { const rg = e => e.hp < e.maxHp / 3 ? 1.3 : e.hp < e.maxHp * 2 / 3 ? 1.12 : 1;
+    TYPES.widow.glints = { stab: { hit: e => 0.7 / rg(e), red: true, y: 1.8, f: 4 }, pounce: { hit: () => 0.55, red: true, y: 2.4, f: 0 },
+      web: { hit: e => 0.75 / rg(e), y: 1.6, f: 2.6 } }; }
+  TYPES.mirehag.glints = { cast: { hit: () => 0.6, y: 3.5, f: 0.7 } };
 
   // ======================================================================
   // NPCs
