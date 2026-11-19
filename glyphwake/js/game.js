@@ -306,6 +306,15 @@
   G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
+  // the glint: a star flashes on the enemy's weapon as the parry window opens (red = unblockable, dodge it)
+  G.glint = function (e, red) {
+    let p;
+    if (e.sword) { p = e.sword.localToWorld(new V3(0, 0, 0.9)); } else { p = new V3(e.pos.x + Math.sin(e.yaw) * 0.9, e.pos.y + 0.8, e.pos.z + Math.cos(e.yaw) * 0.9); }
+    const col = red ? '#ff4030' : '#fff6c8';
+    G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 30, pop: true, t: 0, life: 0.3, ch: red ? '!' : '✦', col });
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5 + 6, vz: Math.sin(a) * 2, t: 0, life: 0.22, ch: '·', col }); }
+    if (e.distTo(G.player.pos) < 16) GWAudio.sfx(red ? 'zap' : 'socket');
+  };
   // ---------------- slash arcs: each swing leaves a crescent of bright characters that flicker and scatter ----------------
   const _sa = new V3(), _sb = new V3(), SLASH_LIFE = 0.26;
   const slashCh = ang => { const a = ((ang % Math.PI) + Math.PI) % Math.PI; return a < 0.39 || a > 2.75 ? '-' : a < 1.18 ? '\\' : a < 1.96 ? '|' : '/'; };
@@ -346,9 +355,14 @@
     cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.font = `bold ${Math.round(13 * dpr)}px ui-monospace, Menlo, monospace`; cx.globalCompositeOperation = 'lighter';
     G.hitGlyphs = G.hitGlyphs.filter(g => {
       g.t += dt; if (g.t > g.life) return false;
-      g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt;
+      if (g.follow) { g.x = g.follow.x; g.y = g.follow.y; g.z = g.follow.z; }
+      else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt; }
       _hg.set(g.x, g.y, g.z).project(G.camera); if (_hg.z > 1) return true;
-      cx.globalAlpha = 1 - g.t / g.life; cx.fillStyle = g.col; cx.fillText(g.ch, (_hg.x * 0.5 + 0.5) * W, (-_hg.y * 0.5 + 0.5) * H); return true;
+      const k = g.t / g.life;
+      if (g.size) cx.font = `bold ${Math.round(g.size * (g.pop ? 1 + 0.6 * Math.sin(Math.min(1, k * 2) * Math.PI) : 1) * dpr)}px ui-monospace, Menlo, monospace`;
+      cx.globalAlpha = 1 - k; cx.fillStyle = g.col; cx.fillText(g.ch, (_hg.x * 0.5 + 0.5) * W, (-_hg.y * 0.5 + 0.5) * H);
+      if (g.size) cx.font = `bold ${Math.round(13 * dpr)}px ui-monospace, Menlo, monospace`;
+      return true;
     });
     cx.restore();
   }

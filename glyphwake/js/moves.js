@@ -80,6 +80,15 @@
     return mix(S, P0, eIO(Math.min(1, (t - hold) / Math.max(0.05, d - hold))));
   }
 
+  // enemies: a slower, legible rhythm — rise into the anticipation, HOLD it still, snap, hold the follow-through
+  function enemyPose(a, s, t, h, d) {
+    const A = K[a], S = K[s], snap0 = h - 0.05, ant = Math.max(0.1, snap0 * 0.6), snapEnd = h + 0.02, hold = Math.min(d * 0.85, h + 0.2);
+    if (t < ant) return mix(P0, A, eOut(t / ant));
+    if (t < snap0) return A;
+    if (t < snapEnd) return mix(A, S, eOut((t - snap0) / (snapEnd - snap0)));
+    if (t < hold) return S;
+    return mix(S, P0, eIO(Math.min(1, (t - hold) / Math.max(0.05, d - hold))));
+  }
   // ---------- solving a pose onto the rig ----------
   const _q = new THREE.Quaternion(), _p = new THREE.Quaternion(), _m = new THREE.Quaternion(), _e = new THREE.Euler();
   const tmp = { a: new V3(), b: new V3(), c: new V3(), d: new V3(), t: new V3(), n: new V3(), pole: new V3(), e: new V3() };
@@ -136,5 +145,5 @@
     if (L && L.h) solveArm(rig, body, 'L', L.h, P.leftProp, L.b);
     if (w < 0.999) SAVE.forEach((n, i) => { const b = rig.bone(n); if (b && orig[i]) b.quaternion.slerpQuaternions(orig[i], b.quaternion.clone(), w); });
   }
-  GW.Moves = { K, MOVES, HEAVY, BLOCK, attackPose, apply, mix };
+  GW.Moves = { K, MOVES, HEAVY, BLOCK, attackPose, enemyPose, apply, mix };
 })();

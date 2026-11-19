@@ -717,7 +717,9 @@
       switch (e.state) {
         case 'windup':
           e.face(P.pos, dt, 10); e.moving = false;
+          if (!e.feint && !e._gl && e.t > 0.3) { e._gl = true; G.glint(e); }
           if (e.t > 0.45) {
+            e._gl = false;
             if (e.feint) {   // a false dart: bound sideways instead of biting
               e.feint = false; const a = e.yaw + (Math.random() < 0.5 ? 1.4 : -1.4); e.lv = { x: Math.sin(a) * 11, z: Math.cos(a) * 11 }; e.setState('dart'); GWAudio.sfx('step', 3);
             } else { e.setState('lunge'); const a = e.yaw; e.lv = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 }; GWAudio.sfx('swing', 0.8); }
@@ -755,8 +757,8 @@
     anim(e, dt) {
       const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
       switch (e.state) {
-        case 'windup': if (fresh) R.play('Attack', { loop: false, restart: true, fade: 0.08, speed: R.dur('Attack') / 0.85 }); break;
-        case 'lunge': break;
+        case 'windup': if (fresh) R.play('Idle', { fade: 0.08 }); break;
+        case 'lunge': if (fresh) R.play('Attack', { loop: false, restart: true, fade: 0.04, at: 0.3, speed: 1.6 }); break;
         case 'dart': R.play('Gallop', { speed: 1.5, fade: 0.08 }); break;
         case 'stagger': if (fresh) R.play(Math.random() < 0.5 ? 'Idle_HitReact_Left' : 'Idle_HitReact_Right', { loop: false, restart: true, fade: 0.05, speed: 1.6 }); break;
         case 'chase': R.play(e.moving ? 'Gallop' : 'Idle', { speed: 1.15, fade: 0.2 }); break;
@@ -764,7 +766,10 @@
         default: R.play('Idle', { fade: 0.3 });
       }
       R.update(dt);
-      if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(e.state === 'windup' ? 2.2 : 1, 0.15, 0.1);
+      { const k = e.state === 'windup' ? Math.min(1, e.t / 0.25) : 0;   // coil: sink and draw back, then spring
+        if (e.root0 === undefined) { e.root0 = R.root.position.y; e.rootZ = R.root.position.z; }
+        R.root.position.y = e.root0 - 0.12 * k; R.root.position.z = e.rootZ - 0.3 * k; R.root.rotation.x = -0.12 * k; }
+      if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(e.state === 'windup' ? 1 + 2.5 * Math.min(1, e.t / 0.3) : 1, 0.15, 0.1);
     },
   };
 
@@ -797,7 +802,8 @@
       const boss = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), rust); boss.position.x = -0.1; sh.add(boss);
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.025, 4, 16), rust); rim.rotation.y = Math.PI / 2; rim.position.x = -0.07; sh.add(rim);
       R.attach('Wrist.L', sh, GW.Knight.gripPlace(R, 'L'));
-      e.shield = sh;
+      e.shield = sh; e.sword = sw.sword;
+      e.poser = { rig: R, body: e.model, sword: sw.sword, leftProp: sh }; e.rootY0 = R.root.position.y; e.rootZ0 = R.root.position.z;
       e.mats = R.mats.concat([rust, wood, disc.material]);
       e.eyeMat = R.mats.find(m => m.uniforms.uUnlit.value > 0);
       if (TYPES.hollow.pk === undefined) TYPES.hollow.pk = R.peakFraction('Sword_Slash', 'Wrist.R');
@@ -807,7 +813,9 @@
     ai(e, c) {
       const { dt, G, P, dP, slow } = c;
       if (!e.aggro) { e.wander(c, TYPES.hollow.speed); return; }
-      const T = TYPES.hollow;
+      const T = TYPES.hollow, HM = [['sw_fore_a', 'sw_fore_s'], ['sw_back_a', 'sw_back_s'], ['sw_chop_a', 'sw_chop_s']];
+      if (e.atk) { e.atk.t += dt; if (e.atk.glint && !e.atk.gl && e.atk.t >= e.atk.hit - 0.2) { e.atk.gl = true; G.glint(e, e.atk.red); } }
+      if (e.state === 'stagger' || e.state === 'chase' || e.state === 'block') e.atk = null;
       switch (e.state) {
         case 'windup': {
           e.face(P.pos, dt, 5); e.moving = false; const wd = e.wd || 0.62;
@@ -818,14 +826,14 @@
         case 'feint':   // ...a hop back, then a fast real cut: punishes parrying the first motion
           e.moving = false; e.face(P.pos, dt, 8);
           if (e.t < 0.2) { e.pos.x -= Math.sin(e.yaw) * dt * 4; e.pos.z -= Math.cos(e.yaw) * dt * 4; }
-          if (e.t > 0.4) { e.wd2 = 0.24; e.setState('windup2'); }
+          if (e.t > 0.4) { e.wd2 = 0.24; e.setState('windup2'); e.atk = { t: 0, mv: HM[2], hit: e.wd2 + 0.08, glint: true }; }
           break;
         case 'slash':
           e.pos.x += Math.sin(e.yaw) * dt * 3; e.pos.z += Math.cos(e.yaw) * dt * 3;
           if (e.t > 0.08) e.strike(G, 2.5, 1.2, T.dmg, {});
           if (e.t > 0.32) {
             e.ci = (e.ci || 0) + 1;
-            if (e.chain && e.ci < e.chain.length) { e.wd2 = e.chain[e.ci]; e.setState('windup2'); }
+            if (e.chain && e.ci < e.chain.length) { e.wd2 = e.chain[e.ci]; e.setState('windup2'); e.atk = { t: 0, mv: HM[e.ci % 3], hit: e.wd2 + 0.08, glint: true }; }
             else { e.setState('recover'); e.cool = (e.T.boss ? 0.8 : 1.5) + Math.random() * (e.T.boss ? 0.6 : 1); }
           }
           break;
@@ -847,13 +855,13 @@
             e.moveTo(P.pos.x + Math.sin(a) * 4, P.pos.z + Math.cos(a) * 4, T.speed * 0.6 * slow, dt); e.face(P.pos, dt, 6);
           } else if (dP > 2.0) e.moveTo(P.pos.x, P.pos.z, T.speed * slow * (e.T.boss ? 1.25 : 1), dt); else { e.moving = false; e.face(P.pos, dt, 6); }
           if (can && e.cool <= 0 && dP < 2.9) {
-            if (P.state === 'block' && G.t - P.blockStart > 0.7 && Math.random() < 0.6) { e.setState('bash'); break; }
+            if (P.state === 'block' && G.t - P.blockStart > 0.7 && Math.random() < 0.6) { e.setState('bash'); e.atk = { t: 0, bash: true, hit: 0.6, glint: true, red: true }; break; }
             // pick a string: single, quick pair, delayed pair, or (elites and bosses) a three-cut flurry with a late beat
             const pats = [[0.62], [0.62, 0.35], [0.7, 0.62], [0.62, 0.3, 0.55]];
             if (e.elite || e.T.boss) pats.push([0.45, 0.28, 0.28], [0.8, 0.3, 0.3]);
             e.chain = pats[Math.floor(Math.random() * pats.length)]; e.ci = 0; e.wd = e.chain[0];
             e.feint = Math.random() < (e.T.boss ? 0.28 : e.elite ? 0.22 : 0.14);
-            e.setState('windup');
+            e.setState('windup'); e.atk = { t: 0, mv: HM[e.chain.length === 1 ? Math.floor(Math.random() * 3) : 0], hit: e.wd + 0.08, glint: !e.feint };
           }
       }
     },
@@ -861,11 +869,7 @@
       const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
       const pk = TYPES.hollow.pk || 0.45, D = R.dur('Sword_Slash');
       switch (e.state) {
-        case 'windup': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.1, speed: pk * D / ((e.wd || 0.62) + 0.08) }); break;
-        case 'windup2': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.08, at: 0.15, speed: (pk - 0.15) * D / ((e.wd2 || 0.35) + 0.08) }); break;
-        case 'feint': if (fresh) R.play('Idle_Sword', { fade: 0.08 }); break;
-        case 'bash': if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.08, speed: R.dur('Punch_Right') / 0.8 }); break;
-        case 'slash': break;
+        case 'windup': case 'windup2': case 'slash': case 'feint': case 'bash': R.play('Idle_Sword', { fade: 0.08 }); break;
         case 'stagger': if (fresh) R.play('HitRecieve', { loop: false, restart: true, fade: 0.05, speed: 1.2 }); break;
         case 'block': if (fresh) R.play('HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.5 }); break;
         case 'chase': R.play(e.moving ? 'Walk' : 'Idle_Sword', { speed: 1.5, fade: 0.25 }); break;
@@ -873,6 +877,13 @@
         default: R.play('Idle_Sword', { fade: 0.3 });
       }
       R.update(dt);
+      // readable attacks: key poses with a still anticipation, a snap, and a held follow-through (moves.js)
+      const M = GW.Moves, a = e.atk; let pose = null;
+      if (a && e.state === 'feint') pose = M.mix(M.K[(a.mv || ['sw_fore_a'])[0]], M.K.sw_block, Math.min(1, e.t / 0.15));
+      else if (a && a.bash) { pose = M.mix(null, M.K.sw_block, Math.min(1, a.t / 0.2)); if (a.t > 0.55 && a.t < 0.85) pose = Object.assign({}, pose, { z: 0.5 * Math.sin((a.t - 0.55) / 0.3 * Math.PI) }); }
+      else if (a && a.mv) pose = M.enemyPose(a.mv[0], a.mv[1], a.t, a.hit, a.hit + 0.5);
+      if (pose) { const w = pose.w === undefined ? 1 : pose.w; R.root.position.y = (e.rootY0 || 0) + (pose.y || 0) * w; R.root.position.z = (e.rootZ0 || 0) + (pose.z || 0) * w; M.apply(e.poser, pose); }
+      else { R.root.position.y = e.rootY0 || 0; R.root.position.z = e.rootZ0 || 0; }
       if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(0.25, 0.8, 1.0).multiplyScalar(e.state.startsWith('windup') ? 2.4 : 1.2);
     },
   };
