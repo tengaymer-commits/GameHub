@@ -93,6 +93,10 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Parry**: start the block within 0.2 s of the hit landing. The blow is negated, time slows, the attacker reels, and the next swing is a **riposte** (×3.5).
 - **Perfect dodge**: roll through a blow at the last instant. Time slows, you get +30 stamina, and your next hit crits.
 - **Break bar** `[####----]`: hits fill it. When it is full the enemy is **BROKEN** for about 3 s. Attack it then for a **finisher**: 50% of its life (8% on bosses), and you heal 12%.
+- **Enemies take turns**: only 2 melee enemies commit to an attack at once (3 from level 10). The rest circle just out of reach, waiting.
+- **Hollows** (and the Rime Knight and Crag Warlord, who fight like them) attack in strings: a single cut, a quick pair, a delayed pair, or a 3-cut combo with a late beat. Elites and bosses also have a fast flurry. Some windups are **feints** (`?`): the blade stops, they hop back, then cut fast. If you hold block too long, they **shield-bash** (`!`, unblockable, drains stamina).
+- **Wolves** try to get behind you before lunging when they hunt as a pack, and sometimes fake a lunge and bound sideways instead.
+- **Wisps** sometimes fire a fan of 3 bolts, more often when you are blocking.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
 ## Weapons (two carried, X swaps)

@@ -710,7 +710,15 @@
       switch (e.state) {
         case 'windup':
           e.face(P.pos, dt, 10); e.moving = false;
-          if (e.t > 0.45) { e.setState('lunge'); const a = e.yaw; e.lv = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 }; GWAudio.sfx('swing', 0.8); }
+          if (e.t > 0.45) {
+            if (e.feint) {   // a false dart: bound sideways instead of biting
+              e.feint = false; const a = e.yaw + (Math.random() < 0.5 ? 1.4 : -1.4); e.lv = { x: Math.sin(a) * 11, z: Math.cos(a) * 11 }; e.setState('dart'); GWAudio.sfx('step', 3);
+            } else { e.setState('lunge'); const a = e.yaw; e.lv = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 }; GWAudio.sfx('swing', 0.8); }
+          }
+          break;
+        case 'dart':
+          e.pos.x += e.lv.x * dt * slow; e.pos.z += e.lv.z * dt * slow;
+          if (e.t > 0.3) { e.setState('chase'); e.cool = 0.25; }
           break;
         case 'lunge':
           e.pos.x += e.lv.x * dt * slow; e.pos.z += e.lv.z * dt * slow;
@@ -720,13 +728,20 @@
         case 'recover': e.moving = false; if (e.t > 0.5) e.setState('chase'); break;
         case 'stagger': e.moving = false; if (e.t > 0.4) e.setState('chase'); break;
         default: {
-          // circle the player at a pack offset, then dart in
-          const ring = e.cool > 0 ? 4.2 : 2.0;
-          const a = Math.atan2(e.pos.x - P.pos.x, e.pos.z - P.pos.z) + dt * 0.8;
+          // the pack circles; only wolves holding an attack token close in, and they prefer your back
+          const can = G.canAttack(e), pack = G.packNear(e);
+          const ring = (e.cool > 0 || !can) ? 4.6 : 2.0;
+          let a = Math.atan2(e.pos.x - P.pos.x, e.pos.z - P.pos.z) + dt * (0.8 + (e.offset > Math.PI ? 0.3 : -0.3));
+          const back = P.yaw + Math.PI, offBack = GW.angDiff(a, back);
+          if (can && pack > 1 && e.cool <= 0) { e.flankT = (e.flankT || 0) + dt; a += GW.clamp(offBack, -1, 1) * dt * 4; }
           const tx = P.pos.x + Math.sin(a + e.offset * 0.1) * ring, tz = P.pos.z + Math.cos(a + e.offset * 0.1) * ring;
-          e.moveTo(tx, tz, sp, dt); e.face(P.pos, dt, 6);
+          e.moveTo(tx, tz, sp * (can ? 1 : 0.8), dt); e.face(P.pos, dt, 6);
           if (e.state !== 'chase') e.setState('chase');
-          if (e.cool <= 0 && dP < 4.6) { e.setState('windup'); G.parts.spark.burst(e.pos.x, e.pos.y + 1.2, e.pos.z, 4, 1, 0xff3020, 0.3, 0.8, 0); }
+          const flanked = pack < 2 || Math.abs(offBack) < 1.3 || (e.flankT || 0) > 1.4;
+          if (can && e.cool <= 0 && dP < 4.6 && flanked) {
+            e.flankT = 0; e.feint = Math.random() < 0.18; e.setState('windup');
+            G.parts.spark.burst(e.pos.x, e.pos.y + 1.2, e.pos.z, 4, 1, 0xff3020, 0.3, 0.8, 0);
+          }
         }
       }
     },
@@ -735,6 +750,7 @@
       switch (e.state) {
         case 'windup': if (fresh) R.play('Attack', { loop: false, restart: true, fade: 0.08, speed: R.dur('Attack') / 0.85 }); break;
         case 'lunge': break;
+        case 'dart': R.play('Gallop', { speed: 1.5, fade: 0.08 }); break;
         case 'stagger': if (fresh) R.play(Math.random() < 0.5 ? 'Idle_HitReact_Left' : 'Idle_HitReact_Right', { loop: false, restart: true, fade: 0.05, speed: 1.6 }); break;
         case 'chase': R.play(e.moving ? 'Gallop' : 'Idle', { speed: 1.15, fade: 0.2 }); break;
         case 'wander': case 'return': R.play('Walk', { speed: 1.3, fade: 0.25 }); break;
@@ -786,28 +802,62 @@
       if (!e.aggro) { e.wander(c, TYPES.hollow.speed); return; }
       const T = TYPES.hollow;
       switch (e.state) {
-        case 'windup': e.face(P.pos, dt, 5); e.moving = false; if (e.t > 0.62) { e.setState('slash'); GWAudio.sfx('swing', 1); } break;
+        case 'windup': {
+          e.face(P.pos, dt, 5); e.moving = false; const wd = e.wd || 0.62;
+          if (e.feint && e.t > wd * 0.72) { e.feint = false; e.setState('feint'); break; }   // the blade stops short...
+          if (e.t > wd) { e.setState('slash'); GWAudio.sfx('swing', 1); }
+          break;
+        }
+        case 'feint':   // ...a hop back, then a fast real cut: punishes parrying the first motion
+          e.moving = false; e.face(P.pos, dt, 8);
+          if (e.t < 0.2) { e.pos.x -= Math.sin(e.yaw) * dt * 4; e.pos.z -= Math.cos(e.yaw) * dt * 4; }
+          if (e.t > 0.4) { e.wd2 = 0.24; e.setState('windup2'); }
+          break;
         case 'slash':
           e.pos.x += Math.sin(e.yaw) * dt * 3; e.pos.z += Math.cos(e.yaw) * dt * 3;
           if (e.t > 0.08) e.strike(G, 2.5, 1.2, T.dmg, {});
-          if (e.t > 0.32) { if (!e.combo2 && Math.random() < 0.5) { e.combo2 = true; e.setState('windup2'); } else { e.combo2 = false; e.setState('recover'); e.cool = 1.8 + Math.random(); } }
+          if (e.t > 0.32) {
+            e.ci = (e.ci || 0) + 1;
+            if (e.chain && e.ci < e.chain.length) { e.wd2 = e.chain[e.ci]; e.setState('windup2'); }
+            else { e.setState('recover'); e.cool = (e.T.boss ? 0.8 : 1.5) + Math.random() * (e.T.boss ? 0.6 : 1); }
+          }
           break;
-        case 'windup2': e.face(P.pos, dt, 6); if (e.t > 0.35) { e.setState('slash'); GWAudio.sfx('swing', 1); } break;
+        case 'windup2': e.face(P.pos, dt, 6); e.moving = false; if (e.t > (e.wd2 || 0.35)) { e.setState('slash'); GWAudio.sfx('swing', 1); } break;
+        case 'bash':    // shield bash: you have been turtling. Unblockable, drains stamina
+          e.face(P.pos, dt, 6); e.moving = false;
+          if (e.t > 0.55 && e.t < 0.7) { e.pos.x += Math.sin(e.yaw) * dt * 6; e.pos.z += Math.cos(e.yaw) * dt * 6;
+            if (e.strike(G, 2.2, 1.1, T.dmg * 0.6, { heavy: true })) { P.st = Math.max(0, P.st - 35); G.shake(0.3); } }
+          if (e.t > 1.0) { e.setState('recover'); e.cool = 1.2; }
+          break;
         case 'recover': e.moving = false; if (e.t > 0.7) e.setState('chase'); break;
         case 'stagger': e.moving = false; if (e.t > 0.7) e.setState('chase'); break;
         case 'block': e.moving = false; e.face(P.pos, dt, 8); if (e.t > 0.5) e.setState('chase'); break;
         default:
           if (e.state !== 'chase') e.setState('chase');
-          if (dP > 2.0) e.moveTo(P.pos.x, P.pos.z, T.speed * slow, dt); else { e.moving = false; e.face(P.pos, dt, 6); }
-          if (e.cool <= 0 && dP < 2.9) { e.setState('windup'); }
+          const can = e.T.boss || G.canAttack(e);
+          if (!can && dP < 5.5) {   // waiting its turn: hold a step outside reach and circle, shield up
+            const a = Math.atan2(e.pos.x - P.pos.x, e.pos.z - P.pos.z) + (e.offset > Math.PI ? 0.5 : -0.5) * dt;
+            e.moveTo(P.pos.x + Math.sin(a) * 4, P.pos.z + Math.cos(a) * 4, T.speed * 0.6 * slow, dt); e.face(P.pos, dt, 6);
+          } else if (dP > 2.0) e.moveTo(P.pos.x, P.pos.z, T.speed * slow * (e.T.boss ? 1.25 : 1), dt); else { e.moving = false; e.face(P.pos, dt, 6); }
+          if (can && e.cool <= 0 && dP < 2.9) {
+            if (P.state === 'block' && G.t - P.blockStart > 0.7 && Math.random() < 0.6) { e.setState('bash'); break; }
+            // pick a string: single, quick pair, delayed pair, or (elites and bosses) a three-cut flurry with a late beat
+            const pats = [[0.62], [0.62, 0.35], [0.7, 0.62], [0.62, 0.3, 0.55]];
+            if (e.elite || e.T.boss) pats.push([0.45, 0.28, 0.28], [0.8, 0.3, 0.3]);
+            e.chain = pats[Math.floor(Math.random() * pats.length)]; e.ci = 0; e.wd = e.chain[0];
+            e.feint = Math.random() < (e.T.boss ? 0.28 : e.elite ? 0.22 : 0.14);
+            e.setState('windup');
+          }
       }
     },
     anim(e, dt) {
       const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
       const pk = TYPES.hollow.pk || 0.45, D = R.dur('Sword_Slash');
       switch (e.state) {
-        case 'windup': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.1, speed: pk * D / 0.7 }); break;
-        case 'windup2': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.08, at: 0.15, speed: (pk - 0.15) * D / 0.43 }); break;
+        case 'windup': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.1, speed: pk * D / ((e.wd || 0.62) + 0.08) }); break;
+        case 'windup2': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.08, at: 0.15, speed: (pk - 0.15) * D / ((e.wd2 || 0.35) + 0.08) }); break;
+        case 'feint': if (fresh) R.play('Idle_Sword', { fade: 0.08 }); break;
+        case 'bash': if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.08, speed: R.dur('Punch_Right') / 0.8 }); break;
         case 'slash': break;
         case 'stagger': if (fresh) R.play('HitRecieve', { loop: false, restart: true, fade: 0.05, speed: 1.2 }); break;
         case 'block': if (fresh) R.play('HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.5 }); break;
@@ -839,8 +889,10 @@
         case 'cast':
           e.moving = false;
           if (e.t > 0.65) {
-            const a = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z);
-            G.spawnProjectile({ from: 'enemy', x: e.pos.x, y: e.pos.y + 1.6, z: e.pos.z, vx: Math.sin(a) * 10.5, vz: Math.cos(a) * 10.5, r: 0.45, dmg: TYPES.wisp.dmg * (e.dmgMul || 1), color: e.T.projCol || 0xa070ff, life: 2.6, homing: 1.2, src: e });
+            // sometimes a fan of three (more often when you hide behind a block)
+            const a0 = Math.atan2(P.pos.x - e.pos.x, P.pos.z - e.pos.z), n = Math.random() < (P.state === 'block' ? 0.6 : 0.3) ? 3 : 1;
+            for (let k = 0; k < n; k++) { const a = a0 + (k - (n - 1) / 2) * 0.24;
+              G.spawnProjectile({ from: 'enemy', x: e.pos.x, y: e.pos.y + 1.6, z: e.pos.z, vx: Math.sin(a) * 10.5, vz: Math.cos(a) * 10.5, r: 0.45, dmg: TYPES.wisp.dmg * (e.dmgMul || 1) * (n > 1 ? 0.7 : 1), color: e.T.projCol || 0xa070ff, life: 2.6, homing: n > 1 ? 0.4 : 1.2, src: e }); }
             GWAudio.sfx('cast'); e.setState('chase'); e.cool = 2.4 + Math.random() * 1.2;
           }
           break;
@@ -1028,7 +1080,7 @@
         if (!G.bossActive || G.curBoss !== e) { e.moving = false; e.aggro = false; e.face(P.pos, dt, 1); return; }
         e.aggro = true; e.spT -= dt;
         if (e.state === 'special') { o.special(e, c); return; }
-        if (e.spT <= 0 && e.state !== 'windup' && e.state !== 'slash') { e.setState('special'); e.didHit = false; e.spT = (e.hp < e.maxHp * 0.5 ? 0.65 : 1) * o.every; o.begin(e, c); return; }
+        if (e.spT <= 0 && !/^(windup|windup2|slash|feint|bash)$/.test(e.state)) { e.setState('special'); e.didHit = false; e.spT = (e.hp < e.maxHp * 0.5 ? 0.65 : 1) * o.every; o.begin(e, c); return; }
         H.ai(e, c);
       },
       anim(e, dt, c) { H.anim(e, dt, c); if (e.state === 'special' && e.jt) e.model.position.y += Math.sin(GW.clamp((e.t - 0.35) / 0.55, 0, 1) * Math.PI) * 4; } });

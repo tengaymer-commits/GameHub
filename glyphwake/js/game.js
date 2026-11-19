@@ -278,6 +278,16 @@
     P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.12); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
     UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
   };
+  // attack tokens: only a few melee enemies may commit to an attack on the hero at once; the rest circle and wait
+  const ATK = { windup: 1, windup2: 1, slash: 1, lunge: 1, bash: 1, feint: 1, dart: 1 };
+  G.canAttack = function (e) {
+    const P = G.player, max = 2 + (P.level >= 10 ? 1 : 0);
+    if (ATK[e.state]) return true;
+    let n = 0;
+    for (const o of G.enemies) if (o !== e && o.alive && !o.T.boss && ATK[o.state] && o.distTo(P.pos) < 14) n++;
+    return n < max;
+  };
+  G.packNear = function (e) { let n = 0; for (const o of G.enemies) if (o.alive && o.aggro && o.base === e.base && o.distTo(e.pos) < 14) n++; return n; };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
@@ -1353,7 +1363,7 @@
       }
       if (G.state === 'play') { const lp = P.pos.clone(); lp.y += 2.35; UI.label('hero', P.riposteT > 0 ? 'RIPOSTE' : 'Wanderer', lp, 'name', P.riposteT > 0 ? '#ffd860' : '#e8e4d8'); }
       // break bars and attack warnings: yellow ◇ = parry it, red ! = dodge it
-      const TELE = { windup: '◇', windup2: '◇', web: '◇', cast: '◇', throw: '◇', sweep: '!', stab: '!', charge: '!', slam: '!', 'pounce-wind': '!', 'charge-wind': '!', rain: '!' };
+      const TELE = { windup: '◇', windup2: '◇', feint: '?', web: '◇', cast: '◇', throw: '◇', bash: '!', sweep: '!', stab: '!', charge: '!', slam: '!', 'pounce-wind': '!', 'charge-wind': '!', rain: '!' };
       for (const e of G.enemies) {
         if (!e.alive || e.type === 'husk' || e.distTo(P.pos) > 22 || !(e.aggro || e.brk > 0)) continue;
         const idx = G.enemies.indexOf(e), top = e.pos.clone(); top.y += e.T.radius * 2 + (e.T.flying ? 2.6 : 1.95) + (e.T.boss ? 2.5 : 0);
