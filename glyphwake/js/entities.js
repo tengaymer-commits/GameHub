@@ -501,6 +501,7 @@
     }
     R.update(dt);
     // pose layer: fade the last pose out over a few frames when an action ends
+    if (!pose && (this.state === 'move' || this.state === 'hurt' || this.state === 'potion') && GW.Arms.curKey(this) === 'bow') pose = GW.Moves.K.bw_rest;   // carry the bow upright
     if (pose) { this._lastPose = pose; this._poseFade = 0.1; }
     else if (this._poseFade > 0 && this._lastPose) { this._poseFade -= dt; pose = GW.Moves.mix(this._lastPose, null, 1 - Math.max(0, this._poseFade) / 0.1); }
     if (pose) { const w = pose.w === undefined ? 1 : pose.w; b.position.y += (pose.y || 0) * w; b.position.z += (pose.z || 0) * w; GW.Moves.apply(this, pose); }

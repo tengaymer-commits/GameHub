@@ -320,11 +320,11 @@
   const slashCh = ang => { const a = ((ang % Math.PI) + Math.PI) % Math.PI; return a < 0.39 || a > 2.75 ? '-' : a < 1.18 ? '\\' : a < 1.96 ? '|' : '/'; };
   function drawSlashGlyphs(dt) {
     const P = G.player, tr = P && P.trail; if (!fxCx || !tr) return;
-    const pts = tr.pts.filter(p => p.on && p.age < SLASH_LIFE); if (pts.length < 2) return;
-    const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, step = 9 * dpr;
+    const pts = tr.pts.filter(p => p.on && p.age < SLASH_LIFE); const step0 = 7; if (pts.length < 2) return;
+    const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, step = 7 * dpr;
     const col = '#' + tr.color.getHexString();
     cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.globalCompositeOperation = 'lighter';
-    const rows = [[1.0, 1, 15, 'bold '], [0.86, 0.7, 13, ''], [0.72, 0.4, 12, '']];
+    const rows = [[1.04, 1, 19, 'bold '], [0.92, 0.85, 17, 'bold '], [0.8, 0.6, 15, ''], [0.66, 0.35, 13, '']];
     for (const [r, alpha, size, wt] of rows) {
       cx.font = `${wt}${Math.round(size * dpr)}px ui-monospace, Menlo, monospace`;
       for (let i = 0; i < pts.length - 1; i++) {
@@ -337,11 +337,11 @@
         for (let k = 0; k < n; k++) {
           const t = k / n, flick = Math.random();
           cx.globalAlpha = alpha * fade * (0.75 + 0.25 * flick);
-          cx.fillStyle = r === 1 && p.age < 0.06 ? '#ffffff' : col;
+          cx.fillStyle = r > 1 && p.age < 0.07 ? '#ffffff' : col;
           cx.fillText(flick < 0.07 ? '*' : flick < 0.12 ? '~' : ch, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
         }
         // the edge sheds a few characters that drift off and fade (hit-glyph pool)
-        if (r === 1 && p.age > 0.08 && Math.random() < 3 * dt) {
+        if (r > 1 && p.age > 0.08 && Math.random() < 4 * dt) {
           const w = new V3().copy(p.a).lerp(p.b, 0.95);
           G.hitGlyphs.push({ x: w.x, y: w.y, z: w.z, vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 2, t: 0, life: 0.35 + Math.random() * 0.3, ch: '.,\'`:'[Math.floor(Math.random() * 5)], col });
         }
