@@ -97,6 +97,8 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Hollows** (and the Rime Knight and Crag Warlord, who fight like them) attack in strings: a single cut, a quick pair, a delayed pair, or a 3-cut combo with a late beat. Elites and bosses also have a fast flurry. Some windups are **feints** (`?`): the blade stops, they hop back, then cut fast. If you hold block too long, they **shield-bash** (`!`, unblockable, drains stamina).
 - **Wolves** try to get behind you before lunging when they hunt as a pack, and sometimes fake a lunge and bound sideways instead.
 - **Wisps** sometimes fire a fan of 3 bolts, more often when you are blocking.
+- **Reading attacks**: Hollows (and the knight bosses) rise into a wind-up and **hold it still**, then the cut snaps through and the follow-through holds. A white **✦ glint** flashes on the blade 0.2 s before the hit: that is the parry window, so parry on the glint. Feints never glint. A red **! glint** means unblockable (shield bash), so dodge it. Wolves crouch and draw back before a lunge, and their eyes and a glint flare just before the bite.
+- **Hero movesets**: each weapon has its own key poses (`js/moves.js`, two-bone IK on the rig): sword forehand / backhand / overhead chop, greatsword sweeps and a jumping slam, spear thrusts (mid, low, high) and a spinning sweep, dagger jabs from alternating hands and an X-cut, and a bow draw and loose. Snappy timing: hold the anticipation, snap in about 5 frames, hold the follow-through. Swings leave glyph arcs (`/ | \ -`) in the blade's colour that flicker and shed characters.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
 ## Weapons (two carried, X swaps)

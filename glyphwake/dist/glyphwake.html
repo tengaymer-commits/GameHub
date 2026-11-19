@@ -6749,7 +6749,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // ---- sword in the right fist ----
     // weapon: the active form from arms.js (sword+shield, greatsword, spear, twin daggers, bow)
     const sw = GW.Arms.build(P.swordMats, GW.Arms.curKey(P));
-    P.sword = sw.right; P.tipObj = sw.tip; P.baseObj = sw.base;
+    P.sword = sw.right; P.tipObj = sw.tip; P.baseObj = sw.base; P.leftProp = sw.left || null;
     P.attachments.push(rig.attach('Wrist.R', sw.right, K.gripPlace(rig, 'R')));
     if (sw.left) { try { P.attachments.push(rig.attach('Wrist.L', sw.left, K.gripPlace(rig, 'L'))); } catch (err) { /* no left hand bones */ } }
     P.mats = rig.mats.concat(mats, [P.swordMats.blade]);
@@ -8666,9 +8666,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     } else if (k === 'bow') {
       // bow in the left fist; the right hand is empty (tip/base still exist for the trail code)
       L = new THREE.Group();
-      const arc = new THREE.TorusGeometry(0.62, 0.025, 5, 18, Math.PI * 0.9); arc.rotateZ(Math.PI / 2 - Math.PI * 0.45); arc.rotateY(Math.PI / 2);
-      mesh(L, arc, sm.blade, 0, -0.25, 0); mesh(L, box(0.05, 0.05, 0.16), sm.hilt, 0, 0.36, 0);
-      const s = new THREE.CylinderGeometry(0.004, 0.004, 1.2, 3).rotateX(Math.PI / 2); mesh(L, s, sm.guard, 0, -0.06, 0).rotation.set(Math.PI / 2, 0, 0);
+      // limbs run along the fist axis (+z), the belly bulges toward +x; the string closes the arc
+      const r = 0.62, arc = new THREE.TorusGeometry(r, 0.026, 5, 20, Math.PI * 0.9); arc.rotateZ(-Math.PI * 0.45); arc.rotateX(Math.PI / 2); arc.translate(-r, 0, 0);
+      mesh(L, arc, sm.blade, 0, 0, 0); mesh(L, box(0.06, 0.06, 0.16), sm.hilt, 0, 0, 0);
+      const sx = -r + r * Math.cos(Math.PI * 0.45), sl = 2 * r * Math.sin(Math.PI * 0.45);
+      mesh(L, new THREE.CylinderGeometry(0.005, 0.005, sl, 3).rotateX(Math.PI / 2), sm.guard, sx, 0, 0);
       e = ends(R, 0.1, 0.4);
     } else {
       mesh(R, box(0.04, 0.04, 0.22), sm.hilt, 0, 0, -0.01); mesh(R, new THREE.OctahedronGeometry(0.035, 0), sm.guard, 0, 0, -0.14);
@@ -8676,11 +8678,164 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const b = blade(sm, 1.0, 0.07, 0.14); R.add(b.parent); e = ends(R, 0.24, 1.14);
       // kite shield on the left forearm
       L = new THREE.Group();
-      const sg = new THREE.CylinderGeometry(0.3, 0.3, 0.04, 7, 1); sg.scale(1, 1, 1.3); sg.rotateZ(Math.PI / 2);
-      mesh(L, sg, sm.guard, -0.08, 0, 0.02); mesh(L, new THREE.CylinderGeometry(0.24, 0.24, 0.05, 7).scale(1, 1, 1.3).rotateZ(Math.PI / 2), sm.shield, -0.1, 0, 0.02);
+      const sg = new THREE.CylinderGeometry(0.26, 0.26, 0.04, 7, 1); sg.scale(1, 1, 1.3); sg.rotateZ(Math.PI / 2);
+      mesh(L, sg, sm.guard, -0.08, 0, 0.02); mesh(L, new THREE.CylinderGeometry(0.2, 0.2, 0.05, 7).scale(1, 1, 1.3).rotateZ(Math.PI / 2), sm.shield, -0.1, 0, 0.02);
     }
     return { right: R, left: L, tip: e.tip, base: e.base };
   };
+})();
+
+</script>
+<script>
+// Glyphwake: procedural attack poses. The rig ships a single sword swing, so each weapon's moves are authored here
+// as key poses solved with two-bone IK on top of the playing clip. A pose says where the hands go and where the
+// blades point (body space: the hero faces +z, his right is -x, feet at y=0), plus torso/hip twist and a hop.
+// Timing is "snappy": ease into the anticipation and hold it, snap through the strike in ~5 frames,
+// hold the follow-through, then ease back.
+//   T [yaw, pitch] torso · H [yaw] hips · R { h: hand pos, b: blade dir } · L { h, b } or 'grip' (two-handed) · y hop · z lunge
+(function () {
+  'use strict';
+  const GW = window.GW, V3 = THREE.Vector3;
+  const P0 = null;   // "no pose": the clip as it plays
+  const K = {
+    // ---------- sword & shield ----------
+    sw_fore_a: { T: [-0.6, 0], H: [-0.25], R: { h: [-0.5, 1.75, -0.05], b: [-0.3, 0.8, -0.5] }, L: { h: [0.3, 1.25, 0.3], b: [0, 1, 0.15] } },
+    sw_fore_s: { T: [0.6, 0.15], H: [0.25], R: { h: [0.22, 1.05, 0.5], b: [0.7, -0.45, 0.55] }, L: { h: [0.4, 1.2, 0.15], b: [0, 1, 0.15] }, z: 0.15 },
+    sw_back_a: { T: [0.6, 0], H: [0.25], R: { h: [0.25, 1.1, 0.25], b: [0.8, -0.2, -0.55] }, L: { h: [0.4, 1.2, 0.1], b: [0, 1, 0.15] } },
+    sw_back_s: { T: [-0.55, 0.1], H: [-0.25], R: { h: [-0.5, 1.6, 0.4], b: [-0.7, 0.55, 0.45] }, L: { h: [0.3, 1.25, 0.3], b: [0, 1, 0.15] }, z: 0.15 },
+    sw_chop_a: { T: [-0.1, -0.25], R: { h: [-0.15, 2.0, -0.05], b: [0.05, 0.25, -0.97] }, L: { h: [0.35, 1.4, 0.25], b: [0, 1, 0.15] }, y: 0.12 },
+    sw_chop_s: { T: [0.05, 0.4], R: { h: [-0.1, 1.05, 0.55], b: [0, -0.5, 0.87] }, L: { h: [0.4, 1.15, 0.1], b: [0, 1, 0.15] }, y: -0.1, z: 0.35 },
+    sw_block: { T: [0.25, 0.05], R: { h: [-0.35, 1.0, 0.15], b: [-0.2, -0.3, 0.93] }, L: { h: [0.12, 1.4, 0.45], b: [0, 1, 0.15] } },
+    // ---------- greatsword (two hands on the hilt) ----------
+    gr_sweep_a: { T: [-1.0, 0.05], H: [-0.45], R: { h: [-0.55, 1.25, -0.3], b: [-0.5, 0.2, -0.85] }, L: 'grip' },
+    gr_sweep_s: { T: [0.9, 0.2], H: [0.4], R: { h: [0.35, 1.2, 0.45], b: [0.8, 0.05, 0.6] }, L: 'grip', z: 0.2 },
+    gr_ret_a: { T: [0.9, 0.05], H: [0.4], R: { h: [0.45, 1.25, -0.15], b: [0.6, 0.2, -0.8] }, L: 'grip' },
+    gr_ret_s: { T: [-0.9, 0.2], H: [-0.4], R: { h: [-0.45, 1.15, 0.45], b: [-0.85, 0, 0.5] }, L: 'grip', z: 0.2 },
+    gr_slam_a: { T: [0, -0.35], R: { h: [-0.05, 2.05, -0.1], b: [0, 0.35, -0.94] }, L: 'grip', y: 0.3 },
+    gr_slam_s: { T: [0, 0.6], R: { h: [0, 0.9, 0.6], b: [0, -0.65, 0.76] }, L: 'grip', y: -0.2, z: 0.4 },
+    two_block: { T: [0, 0.05], R: { h: [-0.2, 1.4, 0.4], b: [0.95, 0.25, 0.1] }, L: 'grip' },
+    // ---------- spear (the left hand rides the shaft) ----------
+    sp_draw: { T: [-0.5, 0], H: [-0.3], R: { h: [-0.45, 1.25, -0.25], b: [0.05, 0.08, 1] }, L: 'shaft' },
+    sp_thr: { T: [0.3, 0.15], H: [0.25], R: { h: [-0.15, 1.35, 0.55], b: [0.05, 0.02, 1] }, L: 'shaft', z: 0.5 },
+    sp_low: { T: [0.3, 0.35], H: [0.25], R: { h: [-0.15, 1.05, 0.55], b: [0, -0.3, 0.95] }, L: 'shaft', z: 0.45, y: -0.12 },
+    sp_high: { T: [0.3, 0], H: [0.25], R: { h: [-0.2, 1.65, 0.5], b: [0, 0.25, 0.97] }, L: 'shaft', z: 0.45 },
+    sp_spin_a: { T: [-1.2, 0], H: [-0.6], R: { h: [-0.55, 1.2, -0.1], b: [-0.6, 0, -0.8] }, L: 'shaft' },
+    sp_spin_s: { T: [1.1, 0.15], H: [0.55], R: { h: [0.3, 1.2, 0.45], b: [0.9, 0, 0.4] }, L: 'shaft', z: 0.35 },
+    // ---------- twin daggers (alternating hands, low crouch) ----------
+    dg_r_a: { T: [-0.4, 0.2], H: [-0.2], R: { h: [-0.4, 1.15, -0.1], b: [0, 0.3, 0.95] }, L: { h: [0.2, 1.3, 0.3], b: [0, 0.5, 0.85] }, y: -0.12 },
+    dg_r_s: { T: [0.4, 0.25], H: [0.2], R: { h: [-0.05, 1.3, 0.6], b: [0.1, 0, 1] }, L: { h: [0.3, 1.15, 0], b: [0, 0.3, 0.95] }, y: -0.15, z: 0.25 },
+    dg_l_a: { T: [0.4, 0.2], H: [0.2], L: { h: [0.4, 1.15, -0.1], b: [0, 0.3, 0.95] }, R: { h: [-0.2, 1.3, 0.3], b: [0, 0.5, 0.85] }, y: -0.12 },
+    dg_l_s: { T: [-0.4, 0.25], H: [-0.2], L: { h: [0.05, 1.3, 0.6], b: [-0.1, 0, 1] }, R: { h: [-0.3, 1.15, 0], b: [0, 0.3, 0.95] }, y: -0.15, z: 0.25 },
+    dg_x_a: { T: [0, -0.1], R: { h: [-0.45, 1.8, 0.1], b: [-0.4, 0.6, 0.7] }, L: { h: [0.45, 1.8, 0.1], b: [0.4, 0.6, 0.7] }, y: 0.2 },
+    dg_x_s: { T: [0, 0.45], R: { h: [0.15, 1.05, 0.5], b: [0.6, -0.5, 0.6] }, L: { h: [-0.15, 1.05, 0.5], b: [-0.6, -0.5, 0.6] }, y: -0.2, z: 0.35 },
+    dg_block: { T: [0, 0.15], R: { h: [0.05, 1.4, 0.35], b: [0.7, 0.7, 0.1] }, L: { h: [-0.05, 1.4, 0.35], b: [-0.7, 0.7, 0.1] }, y: -0.1 },
+    // ---------- bow (side stance: the left arm holds the bow out, the right hand draws to the cheek) ----------
+    bw_draw: { T: [-0.8, 0], H: [-0.5], L: { h: [0.1, 1.45, 0.62], b: [0, 1, 0.1] }, R: { h: [-0.15, 1.55, 0], b: [0, 0, 1] } },
+    bw_loose: { T: [-0.8, 0], H: [-0.5], L: { h: [0.1, 1.45, 0.62], b: [0, 1, 0.1] }, R: { h: [-0.42, 1.6, -0.25], b: [-0.3, 0.3, -0.9] } },
+    bw_rest: { L: { h: [0.3, 1.05, 0.2], b: [0, 1, 0.25] } },
+    bw_block: { T: [-0.3, 0], L: { h: [0.1, 1.4, 0.4], b: [0, 1, 0.1] }, R: { h: [-0.25, 1.1, 0.2], b: [0, 0, 1] } },
+  };
+  const MOVES = {
+    sword: [['sw_fore_a', 'sw_fore_s'], ['sw_back_a', 'sw_back_s'], ['sw_chop_a', 'sw_chop_s']],
+    great: [['gr_sweep_a', 'gr_sweep_s'], ['gr_ret_a', 'gr_ret_s'], ['gr_slam_a', 'gr_slam_s']],
+    spear: [['sp_draw', 'sp_thr'], ['sp_draw', 'sp_low'], ['sp_draw', 'sp_high'], ['sp_spin_a', 'sp_spin_s']],
+    daggers: [['dg_r_a', 'dg_r_s'], ['dg_l_a', 'dg_l_s'], ['dg_r_a', 'dg_r_s'], ['dg_l_a', 'dg_l_s'], ['dg_x_a', 'dg_x_s']],
+    bow: [['bw_draw', 'bw_loose'], ['bw_draw', 'bw_loose']],
+  };
+  const HEAVY = { sword: ['sw_chop_a', 'sw_chop_s'], great: ['gr_slam_a', 'gr_slam_s'], spear: ['sp_draw', 'sp_thr'], daggers: ['dg_x_a', 'dg_x_s'], bow: ['bw_draw', 'bw_loose'] };
+  const BLOCK = { sword: 'sw_block', great: 'two_block', spear: 'two_block', daggers: 'dg_block', bow: 'bw_block' };
+
+  // ---------- blending poses ----------
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const lv = (a, b, k) => a && b ? [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)] : (k < 0.5 ? a : b);
+  const lhand = (a, b, k) => {
+    if (typeof a === 'string' || typeof b === 'string' || !a || !b) return k < 0.5 ? a : b;
+    return { h: lv(a.h, b.h, k), b: lv(a.b, b.b, k) };
+  };
+  function mix(A, B, k) {   // A or B may be null (= the clip pose, weight 0)
+    if (!A && !B) return null;
+    if (!A) return Object.assign({}, B, { w: k * (B.w === undefined ? 1 : B.w) });
+    if (!B) return Object.assign({}, A, { w: (1 - k) * (A.w === undefined ? 1 : A.w) });
+    return { T: lv(A.T ? [A.T[0], A.T[1], 0] : [0, 0, 0], B.T ? [B.T[0], B.T[1], 0] : [0, 0, 0], k), H: [lerp((A.H || [0])[0], (B.H || [0])[0], k)],
+      R: lhand(A.R, B.R, k), L: lhand(A.L, B.L, k), y: lerp(A.y || 0, B.y || 0, k), z: lerp(A.z || 0, B.z || 0, k),
+      w: lerp(A.w === undefined ? 1 : A.w, B.w === undefined ? 1 : B.w, k) };
+  }
+  const eOut = k => 1 - Math.pow(1 - k, 3), eIO = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  function attackPose(a, s, t, h, d) {
+    const A = K[a], S = K[s], snap0 = h - 0.045, ant = Math.max(0.04, snap0 - 0.03), snapEnd = h + 0.03, hold = Math.min(d * 0.8, h + 0.16);
+    if (t < ant) return mix(P0, A, eOut(t / ant));          // ease into the anticipation
+    if (t < snap0) return A;                                 // hold it: the read frame
+    if (t < snapEnd) return mix(A, S, eOut((t - snap0) / (snapEnd - snap0)));   // snap
+    if (t < hold) return S;                                  // hold the follow-through
+    return mix(S, P0, eIO(Math.min(1, (t - hold) / Math.max(0.05, d - hold))));
+  }
+
+  // enemies: a slower, legible rhythm — rise into the anticipation, HOLD it still, snap, hold the follow-through
+  function enemyPose(a, s, t, h, d) {
+    const A = K[a], S = K[s], snap0 = h - 0.05, ant = Math.max(0.1, snap0 * 0.6), snapEnd = h + 0.02, hold = Math.min(d * 0.85, h + 0.2);
+    if (t < ant) return mix(P0, A, eOut(t / ant));
+    if (t < snap0) return A;
+    if (t < snapEnd) return mix(A, S, eOut((t - snap0) / (snapEnd - snap0)));
+    if (t < hold) return S;
+    return mix(S, P0, eIO(Math.min(1, (t - hold) / Math.max(0.05, d - hold))));
+  }
+  // ---------- solving a pose onto the rig ----------
+  const _q = new THREE.Quaternion(), _p = new THREE.Quaternion(), _m = new THREE.Quaternion(), _e = new THREE.Euler();
+  const tmp = { a: new V3(), b: new V3(), c: new V3(), d: new V3(), t: new V3(), n: new V3(), pole: new V3(), e: new V3() };
+  function turnWorld(bone, qWorld) {   // premultiply a world-space rotation onto a bone
+    bone.parent.getWorldQuaternion(_p);
+    const local = _p.clone().invert().multiply(qWorld).multiply(_p);
+    bone.quaternion.premultiply(local); bone.updateMatrixWorld(true);
+  }
+  function aimBone(bone, from, to) {   // rotate bone so the world vector `from` lines up with `to`
+    if (from.lengthSq() < 1e-8 || to.lengthSq() < 1e-8) return;
+    _q.setFromUnitVectors(from.clone().normalize(), to.clone().normalize()); turnWorld(bone, _q);
+  }
+  function twist(rig, name, yaw, pitch) {
+    if (!yaw && !pitch) return; const b = rig.bone(name); if (!b) return;
+    rig.root.getWorldQuaternion(_m); _e.set(pitch || 0, yaw || 0, 0, 'YXZ'); _q.setFromEuler(_e);
+    _q.premultiply(_m).multiply(_m.clone().invert()); turnWorld(b, _q);
+  }
+  function solveArm(rig, body, side, hand, prop, blade) {
+    const up = rig.bone('UpperArm.' + side), lo = rig.bone('LowerArm.' + side), wr = rig.bone('Wrist.' + side); if (!up || !lo || !wr) return;
+    const S = up.getWorldPosition(tmp.a), E0 = lo.getWorldPosition(tmp.b), W0 = wr.getWorldPosition(tmp.c);
+    const la = S.distanceTo(E0), lb = E0.distanceTo(W0);
+    const T = body.localToWorld(tmp.t.set(hand[0], hand[1], hand[2]));
+    const toT = T.clone().sub(S); let d = toT.length(); const n = toT.normalize();
+    d = GW.clamp(d, Math.abs(la - lb) + 0.01, la + lb - 0.005);
+    const pole = body.localToWorld(tmp.pole.set(side === 'R' ? -0.7 : 0.7, 0.4, -0.5)).sub(body.localToWorld(tmp.e.set(0, 1, 0)));
+    const perp = pole.sub(n.clone().multiplyScalar(pole.dot(n))).normalize();
+    const cosA = GW.clamp((la * la + d * d - lb * lb) / (2 * la * d), -1, 1), sinA = Math.sqrt(1 - cosA * cosA);
+    const E = S.clone().add(n.clone().multiplyScalar(la * cosA)).add(perp.multiplyScalar(la * sinA));
+    aimBone(up, E0.clone().sub(S), E.clone().sub(S));
+    const E1 = lo.getWorldPosition(new V3()), W1 = wr.getWorldPosition(new V3()), Tc = S.clone().add(n.multiplyScalar(d));
+    aimBone(lo, W1.clone().sub(E1), Tc.sub(E1));
+    if (prop && blade) {   // point the held prop's +z (the blade) along `blade`
+      prop.updateMatrixWorld(true);
+      const cur = new V3(0, 0, 1).transformDirection(prop.matrixWorld);
+      const want = new V3(blade[0], blade[1], blade[2]).transformDirection(body.matrixWorld);
+      aimBone(wr, cur, want);
+    }
+  }
+  const SAVE = ['Hips', 'Torso', 'UpperArm.R', 'LowerArm.R', 'Wrist.R', 'UpperArm.L', 'LowerArm.L', 'Wrist.L'];
+  function apply(P, pose) {
+    if (!pose) return;
+    const w = pose.w === undefined ? 1 : pose.w; if (w <= 0.001) return;
+    const rig = P.rig, body = P.body;
+    body.updateMatrixWorld(true);
+    const orig = SAVE.map(n => { const b = rig.bone(n); return b ? b.quaternion.clone() : null; });
+    if (pose.H) twist(rig, 'Hips', pose.H[0], 0);
+    if (pose.T) twist(rig, 'Torso', pose.T[0], pose.T[1]);
+    if (pose.R && pose.R.h) solveArm(rig, body, 'R', pose.R.h, P.sword, pose.R.b);
+    let L = pose.L;
+    if ((L === 'grip' || L === 'shaft') && pose.R && pose.R.h) {   // the off hand holds the weapon below / along the right hand
+      const bd = pose.R.b || [0, 0, 1], k = L === 'grip' ? -0.16 : 0.45;
+      L = { h: [pose.R.h[0] + bd[0] * k, pose.R.h[1] + bd[1] * k, pose.R.h[2] + bd[2] * k] };
+    }
+    if (L && L.h) solveArm(rig, body, 'L', L.h, P.leftProp, L.b);
+    if (w < 0.999) SAVE.forEach((n, i) => { const b = rig.bone(n); if (b && orig[i]) b.quaternion.slerpQuaternions(orig[i], b.quaternion.clone(), w); });
+  }
+  GW.Moves = { K, MOVES, HEAVY, BLOCK, attackPose, enemyPose, apply, mix };
 })();
 
 </script>
@@ -8786,7 +8941,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       }
     }
     const g = this.mesh.geometry; g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true;
-    this.mesh.visible = this.pts.some(p => p.on && p.age < 0.2);
+    this.mesh.visible = false;   // the ribbon is retired: swings are drawn as glyph arcs on the fx layer (game.js drawSlashGlyphs)
   };
 
   // ---------------- telegraphs ----------------
@@ -8989,6 +9144,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         const CB = GW.Arms.cur(this).combo;
         const next = this.state === 'attack' ? (this.combo + 1) % CB.length : 0;
         this.combo = next; this.cur = Object.assign({}, CB[next]);
+        { const ck = GW.Arms.curKey(this), ML = GW.Moves.MOVES[ck]; this.cur.mv = ML[next % ML.length]; }
         this.cur.dur /= this.ws.speed; this.cur.hitAt = this.cur.dur * (this.cur.heavy ? 0.5 : 0.42); this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.07; this.atkN = (this.atkN || 0) + 1;
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
@@ -9070,7 +9226,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         if (Math.random() < 0.5) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.6, this.pos.y + 0.4 + this.chargeT, this.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 0.4, 0.8, full ? 0xffd060 : 0xc8d8ff, 0);
         if (!input.attackHeld || this.chargeT > 1.4) {
           const c = Math.min(1, this.chargeT), HV = GW.Arms.cur(this).heavy;
-          this.cur = { dur: 0.62 / this.ws.speed, dmg: (1.6 + 1.8 * c) * HV.dmgK, range: (3.3 + 0.5 * c) * HV.rangeK, cone: 1.1, step: (4.5 + 2 * c) * HV.stepK, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c, a: 2, shot: HV.shot, pierce: HV.shot };
+          this.cur = { dur: 0.62 / this.ws.speed, dmg: (1.6 + 1.8 * c) * HV.dmgK, range: (3.3 + 0.5 * c) * HV.rangeK, cone: 1.1, step: (4.5 + 2 * c) * HV.stepK, st: 16 + 8 * c, heavy: true, brk: 2 + 3 * c, charged: c, a: 2, shot: HV.shot, pierce: HV.shot, mv: GW.Moves.HEAVY[GW.Arms.curKey(this)] };
           this.cur.hitAt = this.cur.dur * 0.42; this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.08;
           this.combo = 2; this.atkN = (this.atkN || 0) + 1; this.state = 'attack'; this.t = 0; this.hitSet.clear(); this._chFull = false;
           this.st -= this.cur.st; this.stDelay = 0.7; GWAudio.sfx('heavy'); if (c > 0.95) G.shake(0.25);
@@ -9116,7 +9272,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // trail
     const tip = new V3(), base = new V3();
     this.tipObj.getWorldPosition(tip); this.baseObj.getWorldPosition(base);
-    const on = this.state === 'attack' || (this.state === 'skill' && !!(GW.Abil.LIST[this.skill] || {}).melee);
+    const on = (this.state === 'attack' && !(this.cur && this.cur.shot)) || this.state === 'finisher' || (this.state === 'skill' && !!(GW.Abil.LIST[this.skill] || {}).melee);
     this.trail.push(base, tip, on);
     this.trail.update(dt);
     if (on && Math.random() < 0.5 && this.ws.trailParticles) G.parts.spark.emit(tip.x, tip.y, tip.z, (Math.random() - 0.5), 1, (Math.random() - 0.5), 0.45, 0.9, this.ws.trail, -1);
@@ -9148,6 +9304,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const tok = this.state + ':' + (this.state === 'attack' ? this.combo + ':' + this.atkN : this.state === 'skill' ? this.skill + ':' + this.atkN : '');
     const fresh = tok !== this._tok; this._tok = tok;
     const slashD = R.dur('Sword_Slash'), pk = this.slashPeak || 0.4;
+    let pose = null;
     switch (this.state) {
       case 'move':
         if (this._mv) {
@@ -9159,15 +9316,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       case 'attack': {
         const c = this.cur, at = c.heavy ? 0.0 : 0.12;
         const speed = (pk - at) * slashD / Math.max(0.05, c.hitAt);
-        const k = GW.clamp(this.t / c.dur, 0, 1), e = Math.sin(k * Math.PI), a = c.a === undefined ? Math.min(2, this.combo) : c.a;
-        if (a >= 3) { if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / c.dur * (a === 4 ? 0.7 : 0.9) }); }
+        // authored key poses (moves.js): hold the anticipation, snap, hold the follow-through
+        R.play('Idle_Sword', { fade: 0.08 });
+        if (c.mv) pose = GW.Moves.attackPose(c.mv[0], c.mv[1], this.t, c.hitAt, c.dur);
         else if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.06, at, speed });
-        // vary the swings: twist the body so arcs come from different sides, lean into the heavy
-        if (a === 0) b.rotation.y = -0.45 * e;
-        else if (a === 1) b.rotation.y = 0.55 * e;
-        else if (a === 3) { b.rotation.x = 0.28 * e; b.position.z = 0.12 * e; }   // spear thrust
-        else if (a === 4) { b.rotation.y = 0.5; b.rotation.x = -0.05; }           // bow draw
-        else { b.rotation.x = 0.22 * e; b.position.y = 0.05 * e; }
         break;
       }
       case 'roll':
@@ -9176,14 +9328,25 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       case 'skill':
         { const sk = GW.Abil.LIST[this.skill]; if (sk && sk.anim) sk.anim(this, R, b, fresh, GW.clamp(this.t / this.cur.dur, 0, 1)); }
         break;
-      case 'charge': R.play('Idle_Sword', { fade: 0.15 }); b.rotation.x = -0.18 - 0.1 * Math.min(1, this.chargeT || 0); b.rotation.y = 0.35; break;
-      case 'block': R.play('Idle_Sword', { fade: 0.1 }); b.rotation.y = -0.5; b.rotation.x = 0.08; break;
-      case 'finisher': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, speed: 0.9 }); b.rotation.x = 0.3 * Math.sin(Math.min(1, this.t / 0.8) * Math.PI); break;
+      case 'charge': {   // hold the heavy's anticipation, trembling harder as it fills
+        R.play('Idle_Sword', { fade: 0.15 });
+        const hv = GW.Moves.K[GW.Moves.HEAVY[GW.Arms.curKey(this)][0]], c = Math.min(1, this.chargeT || 0);
+        pose = GW.Moves.mix(null, hv, Math.min(1, this.t / 0.12));
+        b.position.x = (Math.random() - 0.5) * 0.03 * c; b.position.y = -0.04 * c;
+        break;
+      }
+      case 'block': R.play('Idle_Sword', { fade: 0.1 }); pose = GW.Moves.mix(null, GW.Moves.K[GW.Moves.BLOCK[GW.Arms.curKey(this)]], Math.min(1, this.t / 0.07)); break;
+      case 'finisher': { R.play('Idle_Sword', { fade: 0.05 }); const hv = GW.Moves.HEAVY[GW.Arms.curKey(this)]; pose = GW.Moves.attackPose(hv[0], hv[1], this.t, 0.42, 0.8); b.position.y += Math.sin(GW.clamp(this.t / 0.42, 0, 1) * Math.PI) * 0.5; break; }
       case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
       case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;
       case 'dead': if (fresh) R.play('Death', { loop: false, restart: true, fade: 0.1 }); break;
     }
     R.update(dt);
+    // pose layer: fade the last pose out over a few frames when an action ends
+    if (!pose && (this.state === 'move' || this.state === 'hurt' || this.state === 'potion') && GW.Arms.curKey(this) === 'bow') pose = GW.Moves.K.bw_rest;   // carry the bow upright
+    if (pose) { this._lastPose = pose; this._poseFade = 0.1; }
+    else if (this._poseFade > 0 && this._lastPose) { this._poseFade -= dt; pose = GW.Moves.mix(this._lastPose, null, 1 - Math.max(0, this._poseFade) / 0.1); }
+    if (pose) { const w = pose.w === undefined ? 1 : pose.w; b.position.y += (pose.y || 0) * w; b.position.z += (pose.z || 0) * w; GW.Moves.apply(this, pose); }
     if (this.cloak) this.cloak.rotation.x = -0.1 - (this._mv ? Math.min(0.55, this._spd * 0.07) : 0) - (this.state === 'roll' ? 0.3 : 0) + Math.sin(this.t * 2.3) * 0.03;
     if (this.plume) this.plume.rotation.x = Math.sin(this.t * 3) * 0.08 - (this._mv ? 0.25 : 0);
     const fl = this.hurtT > 0 ? this.hurtT * 3 : 0;
@@ -9397,7 +9560,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       switch (e.state) {
         case 'windup':
           e.face(P.pos, dt, 10); e.moving = false;
+          if (!e.feint && !e._gl && e.t > 0.3) { e._gl = true; G.glint(e); }
           if (e.t > 0.45) {
+            e._gl = false;
             if (e.feint) {   // a false dart: bound sideways instead of biting
               e.feint = false; const a = e.yaw + (Math.random() < 0.5 ? 1.4 : -1.4); e.lv = { x: Math.sin(a) * 11, z: Math.cos(a) * 11 }; e.setState('dart'); GWAudio.sfx('step', 3);
             } else { e.setState('lunge'); const a = e.yaw; e.lv = { x: Math.sin(a) * 15, z: Math.cos(a) * 15 }; GWAudio.sfx('swing', 0.8); }
@@ -9435,8 +9600,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     anim(e, dt) {
       const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
       switch (e.state) {
-        case 'windup': if (fresh) R.play('Attack', { loop: false, restart: true, fade: 0.08, speed: R.dur('Attack') / 0.85 }); break;
-        case 'lunge': break;
+        case 'windup': if (fresh) R.play('Idle', { fade: 0.08 }); break;
+        case 'lunge': if (fresh) R.play('Attack', { loop: false, restart: true, fade: 0.04, at: 0.3, speed: 1.6 }); break;
         case 'dart': R.play('Gallop', { speed: 1.5, fade: 0.08 }); break;
         case 'stagger': if (fresh) R.play(Math.random() < 0.5 ? 'Idle_HitReact_Left' : 'Idle_HitReact_Right', { loop: false, restart: true, fade: 0.05, speed: 1.6 }); break;
         case 'chase': R.play(e.moving ? 'Gallop' : 'Idle', { speed: 1.15, fade: 0.2 }); break;
@@ -9444,7 +9609,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         default: R.play('Idle', { fade: 0.3 });
       }
       R.update(dt);
-      if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(e.state === 'windup' ? 2.2 : 1, 0.15, 0.1);
+      { const k = e.state === 'windup' ? Math.min(1, e.t / 0.25) : 0;   // coil: sink and draw back, then spring
+        if (e.root0 === undefined) { e.root0 = R.root.position.y; e.rootZ = R.root.position.z; }
+        R.root.position.y = e.root0 - 0.12 * k; R.root.position.z = e.rootZ - 0.3 * k; R.root.rotation.x = -0.12 * k; }
+      if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(e.state === 'windup' ? 1 + 2.5 * Math.min(1, e.t / 0.3) : 1, 0.15, 0.1);
     },
   };
 
@@ -9477,7 +9645,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const boss = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), rust); boss.position.x = -0.1; sh.add(boss);
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.025, 4, 16), rust); rim.rotation.y = Math.PI / 2; rim.position.x = -0.07; sh.add(rim);
       R.attach('Wrist.L', sh, GW.Knight.gripPlace(R, 'L'));
-      e.shield = sh;
+      e.shield = sh; e.sword = sw.sword;
+      e.poser = { rig: R, body: e.model, sword: sw.sword, leftProp: sh }; e.rootY0 = R.root.position.y; e.rootZ0 = R.root.position.z;
       e.mats = R.mats.concat([rust, wood, disc.material]);
       e.eyeMat = R.mats.find(m => m.uniforms.uUnlit.value > 0);
       if (TYPES.hollow.pk === undefined) TYPES.hollow.pk = R.peakFraction('Sword_Slash', 'Wrist.R');
@@ -9487,7 +9656,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     ai(e, c) {
       const { dt, G, P, dP, slow } = c;
       if (!e.aggro) { e.wander(c, TYPES.hollow.speed); return; }
-      const T = TYPES.hollow;
+      const T = TYPES.hollow, HM = [['sw_fore_a', 'sw_fore_s'], ['sw_back_a', 'sw_back_s'], ['sw_chop_a', 'sw_chop_s']];
+      if (e.atk) { e.atk.t += dt; if (e.atk.glint && !e.atk.gl && e.atk.t >= e.atk.hit - 0.2) { e.atk.gl = true; G.glint(e, e.atk.red); } }
+      if (e.state === 'stagger' || e.state === 'chase' || e.state === 'block') e.atk = null;
       switch (e.state) {
         case 'windup': {
           e.face(P.pos, dt, 5); e.moving = false; const wd = e.wd || 0.62;
@@ -9498,14 +9669,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         case 'feint':   // ...a hop back, then a fast real cut: punishes parrying the first motion
           e.moving = false; e.face(P.pos, dt, 8);
           if (e.t < 0.2) { e.pos.x -= Math.sin(e.yaw) * dt * 4; e.pos.z -= Math.cos(e.yaw) * dt * 4; }
-          if (e.t > 0.4) { e.wd2 = 0.24; e.setState('windup2'); }
+          if (e.t > 0.4) { e.wd2 = 0.24; e.setState('windup2'); e.atk = { t: 0, mv: HM[2], hit: e.wd2 + 0.08, glint: true }; }
           break;
         case 'slash':
           e.pos.x += Math.sin(e.yaw) * dt * 3; e.pos.z += Math.cos(e.yaw) * dt * 3;
           if (e.t > 0.08) e.strike(G, 2.5, 1.2, T.dmg, {});
           if (e.t > 0.32) {
             e.ci = (e.ci || 0) + 1;
-            if (e.chain && e.ci < e.chain.length) { e.wd2 = e.chain[e.ci]; e.setState('windup2'); }
+            if (e.chain && e.ci < e.chain.length) { e.wd2 = e.chain[e.ci]; e.setState('windup2'); e.atk = { t: 0, mv: HM[e.ci % 3], hit: e.wd2 + 0.08, glint: true }; }
             else { e.setState('recover'); e.cool = (e.T.boss ? 0.8 : 1.5) + Math.random() * (e.T.boss ? 0.6 : 1); }
           }
           break;
@@ -9527,13 +9698,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
             e.moveTo(P.pos.x + Math.sin(a) * 4, P.pos.z + Math.cos(a) * 4, T.speed * 0.6 * slow, dt); e.face(P.pos, dt, 6);
           } else if (dP > 2.0) e.moveTo(P.pos.x, P.pos.z, T.speed * slow * (e.T.boss ? 1.25 : 1), dt); else { e.moving = false; e.face(P.pos, dt, 6); }
           if (can && e.cool <= 0 && dP < 2.9) {
-            if (P.state === 'block' && G.t - P.blockStart > 0.7 && Math.random() < 0.6) { e.setState('bash'); break; }
+            if (P.state === 'block' && G.t - P.blockStart > 0.7 && Math.random() < 0.6) { e.setState('bash'); e.atk = { t: 0, bash: true, hit: 0.6, glint: true, red: true }; break; }
             // pick a string: single, quick pair, delayed pair, or (elites and bosses) a three-cut flurry with a late beat
             const pats = [[0.62], [0.62, 0.35], [0.7, 0.62], [0.62, 0.3, 0.55]];
             if (e.elite || e.T.boss) pats.push([0.45, 0.28, 0.28], [0.8, 0.3, 0.3]);
             e.chain = pats[Math.floor(Math.random() * pats.length)]; e.ci = 0; e.wd = e.chain[0];
             e.feint = Math.random() < (e.T.boss ? 0.28 : e.elite ? 0.22 : 0.14);
-            e.setState('windup');
+            e.setState('windup'); e.atk = { t: 0, mv: HM[e.chain.length === 1 ? Math.floor(Math.random() * 3) : 0], hit: e.wd + 0.08, glint: !e.feint };
           }
       }
     },
@@ -9541,11 +9712,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const R = e.rig, fresh = e._ast !== e.state; e._ast = e.state;
       const pk = TYPES.hollow.pk || 0.45, D = R.dur('Sword_Slash');
       switch (e.state) {
-        case 'windup': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.1, speed: pk * D / ((e.wd || 0.62) + 0.08) }); break;
-        case 'windup2': if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.08, at: 0.15, speed: (pk - 0.15) * D / ((e.wd2 || 0.35) + 0.08) }); break;
-        case 'feint': if (fresh) R.play('Idle_Sword', { fade: 0.08 }); break;
-        case 'bash': if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.08, speed: R.dur('Punch_Right') / 0.8 }); break;
-        case 'slash': break;
+        case 'windup': case 'windup2': case 'slash': case 'feint': case 'bash': R.play('Idle_Sword', { fade: 0.08 }); break;
         case 'stagger': if (fresh) R.play('HitRecieve', { loop: false, restart: true, fade: 0.05, speed: 1.2 }); break;
         case 'block': if (fresh) R.play('HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.5 }); break;
         case 'chase': R.play(e.moving ? 'Walk' : 'Idle_Sword', { speed: 1.5, fade: 0.25 }); break;
@@ -9553,6 +9720,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         default: R.play('Idle_Sword', { fade: 0.3 });
       }
       R.update(dt);
+      // readable attacks: key poses with a still anticipation, a snap, and a held follow-through (moves.js)
+      const M = GW.Moves, a = e.atk; let pose = null;
+      if (a && e.state === 'feint') pose = M.mix(M.K[(a.mv || ['sw_fore_a'])[0]], M.K.sw_block, Math.min(1, e.t / 0.15));
+      else if (a && a.bash) { pose = M.mix(null, M.K.sw_block, Math.min(1, a.t / 0.2)); if (a.t > 0.55 && a.t < 0.85) pose = Object.assign({}, pose, { z: 0.5 * Math.sin((a.t - 0.55) / 0.3 * Math.PI) }); }
+      else if (a && a.mv) pose = M.enemyPose(a.mv[0], a.mv[1], a.t, a.hit, a.hit + 0.5);
+      if (pose) { const w = pose.w === undefined ? 1 : pose.w; R.root.position.y = (e.rootY0 || 0) + (pose.y || 0) * w; R.root.position.z = (e.rootZ0 || 0) + (pose.z || 0) * w; M.apply(e.poser, pose); }
+      else { R.root.position.y = e.rootY0 || 0; R.root.position.z = e.rootZ0 || 0; }
       if (e.eyeMat) e.eyeMat.uniforms.uEmissive.value.setRGB(0.25, 0.8, 1.0).multiplyScalar(e.state.startsWith('windup') ? 2.4 : 1.2);
     },
   };
@@ -11427,15 +11601,64 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
+  // the glint: a star flashes on the enemy's weapon as the parry window opens (red = unblockable, dodge it)
+  G.glint = function (e, red) {
+    let p;
+    if (e.sword) { p = e.sword.localToWorld(new V3(0, 0, 0.9)); } else { p = new V3(e.pos.x + Math.sin(e.yaw) * 0.9, e.pos.y + 0.8, e.pos.z + Math.cos(e.yaw) * 0.9); }
+    const col = red ? '#ff4030' : '#fffbe8';
+    G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 46, pop: true, t: 0, life: 0.34, ch: red ? '!' : '✦', col });
+    G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 70, pop: true, t: 0, life: 0.2, ch: '+', col: red ? '#ff8060' : '#ffe9a0' });
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5 + 6, vz: Math.sin(a) * 2, t: 0, life: 0.22, ch: '·', col }); }
+    if (e.distTo(G.player.pos) < 16) GWAudio.sfx(red ? 'zap' : 'socket');
+  };
+  // ---------------- slash arcs: each swing leaves a crescent of bright characters that flicker and scatter ----------------
+  const _sa = new V3(), _sb = new V3(), SLASH_LIFE = 0.26;
+  const slashCh = ang => { const a = ((ang % Math.PI) + Math.PI) % Math.PI; return a < 0.39 || a > 2.75 ? '-' : a < 1.18 ? '\\' : a < 1.96 ? '|' : '/'; };
+  function drawSlashGlyphs(dt) {
+    const P = G.player, tr = P && P.trail; if (!fxCx || !tr) return;
+    const pts = tr.pts.filter(p => p.on && p.age < SLASH_LIFE); const step0 = 7; if (pts.length < 2) return;
+    const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth, step = 7 * dpr;
+    const col = '#' + tr.color.getHexString();
+    cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.globalCompositeOperation = 'lighter';
+    const rows = [[1.04, 1, 19, 'bold '], [0.92, 0.85, 17, 'bold '], [0.8, 0.6, 15, ''], [0.66, 0.35, 13, '']];
+    for (const [r, alpha, size, wt] of rows) {
+      cx.font = `${wt}${Math.round(size * dpr)}px ui-monospace, Menlo, monospace`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = pts[i], q = pts[i + 1];
+        _sa.copy(p.a).lerp(p.b, r).project(G.camera); _sb.copy(q.a).lerp(q.b, r).project(G.camera);
+        if (_sa.z > 1 || _sb.z > 1) continue;
+        const x0 = (_sa.x * 0.5 + 0.5) * W, y0 = (-_sa.y * 0.5 + 0.5) * H, x1 = (_sb.x * 0.5 + 0.5) * W, y1 = (-_sb.y * 0.5 + 0.5) * H;
+        const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(len / step)), ch = slashCh(Math.atan2(y1 - y0, x1 - x0));
+        const fade = 1 - p.age / SLASH_LIFE;
+        for (let k = 0; k < n; k++) {
+          const t = k / n, flick = Math.random();
+          cx.globalAlpha = alpha * fade * (0.75 + 0.25 * flick);
+          cx.fillStyle = r > 1 && p.age < 0.07 ? '#ffffff' : col;
+          cx.fillText(flick < 0.07 ? '*' : flick < 0.12 ? '~' : ch, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+        }
+        // the edge sheds a few characters that drift off and fade (hit-glyph pool)
+        if (r > 1 && p.age > 0.08 && Math.random() < 4 * dt) {
+          const w = new V3().copy(p.a).lerp(p.b, 0.95);
+          G.hitGlyphs.push({ x: w.x, y: w.y, z: w.z, vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 2, t: 0, life: 0.35 + Math.random() * 0.3, ch: '.,\'`:'[Math.floor(Math.random() * 5)], col });
+        }
+      }
+    }
+    cx.restore();
+  }
   function drawHitGlyphs(dt) {
     if (!fxCx || !G.hitGlyphs.length) return;
     const cx = fxCx, W = fxCv.width, H = fxCv.height, dpr = W / innerWidth;
     cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.font = `bold ${Math.round(13 * dpr)}px ui-monospace, Menlo, monospace`; cx.globalCompositeOperation = 'lighter';
     G.hitGlyphs = G.hitGlyphs.filter(g => {
       g.t += dt; if (g.t > g.life) return false;
-      g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt;
+      if (g.follow) { g.x = g.follow.x; g.y = g.follow.y; g.z = g.follow.z; }
+      else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt; }
       _hg.set(g.x, g.y, g.z).project(G.camera); if (_hg.z > 1) return true;
-      cx.globalAlpha = 1 - g.t / g.life; cx.fillStyle = g.col; cx.fillText(g.ch, (_hg.x * 0.5 + 0.5) * W, (-_hg.y * 0.5 + 0.5) * H); return true;
+      const k = g.t / g.life;
+      if (g.size) cx.font = `bold ${Math.round(g.size * (g.pop ? 1 + 0.6 * Math.sin(Math.min(1, k * 2) * Math.PI) : 1) * dpr)}px ui-monospace, Menlo, monospace`;
+      cx.globalAlpha = 1 - k; cx.fillStyle = g.col; cx.fillText(g.ch, (_hg.x * 0.5 + 0.5) * W, (-_hg.y * 0.5 + 0.5) * H);
+      if (g.size) cx.font = `bold ${Math.round(13 * dpr)}px ui-monospace, Menlo, monospace`;
+      return true;
     });
     cx.restore();
   }
@@ -12525,7 +12748,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     drawFireGlyphs();
     document.body.classList.toggle('playing', G.state === 'play'); if (G.state === 'play' && frame % 2 === 0) UI.drawCompass(G);
     drawHiddenHero(dt);
-    drawHitGlyphs(dt);
+    drawSlashGlyphs(dt); drawHitGlyphs(dt);
     drawWeather(dt);
     drawDarkOutside();
     perfGovernor(dt);

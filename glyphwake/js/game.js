@@ -310,8 +310,9 @@
   G.glint = function (e, red) {
     let p;
     if (e.sword) { p = e.sword.localToWorld(new V3(0, 0, 0.9)); } else { p = new V3(e.pos.x + Math.sin(e.yaw) * 0.9, e.pos.y + 0.8, e.pos.z + Math.cos(e.yaw) * 0.9); }
-    const col = red ? '#ff4030' : '#fff6c8';
-    G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 30, pop: true, t: 0, life: 0.3, ch: red ? '!' : '✦', col });
+    const col = red ? '#ff4030' : '#fffbe8';
+    G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 46, pop: true, t: 0, life: 0.34, ch: red ? '!' : '✦', col });
+    G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, still: true, size: 70, pop: true, t: 0, life: 0.2, ch: '+', col: red ? '#ff8060' : '#ffe9a0' });
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; G.hitGlyphs.push({ x: p.x, y: p.y, z: p.z, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5 + 6, vz: Math.sin(a) * 2, t: 0, life: 0.22, ch: '·', col }); }
     if (e.distTo(G.player.pos) < 16) GWAudio.sfx(red ? 'zap' : 'socket');
   };
