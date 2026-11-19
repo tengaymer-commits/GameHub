@@ -76,6 +76,7 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 | Attack / combo | left click (tap to chain), aim with the mouse | ⚔ (auto-aims) |
 | Charged heavy | hold left click, release (or hold J) | hold ⚔ |
 | Block / parry | hold right click (or V); tap it as the blow lands to parry | hold ⛉ |
+| Swap weapon | X | ⇄ |
 | Roll | Space | ⟲ |
 | Abilities | 1 · 2 · 3 · 4 (B opens the Book of Glyphs) | four slot buttons · ✎ |
 | Flask | Q | ♥ |
@@ -93,6 +94,19 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Perfect dodge**: roll through a blow at the last instant. Time slows, you get +30 stamina, and your next hit crits.
 - **Break bar** `[####----]`: hits fill it. When it is full the enemy is **BROKEN** for about 3 s. Attack it then for a **finisher**: 50% of its life (8% on bosses), and you heal 12%.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
+
+## Weapons (two carried, X swaps)
+Your forged metal and runes stay the same whichever weapon you hold. The weapon decides the moveset. You choose which two to carry at the top of the Book (B).
+
+| Weapon | Light chain | Charged heavy | Block / parry window | Roll cost | Where |
+|---|---|---|---|---|---|
+| † Sword & Shield | 3 cuts | standard | 85% / 0.22 s | 24 | start |
+| ‡ Greatsword | 3 huge arcs, big break | ×1.45 damage, longer reach | 60% / 0.16 s | 30 | Highlands trader |
+| ↑ Spear | 4 long, narrow thrusts | long lunge | 70% / 0.20 s | 22 | Frostmere trader |
+| ✕ Twin Daggers | 5-cut flurry, +15% crit | quick dash cut | 50% / 0.30 s | 15 | Duskwood trader |
+| ) Glyph Bow | arrows at range | drawn piercing shot | 40% / 0.18 s | 20 | Salt Wastes trader |
+
+Elite chests and dungeon top floors can also hold a weapon you don't have yet (30%).
 
 ## Abilities (Book of Glyphs, B)
 There are 17 abilities. You slot any 4 of them on keys 1–4. In the Book, pick a slot, then click an ability; right-click a slot to empty it. Every ability costs focus and has a cooldown.
