@@ -155,7 +155,9 @@
       const cd = sk ? (P.cd[id] || 0) : 0, f = sk ? cd / sk.cd : 0;
       el.querySelector('.cd').style.height = (f * 100) + '%';
       el.querySelector('.c').textContent = cd > 0 ? Math.ceil(cd) : '';
-      el.classList.toggle('lack', !sk || P.fo < sk.fo);
+      const fz = P.fuseT > (GW.G ? GW.G.t : 0);
+      el.classList.toggle('lack', !sk || (!fz && P.fo < sk.fo));
+      el.classList.toggle('fuse', !!(sk && fz)); if (fz) el.style.setProperty('--fz', (GW.G.FUSE[P.fuseEl] || {}).col || '#ffd860');
       const tb = document.querySelector(`.tb[data-act=${k}] i`); if (tb) tb.style.height = (f * 100) + '%';
     }
     UI.hs.potion.querySelector('.c').textContent = P.flasks + '/' + P.maxFlasks;

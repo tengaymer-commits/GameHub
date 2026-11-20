@@ -320,9 +320,11 @@
         this.queued = null;
         const id = GW.Abil.ensure(this).slots[+q[1] - 1], sk = id && GW.Abil.LIST[id];
         if (!sk) G.ui.toast('Slot ' + q[1] + ' is empty · <span style="color:#ffcf6a">B</span> opens the Book of Glyphs', 1.6);
-        else if ((this.cd[id] || 0) > 0 || this.fo < sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift'))) { if ((this.cd[id] || 0) <= 0) G.ui.toast('Not enough focus', 0.9); }
+        else if ((this.cd[id] || 0) > 0 || (!(this.fuseT > G.t) && this.fo < sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift')))) { if ((this.cd[id] || 0) <= 0) G.ui.toast('Not enough focus', 0.9); }
         else {
-          this.fo -= sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift')); this.cd[id] = sk.cd * (1 - 0.1 * GW.Skills.r(this, 'y_quick'));
+          const fusing = this.fuseT > G.t;
+          if (fusing) { this.fuseActive = { el: this.fuseEl, until: G.t + sk.dur + 1.6 }; this.fuseT = 0; G.fuseCast(this, sk); }
+          else this.fo -= sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift')); this.cd[id] = sk.cd * (1 - 0.1 * GW.Skills.r(this, 'y_quick'));
           if (GW.Skills.r(this, 'y_echo') && Math.random() < 0.15) { this.cd[id] = 0; G.ui.float('ECHO', this.pos, { color: '#c8a0ff', size: 13, y: 2.8, life: 1 }); } this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = id;
           faceTarget(); this.cur = { dur: sk.dur }; this.fired = false;
           if (sk.start) sk.start(this, G);
@@ -372,6 +374,7 @@
       }
       case 'skill': {
         const k = this.t / this.cur.dur, sk = GW.Abil.LIST[this.skill];
+        if (this.fuseActive && G.t < this.fuseActive.until && Math.random() < 0.7) { const FC = G.FUSE[this.fuseActive.el]; G.parts.spark.emit(this.pos.x + (Math.random() - 0.5), this.pos.y + 0.4 + Math.random() * 1.4, this.pos.z + (Math.random() - 0.5), 0, 1.5, 0, 0.5, 1.1, FC.hex, 0); }
         const r = sk && sk.tick ? sk.tick(this, G, dt, { mv, speed, k }) : null;
         if (r) { vx = r.vx; vz = r.vz; }
         if (this.t >= this.cur.dur) { this.state = 'move'; this.t = 0; this._wh2 = false; }

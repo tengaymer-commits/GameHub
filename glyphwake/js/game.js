@@ -277,6 +277,7 @@
     e.brokenT = 0; e.model.rotation.z = 0;
     G.hitEnemy(e, dmg, { heavy: true, from: P.pos, melee: true, finisher: true });
     P.hp = Math.min(P.maxHp, P.hp + P.maxHp * (0.12 + 0.08 * ex)); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
+    G.fuseReady('finisher');
     UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
   };
   // attack tokens: only a few melee enemies may commit to an attack on the hero at once; the rest circle and wait
@@ -289,6 +290,21 @@
     return n < max;
   };
   G.packNear = function (e) { let n = 0; for (const o of G.enemies) if (o.alive && o.aggro && o.base === e.base && o.distTo(e.pos) < 14) n++; return n; };
+  // ---------------- fusion: a parry, perfect dodge or finisher charges the next ability with an element ----------------
+  G.FUSE = { fire: { name: 'FIRE', col: '#ff8a40', hex: 0xff7a30, src: 'parry' }, frost: { name: 'FROST', col: '#9fe0ff', hex: 0x9fe0ff, src: 'perfect dodge' }, storm: { name: 'STORM', col: '#c8a0ff', hex: 0xc8a0ff, src: 'finisher' } };
+  G.fuseReady = function (src) {
+    const P = G.player; if (!GW.Skills.r(P, 'y_fuse')) return;
+    const el = { parry: 'fire', dodge: 'frost', finisher: 'storm' }[src], F = G.FUSE[el];
+    P.fuseT = G.t + 1.8; P.fuseEl = el;
+    UI.float('⊕ FUSE · ' + F.name, P.pos, { color: F.col, size: 14, y: 3.1, life: 1.2 });
+    for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; G.hitGlyphs.push({ x: P.pos.x + Math.cos(a) * 1.3, y: P.pos.y + 1, z: P.pos.z + Math.sin(a) * 1.3, vx: Math.cos(a) * 2, vy: 2, vz: Math.sin(a) * 2, t: 0, life: 0.6, ch: '⊕', col: F.col }); }
+    if (!G.hintsShown.fuse) { G.hintsShown.fuse = true; UI.hint('<b>⊕ FUSE</b>: cast an ability on 1–4 now. It costs no focus, hits 50% harder and carries ' + F.name.toLowerCase() + '.', 4.5); }
+  };
+  G.fuseCast = function (P, sk) {
+    const F = G.FUSE[P.fuseEl];
+    UI.float('FUSED ' + sk.name.toUpperCase(), P.pos, { color: F.col, size: 16, y: 3.1, life: 1.2 }); GWAudio.sfx('crit'); GWAudio.sfx('cast'); G.shake(0.25);
+    G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 5, F.hex, 0.6, 1.2, -2, 1.5);
+  };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
@@ -643,9 +659,15 @@
     if (!o.dot && !o.chain && !o.react && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
     if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
     if (P.state === 'skill' && !o.dot && !o.react) dmg *= 1 + 0.12 * GW.Skills.r(P, 'y_potent');
+    const fz = P.fuseActive && G.t < P.fuseActive.until && (P.state === 'skill' || o.proj) && !o.dot && !o.react ? P.fuseActive.el : null;
+    if (fz) dmg *= 1.5;
     dmg = Math.max(1, Math.round(dmg));
     if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1) * (1 + 0.2 * GW.Skills.r(P, 'b_sunder')); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
     if (o.chain) e.status.shock = 3;
+    if (fz === 'fire') { e.status.burn = Math.max(e.status.burn, 3); e.status.burnD = Math.max(e.status.burnD || 0, dmg * 0.15); }
+    if (fz === 'frost') e.status.slow = Math.max(e.status.slow, 4);
+    if (fz === 'storm') e.status.shock = Math.max(e.status.shock || 0, 3);
+    if (fz) G.addHitGlyphs(e.pos.x, e.pos.y + 1.1, e.pos.z, 6, G.FUSE[fz].col);
     if ((o.heavy || o.finisher) && !o.dot && !o.react && e.status.slow > 0 && !((e.reactCd || 0) > 0)) G.react(e, 'shatter', dmg);
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
     const col = o.react ? o.reactCol : o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
@@ -795,6 +817,7 @@
       const aft = GW.Skills.r(P, 'g_after');
       if (P.state === 'roll' && P.t < (aft ? 0.32 : 0.22) && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
         G.pdCd = G.t + 1.4; G.slowmo(0.3, aft ? 1.3 : 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
+        G.fuseReady('dodge');
         UI.float('PERFECT', P.pos, { color: '#ffd860', size: 15, y: 2.6, life: 1 }); GWAudio.sfx('socket'); G.addHitGlyphs(P.pos.x, P.pos.y + 1, P.pos.z, 14, '#9fd8ff');
       } else if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
@@ -806,6 +829,7 @@
         if (G.t - P.blockStart < BK.parry + 0.04 * GW.Skills.r(P, 'g_parry')) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
           G.slowmo(0.25, 0.45); P.riposteT = 1.5; P.st = Math.min(100, P.st + 15);
           GWAudio.sfx('block'); GWAudio.sfx('crit'); G.shake(0.3); G.hitstop = 0.08;
+          G.fuseReady('parry');
           UI.float('PARRY', P.pos, { color: '#ffd860', size: 16, y: 2.6, life: 1 }); G.addHitGlyphs(P.pos.x + Math.sin(P.yaw) * 0.8, P.pos.y + 1.3, P.pos.z + Math.cos(P.yaw) * 0.8, 16, '#ffe8a0');
           const s = o.src; if (s && s.alive) { s.brk = (s.brk || 0) + G.brkMax(s) * 0.5; s.lastHit = G.t; if (s.brk >= G.brkMax(s)) G.breakEnemy(s); else if (!s.T.boss && s.setState) s.setState('stagger'); }
           return 'parry';

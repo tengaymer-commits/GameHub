@@ -105,7 +105,9 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 One point per level; reset is free while testing. Deeper rows need 2, 4 or 6 points already spent in that branch.
 - **Blade:** Honed Edge (+6% damage per rank), Flow (cheaper light attacks), Quick Draw (faster charge), Momentum (deeper combo hits hit harder), Sunder (+break), Keen Eye (+crit), Executioner (finishers +50% and heal more), Shatterpoint (reactions +40%).
 - **Guard:** Steady Hand (+0.04 s parry window per rank), Vigor (+15 health), Iron Wall (cheaper blocks), Light Feet (cheaper rolls), Riposte Master (×4.5 riposte and +20 stamina), Afterimage (wider perfect-dodge window), Deep Flask (+1 flask), Second Wind (survive a killing blow at 30% health, every 2 minutes).
-- **Glyph:** Wellspring (+focus regeneration), Thrift (cheaper abilities), Quickened Ink (shorter cooldowns), Ink Thirst (+focus per hit), Attunement (longer rune effects), Potency (+ability damage), Echo (15% instant cooldown refresh), Fusion (unlocks combo-fused abilities, coming next).
+- **Glyph:** Wellspring (+focus regeneration), Thrift (cheaper abilities), Quickened Ink (shorter cooldowns), Ink Thirst (+focus per hit), Attunement (longer rune effects), Potency (+ability damage), Echo (15% instant cooldown refresh), Fusion (see below).
+
+**Fusion:** a parry, a perfect dodge or a finisher charges a fusion for 1.8 s (`⊕ FUSE`, and the ability slots glow). The next ability you cast costs no focus, hits 50% harder and carries an element: **parry → fire** (burn), **perfect dodge → frost** (chill), **finisher → storm** (shock). These feed the reactions. For example, a perfect dodge into Whirl chills the foe, and Whirl's own heavy second spin then Shatters it.
 
 ## World map (M)
 A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.

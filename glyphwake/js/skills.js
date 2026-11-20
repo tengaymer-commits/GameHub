@@ -33,7 +33,7 @@
     { id: 'y_attune', br: 'glyph', t: 2, max: 2, g: '∴', name: 'Attunement', desc: r => `burn, chill and poison from your runes last ${25 * (r || 1)}% longer` },
     { id: 'y_potent', br: 'glyph', t: 2, max: 2, g: '✶', name: 'Potency', desc: r => `abilities deal +${12 * (r || 1)}% damage` },
     { id: 'y_echo', br: 'glyph', t: 3, max: 1, g: '"', name: 'Echo', desc: () => '15% chance an ability comes straight back off cooldown' },
-    { id: 'y_fuse', br: 'glyph', t: 3, max: 1, g: '⊕', name: 'Fusion', desc: () => 'cast an ability right after a finisher, parry or perfect dodge to fuse it (coming next)' },
+    { id: 'y_fuse', br: 'glyph', t: 3, max: 1, g: '⊕', name: 'Fusion', desc: () => 'after a parry (fire), perfect dodge (frost) or finisher (storm), your next ability within 1.8 s is free, +50% and carries the element' },
   ];
   const BYID = {}; NODES.forEach(n => { BYID[n.id] = n; });
   const S = GW.Skills = { BR, NODES, BYID };
