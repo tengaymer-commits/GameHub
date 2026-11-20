@@ -40,6 +40,9 @@
     vfrost: { x: -150, z: -2552 },    // villages beside the two landmark hubs
     vash: { x: 2250, z: 1348 },
   };
+  // region boss arenas (flattened, kept clear of points of interest and trees). The Rime Knight duels on the frozen mere;
+  // the Colossus stands out in the open Barrens, well away from Cinder Watch and Emberfall.
+  const ARENAS = [{ key: 'colossus', x: 2600, z: 1500 }, { key: 'rimeknight', x: 120, z: -2470 }, { key: 'mirehag', x: -2050, z: 1560 }, { key: 'cragwarlord', x: 2470, z: -1520 }];
   // one village per region (plus Hearthwick at the crossroads)
   const HUBS = [
     { id: 'vale', name: 'Hearthwick', at: 'hearth' },
@@ -90,8 +93,8 @@
     { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
     { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -150, z: -2552, r: 30 },
     { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 2620, z: -1760, r: 26 },
-    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2250, z: 1220, r: 22 },
-    { name: 'THE ABBEY YARD', sub: 'a knight keeps vigil', x: -150, z: -2650, r: 22 },
+    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2600, z: 1500, r: 26 },
+    { name: 'THE FROZEN MERE', sub: 'a knight keeps vigil on the ice', x: 120, z: -2470, r: 40 },
     { name: "THE HAG'S POOL", sub: 'green light under the water', x: -2050, z: 1560, r: 22 },
     { name: 'THE WARLORD\'S CROWN', sub: 'he never stopped ruling', x: 2470, z: -1520, r: 22 },
     { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 2250, z: -1300, r: 30 },
@@ -172,7 +175,10 @@
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
-    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash', 'dunmaer']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
+    // twin sites (a village beside its landmark) share one ground height, so the land between them doesn't ramp
+    const TWIN = { vfrost: 'abbey', vash: 'cinder' };
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash', 'dunmaer']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[TWIN[k] || k]));
+    for (const a of ARENAS) if (a.key !== 'rimeknight') flatK(a.x, a.z, 22, 38, h0At(a));
     flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
     return h;
   }
@@ -989,7 +995,8 @@
     if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
     for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash, L.dunmaer]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
-    if (W.poisNear(x, z, 13 + r).length) return false;
+    if (W.poisNear(x, z, 16 + r).length) return false;
+    for (const a of ARENAS) if (Math.hypot(x - a.x, z - a.z) < 34 + r) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
   }
@@ -1008,14 +1015,20 @@
     const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
     let p = null;
     const r0 = hsh(i * 3.1 + 0.7, j * 1.7 - 2.3);
-    const x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 90, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 90;
+    let x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 70, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 70;
+    // steep ground: slide to the flattest spot within 40 m (props on a slope float on one side and sink on the other)
+    const hh = (a, b) => rawHeight(a, b, biomeW(a, b)), slopeAt = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 10, b + Math.sin(t) * 10) - h0)); } return m; };
+    let slope = slopeAt(x, z);
+    if (slope > 2.4) for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2 + hsh(i, j), cx = x + Math.cos(t) * 40, cz = z + Math.sin(t) * 40, s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
     const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
-      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 14 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 9;   // exact distances: no chunk needs computing
+      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
+      && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 16;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
     if (ok) {
       const bwp = biomeW(x, z); let region = 'vale', rbv = 0.5; bwp.forEach((v, q) => { if (v > rbv) { rbv = v; region = BIOMES[q]; } });   // straight from the formula: no data chunk needed
       const w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
+      if (slope > 2.4 && type !== 'ambush') type = 'vista';   // still a crag: make it a lookout
       const lvl = 1 + Math.floor(Math.hypot(x, z) / 280);
       p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };
     }
@@ -1034,11 +1047,11 @@
     const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
     const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
     switch (p.type) {
-      case 'camp': ring(3, 7, (x, z) => kit('kit_hut', x, z, 0.65, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); break;
+      case 'camp': ring(3, 7, (x, z) => kit('kit_hut', x, z, 0.9, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); break;
       case 'ruin': ring(4 + Math.floor(R() * 3), 6 + R() * 3, (x, z) => kit(R() < 0.5 ? 'kit_arch' : (R() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b'), x, z, 0.9 + R() * 0.3, 0.6, bio)); chest(p.x, p.z); break;
       case 'chest': ring(3, 2.4, (x, z) => kit('kit_rock_a', x, z, 0.35 + R() * 0.2, 0.6, bio)); chest(p.x, p.z); break;
       case 'shrine': kit('kit_shrine', p.x, p.z, 1, 0.7, bio); inter.push({ type: 'shrine', x: p.x, z: p.z + 1.6, r: 2.4, label: 'Pray at the shrine', poi: p }); break;
-      case 'waystone': kit('kit_pillar_b', p.x, p.z, 1.6, 0.7, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
+      case 'waystone': kit('kit_pillar_a', p.x, p.z, 1.35, 0.6, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
       case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
       case 'elite': ring(5, 6, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
@@ -1673,6 +1686,7 @@
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
+  W.ARENAS = ARENAS;
   W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {

@@ -192,12 +192,13 @@
     G.widow = G.spawnEnemy('widow', Lw.lair.x, Lw.lair.z);
     // the region bosses, each in its own lair
     G.regionBosses = [
-      { key: 'colossus', type: 'colossus', x: 2250, z: 1220, title: 'THE ASH COLOSSUS', sub: 'the ground cracks open' },
-      { key: 'rimeknight', type: 'rimeknight', x: -150, z: -2650, title: 'THE RIME KNIGHT', sub: 'frost climbs your armour' },
+      { key: 'colossus', type: 'colossus', x: 2600, z: 1500, title: 'THE ASH COLOSSUS', sub: 'the ground cracks open' },
+      { key: 'rimeknight', type: 'rimeknight', x: 120, z: -2470, title: 'THE RIME KNIGHT', sub: 'frost climbs your armour' },
       { key: 'mirehag', type: 'mirehag', x: -2050, z: 1560, title: 'THE MIRE HAG', sub: 'the water starts to boil' },
       { key: 'cragwarlord', type: 'cragwarlord', x: 2470, z: -1520, title: 'THE CRAG WARLORD', sub: 'kneel, or be broken' },
     ];
-    G.regionBosses.forEach(b => { b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / 280)); b.e.bossKey = b.key; });
+    G.regionBosses.forEach(b => { const A = GW.World.ARENAS.find(a => a.key === b.key); if (A) { b.x = A.x; b.z = A.z; }   // world.js owns the arena spots
+      b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / 280)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
     [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
