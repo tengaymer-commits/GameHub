@@ -57,6 +57,7 @@ button { font-family: var(--mono); color: var(--fg); }
 #worldmap { position: fixed; inset: 0; background: rgba(2,3,6,.92); z-index: 40; display: flex; align-items: center; justify-content: center; }
 #worldmap.hidden { display: none; }
 #wm { width: 100vw; height: 100vh; display: block; cursor: grab; }
+#worldmap #wm-style { position: absolute; top: 30px; left: 30px; width: auto; padding: 6px 12px; font-size: 12px; letter-spacing: .08em; margin: 0; background: rgba(8,8,12,.85); }
 #worldmap .wm-foot { position: absolute; bottom: 44px; left: 0; right: 0; text-align: center; color: #7a8090; font-size: 11px; letter-spacing: .15em; pointer-events: none; }
 #compass { position: fixed; left: 50%; top: calc(26px + var(--safe-t, 0px)); transform: translateX(-50%); width: 360px; height: 22px; pointer-events: none; z-index: 5; }
 body:not(.playing) #compass { display: none; }

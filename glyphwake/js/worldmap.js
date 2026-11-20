@@ -321,13 +321,17 @@
     $('worldmap').classList.toggle('hidden', !WM.open);
     if (WM.open) {
       if (!GW.World._mapReady) { UI.toast('Charting the land…', 1.2); }
-      WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = WM.zoom > 1.01 ? WM.zoom : 5;
+      WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = WM.zoom > 1.01 ? WM.zoom : 5; if (UI.mapStyleLabel) UI.mapStyleLabel();
       setTimeout(() => { GW.World.mapData(); GW.World._mapReady = true; UI.drawWorldMap(G); }, 20);
     }
   };
   (function mapInput() {
     const c = $('wm'); if (!c) return;
     const redraw = () => UI.drawWorldMap(GW.G);
+    const btn = $('wm-style'), label = () => { if (btn) btn.textContent = '◈ ' + STYLE_NAME[style()] + '  (V)'; };
+    function cycle() { const i = STYLES.indexOf(style()); UI.settings.mapStyle = STYLES[(i + 1) % STYLES.length]; UI.saveSettings && UI.saveSettings(); UI.toast(STYLE_NAME[UI.settings.mapStyle], 1.2); label(); const ms = $('o-mapstyle'); if (ms) ms.value = UI.settings.mapStyle; redraw(); }
+    if (btn) { btn.addEventListener('pointerdown', e => e.stopPropagation()); btn.addEventListener('click', e => { e.stopPropagation(); cycle(); }); }
+    UI.mapStyleLabel = label;
     c.addEventListener('wheel', e => {
       const w = innerWidth, h = innerHeight, px0 = pxPerM(w, h), mx = e.clientX, my = e.clientY;
       const wx = WM.cx + (mx - w / 2) / px0, wz = WM.cz + (my - h / 2) / px0;   // zoom about the cursor
@@ -354,7 +358,7 @@
     addEventListener('keydown', e => { if (!WM.open) return;
       if (e.code === 'Equal' || e.code === 'NumpadAdd') { WM.zoom = GW.clamp(WM.zoom * 1.25, 0.9, 48); redraw(); }
       if (e.code === 'Minus' || e.code === 'NumpadSubtract') { WM.zoom = GW.clamp(WM.zoom / 1.25, 0.9, 48); redraw(); }
-      if (e.code === 'KeyV') { const i = STYLES.indexOf(style()); UI.settings.mapStyle = STYLES[(i + 1) % STYLES.length]; UI.saveSettings && UI.saveSettings(); UI.toast(STYLE_NAME[UI.settings.mapStyle], 1.2); redraw(); }
+      if (e.code === 'KeyV') cycle();
       if (e.code === 'Space') { WM.cx = GW.G.player.pos.x; WM.cz = GW.G.player.pos.z; redraw(); e.preventDefault(); } });
   })();
 })();
