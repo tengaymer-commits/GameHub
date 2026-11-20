@@ -179,8 +179,12 @@
     const WC = GW.Arms.cur(this); s.crit += WC.crit; s.speed *= WC.speed;
     const gs = this.gs = GW.Knight.stats(this.gear);
     s.crit += gs.crit; s.focusRegen *= 1 + gs.focus;
+    // skill tree
+    const SK = id => (GW.Skills ? GW.Skills.r(this, id) : 0);
+    s.dmg *= 1 + 0.06 * SK('b_edge'); s.crit += 0.04 * SK('b_keen'); s.focusRegen *= 1 + 0.15 * SK('y_well');
+    this.maxFlasks = 3 + (this.extraFlasks || 0) + SK('g_flask'); this.flasks = Math.min(this.flasks, this.maxFlasks);
     this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
-    const vig = (s.vigor || 0) + gs.hp;
+    const vig = (s.vigor || 0) + gs.hp + 15 * SK('g_vigor');
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);
     if (this.maxHp > old) this.hp += this.maxHp - old;
@@ -291,7 +295,7 @@
       if (q === 'roll' && this.st >= Math.min(15, GW.Arms.cur(this).roll)) {
         this.queued = null; this.state = 'roll'; this.t = 0; this.cur = { dur: 0.48 };
         this.rollDir = ml > 0.1 ? Math.atan2(mv.x, mv.z) : this.yaw; this.yaw = this.rollDir;
-        this.st -= GW.Arms.cur(this).roll; this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
+        this.st -= GW.Arms.cur(this).roll * (1 - 0.15 * GW.Skills.r(this, 'g_feet')); this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
         G.parts.dust.burst(this.pos.x, this.pos.y + 0.2, this.pos.z, 8, 2, 0x6a6458, 0.5, 1.2, 0);
       } else if (q === 'attack' && this.st > 4 && G.finisherTarget && G.finisherTarget(this)) {
         // a broken enemy within reach: execute it
@@ -306,7 +310,9 @@
         this.cur.dur /= this.ws.speed; this.cur.hitAt = this.cur.dur * (this.cur.heavy ? 0.5 : 0.42); this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.07; this.atkN = (this.atkN || 0) + 1;
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
-        this.st -= this.cur.st; this.stDelay = 0.6;
+        this.cur.dmg *= 1 + 0.05 * GW.Skills.r(this, 'b_moment') * Math.min(3, next);
+        this.st -= this.cur.st * (1 - 0.15 * GW.Skills.r(this, 'b_flow')); this.stDelay = 0.6;
+        if (this.riposteT > 0 && GW.Skills.r(this, 'g_ripo')) { this.cur.dmg *= 4.5 / 3.5; this.st = Math.min(100, this.st + 20); }
         if (this.riposteT > 0) { this.cur.dmg *= 3.5; this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
         GWAudio.sfx(this.cur.heavy ? 'heavy' : 'swing');
       } else if (/^a[1-4]$/.test(q)) {
@@ -314,9 +320,10 @@
         this.queued = null;
         const id = GW.Abil.ensure(this).slots[+q[1] - 1], sk = id && GW.Abil.LIST[id];
         if (!sk) G.ui.toast('Slot ' + q[1] + ' is empty · <span style="color:#ffcf6a">B</span> opens the Book of Glyphs', 1.6);
-        else if ((this.cd[id] || 0) > 0 || this.fo < sk.fo) { if (this.fo < sk.fo) G.ui.toast('Not enough focus', 0.9); }
+        else if ((this.cd[id] || 0) > 0 || this.fo < sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift'))) { if ((this.cd[id] || 0) <= 0) G.ui.toast('Not enough focus', 0.9); }
         else {
-          this.fo -= sk.fo; this.cd[id] = sk.cd; this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = id;
+          this.fo -= sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift')); this.cd[id] = sk.cd * (1 - 0.1 * GW.Skills.r(this, 'y_quick'));
+          if (GW.Skills.r(this, 'y_echo') && Math.random() < 0.15) { this.cd[id] = 0; G.ui.float('ECHO', this.pos, { color: '#c8a0ff', size: 13, y: 2.8, life: 1 }); } this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = id;
           faceTarget(); this.cur = { dur: sk.dur }; this.fired = false;
           if (sk.start) sk.start(this, G);
         }
@@ -377,7 +384,7 @@
         break;
       }
       case 'charge': {
-        this.chargeT += dt; faceTarget();
+        this.chargeT += dt * (1 + 0.25 * GW.Skills.r(this, 'b_charge')); faceTarget();
         vx = mv.x * speed * 0.3; vz = mv.z * speed * 0.3;
         const full = this.chargeT >= 1.0;
         if (full && !this._chFull) { this._chFull = true; GWAudio.sfx('socket'); G.parts.spark.burst(this.pos.x, this.pos.y + 1.2, this.pos.z, 20, 3, 0xffd060, 0.5, 1, 0); }

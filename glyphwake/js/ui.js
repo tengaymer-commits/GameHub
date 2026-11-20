@@ -256,6 +256,13 @@
   };
   UI.bookPick = function (G, i) { bookSel = i; UI.renderBook(G); };
   UI.renderBook = function (G) {
+    const tab = UI._bookTab || 'load', pts = GW.Skills.points(G.player);
+    $('bt-pts').textContent = pts ? '(' + pts + ')' : '';
+    document.querySelectorAll('#book-tabs .bt').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.onclick = () => { UI._bookTab = b.dataset.tab; GWAudio.sfx('ui'); UI.renderBook(G); }; });
+    $('book-arms').style.display = tab === 'load' ? '' : 'none'; $('book-slots').style.display = tab === 'load' ? '' : 'none';
+    $('book-close').onclick = () => UI.toggleBook(G, false);
+    $('book-body').classList.toggle('skills', tab === 'skills');
+    if (tab === 'skills') { GW.Skills.render(G, $('book-body')); return; }
     const P = G.player, A = GW.Abil, b = A.ensure(P), atStation = G.craftStation && G.craftStation();
     // weapons: two carried, X swaps between them
     const AR = GW.Arms, ar = AR.ensure(P);

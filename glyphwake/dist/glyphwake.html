@@ -241,6 +241,27 @@ body.touch #hotbar { display: none; }
 #book-arms .wf:hover { background: rgba(255,255,255,.05); }
 #book-arms .wf.unk { cursor: default; opacity: .7; }
 #book-arms .dim { color: #737888; }
+/* Book tabs + skill tree */
+#book-tabs { display: flex; gap: 6px; margin: 4px 0 8px; }
+#book-tabs .bt { flex: none; width: auto; padding: 5px 14px; font-size: 12px; letter-spacing: .1em; background: rgba(20,22,30,.7); border: 1px solid #3a3e4a; color: #a8acb8; cursor: pointer; }
+#book-tabs .bt.on { border-color: #ffcf6a; color: #ffe0a0; }
+#book-tabs #bt-pts { color: #ffd860; }
+.sk-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; }
+.sk-head .btn.sm { width: auto; padding: 3px 10px; font-size: 11px; margin: 0; }
+.sk-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sk-br { font-size: 14px; font-weight: 700; letter-spacing: .15em; margin-bottom: 6px; }
+.sk-br span { display: block; font-size: 10px; font-weight: 400; letter-spacing: .05em; color: #8a90a0; }
+.sk-tier { border-top: 1px dashed #2a2e38; padding: 4px 0; }
+.sk-tier.locked { opacity: .45; }
+.sk-req { font-size: 10px; color: #737888; margin-bottom: 3px; }
+.sk-node { display: flex; gap: 8px; padding: 5px 6px; margin: 3px 0; border: 1px solid #2a2e38; background: rgba(14,16,22,.7); cursor: pointer; font-size: 11px; line-height: 1.35; }
+.sk-node .g { font-size: 18px; width: 20px; text-align: center; color: #5a5e6a; }
+.sk-node.got { border-color: var(--c); } .sk-node.got .g { color: var(--c); }
+.sk-node.can { box-shadow: 0 0 0 1px rgba(255,216,96,.35) inset; } .sk-node.can:hover { background: rgba(40,36,20,.7); }
+.sk-node.full .rk { color: var(--c); }
+.sk-node .rk { color: #8a90a0; font-size: 10px; } .sk-node .d { color: #a8acb8; }
+@media (max-width: 760px) { .sk-cols { grid-template-columns: 1fr; } }
+#book-body.skills { max-height: 68vh; min-width: min(860px, 92vw); }
 
 </style>
 </head>
@@ -430,7 +451,7 @@ body.touch #hotbar { display: none; }
 <canvas id="compass" width="720" height="44"></canvas>
 <div id="shop" class="panel hidden"><h2 id="shop-who">TRADER</h2><div class="s-note">Your shards: <b id="shop-shards" style="color:#9fd8ff"></b> ◈</div><div id="shop-list"></div><button class="btn ghost" id="shop-close">Leave</button></div>
 <div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
-<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
+<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-tabs"><button class="bt on" data-tab="load">Loadout</button><button class="bt" data-tab="skills">Skills <span id="bt-pts"></span></button></div><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
 <div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
 <div id="worldmap" class="hidden"><canvas id="wm"></canvas><button id="wm-style" class="btn ghost">◈ Touring map</button><div class="wm-foot">M / Esc close · wheel or + − zoom · drag to pan · click to set your mark · Space: back to you · V: map style</div></div>
 
@@ -9072,8 +9093,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const WC = GW.Arms.cur(this); s.crit += WC.crit; s.speed *= WC.speed;
     const gs = this.gs = GW.Knight.stats(this.gear);
     s.crit += gs.crit; s.focusRegen *= 1 + gs.focus;
+    // skill tree
+    const SK = id => (GW.Skills ? GW.Skills.r(this, id) : 0);
+    s.dmg *= 1 + 0.06 * SK('b_edge'); s.crit += 0.04 * SK('b_keen'); s.focusRegen *= 1 + 0.15 * SK('y_well');
+    this.maxFlasks = 3 + (this.extraFlasks || 0) + SK('g_flask'); this.flasks = Math.min(this.flasks, this.maxFlasks);
     this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
-    const vig = (s.vigor || 0) + gs.hp;
+    const vig = (s.vigor || 0) + gs.hp + 15 * SK('g_vigor');
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);
     if (this.maxHp > old) this.hp += this.maxHp - old;
@@ -9184,7 +9209,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (q === 'roll' && this.st >= Math.min(15, GW.Arms.cur(this).roll)) {
         this.queued = null; this.state = 'roll'; this.t = 0; this.cur = { dur: 0.48 };
         this.rollDir = ml > 0.1 ? Math.atan2(mv.x, mv.z) : this.yaw; this.yaw = this.rollDir;
-        this.st -= GW.Arms.cur(this).roll; this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
+        this.st -= GW.Arms.cur(this).roll * (1 - 0.15 * GW.Skills.r(this, 'g_feet')); this.stDelay = 0.7; this.iframe = 0.36; GWAudio.sfx('roll');
         G.parts.dust.burst(this.pos.x, this.pos.y + 0.2, this.pos.z, 8, 2, 0x6a6458, 0.5, 1.2, 0);
       } else if (q === 'attack' && this.st > 4 && G.finisherTarget && G.finisherTarget(this)) {
         // a broken enemy within reach: execute it
@@ -9199,7 +9224,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         this.cur.dur /= this.ws.speed; this.cur.hitAt = this.cur.dur * (this.cur.heavy ? 0.5 : 0.42); this.cur.h0 = this.cur.hitAt - 0.06; this.cur.h1 = this.cur.hitAt + 0.07; this.atkN = (this.atkN || 0) + 1;
         this.state = 'attack'; this.t = 0; this.hitSet.clear();
         faceTarget();
-        this.st -= this.cur.st; this.stDelay = 0.6;
+        this.cur.dmg *= 1 + 0.05 * GW.Skills.r(this, 'b_moment') * Math.min(3, next);
+        this.st -= this.cur.st * (1 - 0.15 * GW.Skills.r(this, 'b_flow')); this.stDelay = 0.6;
+        if (this.riposteT > 0 && GW.Skills.r(this, 'g_ripo')) { this.cur.dmg *= 4.5 / 3.5; this.st = Math.min(100, this.st + 20); }
         if (this.riposteT > 0) { this.cur.dmg *= 3.5; this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
         GWAudio.sfx(this.cur.heavy ? 'heavy' : 'swing');
       } else if (/^a[1-4]$/.test(q)) {
@@ -9207,9 +9234,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         this.queued = null;
         const id = GW.Abil.ensure(this).slots[+q[1] - 1], sk = id && GW.Abil.LIST[id];
         if (!sk) G.ui.toast('Slot ' + q[1] + ' is empty · <span style="color:#ffcf6a">B</span> opens the Book of Glyphs', 1.6);
-        else if ((this.cd[id] || 0) > 0 || this.fo < sk.fo) { if (this.fo < sk.fo) G.ui.toast('Not enough focus', 0.9); }
+        else if ((this.cd[id] || 0) > 0 || this.fo < sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift'))) { if ((this.cd[id] || 0) <= 0) G.ui.toast('Not enough focus', 0.9); }
         else {
-          this.fo -= sk.fo; this.cd[id] = sk.cd; this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = id;
+          this.fo -= sk.fo * (1 - 0.1 * GW.Skills.r(this, 'y_thrift')); this.cd[id] = sk.cd * (1 - 0.1 * GW.Skills.r(this, 'y_quick'));
+          if (GW.Skills.r(this, 'y_echo') && Math.random() < 0.15) { this.cd[id] = 0; G.ui.float('ECHO', this.pos, { color: '#c8a0ff', size: 13, y: 2.8, life: 1 }); } this.atkN = (this.atkN || 0) + 1; this.state = 'skill'; this.t = 0; this.hitSet.clear(); this.skill = id;
           faceTarget(); this.cur = { dur: sk.dur }; this.fired = false;
           if (sk.start) sk.start(this, G);
         }
@@ -9270,7 +9298,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         break;
       }
       case 'charge': {
-        this.chargeT += dt; faceTarget();
+        this.chargeT += dt * (1 + 0.25 * GW.Skills.r(this, 'b_charge')); faceTarget();
         vx = mv.x * speed * 0.3; vz = mv.z * speed * 0.3;
         const full = this.chargeT >= 1.0;
         if (full && !this._chFull) { this._chFull = true; GWAudio.sfx('socket'); G.parts.spark.burst(this.pos.x, this.pos.y + 1.2, this.pos.z, 20, 3, 0xffd060, 0.5, 1, 0); }
@@ -10556,6 +10584,82 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
 </script>
 <script>
+// Glyphwake: the skill tree. One point per level, three branches; deeper rows need points already spent in the branch.
+// Effects are read where they apply with GW.Skills.r(P, id) (the rank, 0 if unlearned).
+(function () {
+  'use strict';
+  const GW = window.GW;
+  const BR = {
+    blade: { name: 'BLADE', g: '†', col: '#ffb070', sub: 'the edge and the swing' },
+    guard: { name: 'GUARD', g: '⛨', col: '#8ac8ff', sub: 'the wall and the timing' },
+    glyph: { name: 'GLYPH', g: '✶', col: '#c8a0ff', sub: 'the ink and the arts' },
+  };
+  // tier t needs 2·t points already spent in the branch
+  const NODES = [
+    { id: 'b_edge', br: 'blade', t: 0, max: 3, g: '/', name: 'Honed Edge', desc: r => `+${6 * r || 6}% weapon damage` },
+    { id: 'b_flow', br: 'blade', t: 0, max: 2, g: '~', name: 'Flow', desc: r => `light attacks cost ${15 * (r || 1)}% less stamina` },
+    { id: 'b_charge', br: 'blade', t: 1, max: 2, g: '»', name: 'Quick Draw', desc: r => `charged heavies fill ${25 * (r || 1)}% faster` },
+    { id: 'b_moment', br: 'blade', t: 1, max: 2, g: '≫', name: 'Momentum', desc: r => `each hit deeper in a combo deals +${5 * (r || 1)}% (up to 3 steps)` },
+    { id: 'b_sunder', br: 'blade', t: 2, max: 2, g: '#', name: 'Sunder', desc: r => `+${20 * (r || 1)}% break damage` },
+    { id: 'b_keen', br: 'blade', t: 2, max: 2, g: '*', name: 'Keen Eye', desc: r => `+${4 * (r || 1)}% critical chance` },
+    { id: 'b_exec', br: 'blade', t: 3, max: 1, g: '†', name: 'Executioner', desc: () => 'finishers deal +50% and heal 8% more' },
+    { id: 'b_shatter', br: 'blade', t: 3, max: 1, g: '◇', name: 'Shatterpoint', desc: () => 'elemental reactions deal +40% damage' },
+    { id: 'g_parry', br: 'guard', t: 0, max: 2, g: '⌒', name: 'Steady Hand', desc: r => `parry window +${(0.04 * (r || 1)).toFixed(2)} s` },
+    { id: 'g_vigor', br: 'guard', t: 0, max: 3, g: '♥', name: 'Vigor', desc: r => `+${15 * (r || 1)} maximum health` },
+    { id: 'g_wall', br: 'guard', t: 1, max: 2, g: '▌', name: 'Iron Wall', desc: r => `blocking costs ${20 * (r || 1)}% less stamina` },
+    { id: 'g_feet', br: 'guard', t: 1, max: 2, g: '⟲', name: 'Light Feet', desc: r => `rolls cost ${15 * (r || 1)}% less stamina` },
+    { id: 'g_ripo', br: 'guard', t: 2, max: 1, g: '!', name: 'Riposte Master', desc: () => 'ripostes hit ×4.5 instead of ×3.5 and refund 20 stamina' },
+    { id: 'g_after', br: 'guard', t: 2, max: 1, g: '◌', name: 'Afterimage', desc: () => 'the perfect-dodge window widens (0.22 → 0.32 s) and glyph-time lasts longer' },
+    { id: 'g_flask', br: 'guard', t: 3, max: 1, g: '♥', name: 'Deep Flask', desc: () => '+1 flask' },
+    { id: 'g_wind', br: 'guard', t: 3, max: 1, g: '∞', name: 'Second Wind', desc: () => 'a killing blow leaves you standing at 30% health instead (once every 2 minutes)' },
+    { id: 'y_well', br: 'glyph', t: 0, max: 3, g: '≈', name: 'Wellspring', desc: r => `+${15 * (r || 1)}% focus regeneration` },
+    { id: 'y_thrift', br: 'glyph', t: 0, max: 2, g: '¢', name: 'Thrift', desc: r => `abilities cost ${10 * (r || 1)}% less focus` },
+    { id: 'y_quick', br: 'glyph', t: 1, max: 2, g: '⌛', name: 'Quickened Ink', desc: r => `ability cooldowns ${10 * (r || 1)}% shorter` },
+    { id: 'y_thirst', br: 'glyph', t: 1, max: 1, g: '&', name: 'Ink Thirst', desc: () => 'weapon hits restore 5 focus instead of 3' },
+    { id: 'y_attune', br: 'glyph', t: 2, max: 2, g: '∴', name: 'Attunement', desc: r => `burn, chill and poison from your runes last ${25 * (r || 1)}% longer` },
+    { id: 'y_potent', br: 'glyph', t: 2, max: 2, g: '✶', name: 'Potency', desc: r => `abilities deal +${12 * (r || 1)}% damage` },
+    { id: 'y_echo', br: 'glyph', t: 3, max: 1, g: '"', name: 'Echo', desc: () => '15% chance an ability comes straight back off cooldown' },
+    { id: 'y_fuse', br: 'glyph', t: 3, max: 1, g: '⊕', name: 'Fusion', desc: () => 'cast an ability right after a finisher, parry or perfect dodge to fuse it (coming next)' },
+  ];
+  const BYID = {}; NODES.forEach(n => { BYID[n.id] = n; });
+  const S = GW.Skills = { BR, NODES, BYID };
+  S.ensure = P => { const inv = P.inv; if (!inv.skills) inv.skills = {}; return inv.skills; };
+  S.r = (P, id) => (P.inv && P.inv.skills && P.inv.skills[id]) || 0;
+  S.spent = (P, br) => { const sk = S.ensure(P); let n = 0; for (const id in sk) if (!br || BYID[id].br === br) n += sk[id]; return n; };
+  S.points = P => Math.max(0, (P.level - 1) - S.spent(P));
+  S.canLearn = (P, id) => { const n = BYID[id]; return S.points(P) > 0 && S.r(P, id) < n.max && S.spent(P, n.br) >= n.t * 2; };
+  S.learn = (P, id) => { if (!S.canLearn(P, id)) return false; const sk = S.ensure(P); sk[id] = (sk[id] || 0) + 1; P.recalc(); return true; };
+  S.reset = P => { P.inv.skills = {}; P.recalc(); };
+
+  // ---------- the Skills tab in the Book ----------
+  S.render = function (G, el) {
+    const P = G.player, pts = S.points(P);
+    let h = `<div class="sk-head"><span>Skill points: <b style="color:${pts ? '#ffd860' : '#8a90a0'}">${pts}</b> &nbsp;·&nbsp; one per level</span><button class="btn sm ghost" id="sk-reset">Reset (free while testing)</button></div><div class="sk-cols">`;
+    for (const b in BR) {
+      const B = BR[b], spent = S.spent(P, b);
+      h += `<div class="sk-col"><div class="sk-br" style="color:${B.col}">${B.g} ${B.name}<span>${B.sub} · ${spent} spent</span></div>`;
+      for (let t = 0; t < 4; t++) {
+        const locked = spent < t * 2;
+        h += `<div class="sk-tier${locked ? ' locked' : ''}">${t ? `<div class="sk-req">${locked ? '🔒 ' : ''}needs ${t * 2} in ${B.name.toLowerCase()}</div>` : ''}`;
+        for (const n of NODES.filter(q => q.br === b && q.t === t)) {
+          const r = S.r(P, n.id), can = S.canLearn(P, n.id), full = r >= n.max;
+          h += `<div class="sk-node${r ? ' got' : ''}${can ? ' can' : ''}${full ? ' full' : ''}" data-id="${n.id}" style="--c:${B.col}"><span class="g">${n.g}</span><div class="t"><b>${n.name}</b> <span class="rk">${r}/${n.max}</span><br><span class="d">${n.desc(r || 1)}</span></div></div>`;
+        }
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    el.innerHTML = h + '</div>';
+    el.querySelectorAll('.sk-node').forEach(d => d.onclick = () => {
+      if (S.learn(P, d.dataset.id)) { GWAudio.sfx('socket'); G.save(); S.render(G, el); }
+      else { GWAudio.sfx('ui'); const n = BYID[d.dataset.id]; if (S.points(P) <= 0) G.ui.toast('No skill points: level up to earn more', 1.6); else if (S.r(P, n.id) >= n.max) G.ui.toast('Already at its highest rank', 1.2); else G.ui.toast(`Needs ${n.t * 2} points in ${BR[n.br].name.toLowerCase()}`, 1.6); }
+    });
+    const rs = el.querySelector('#sk-reset'); if (rs) rs.onclick = () => { S.reset(P); GWAudio.sfx('ui'); G.save(); S.render(G, el); };
+  };
+})();
+
+</script>
+<script>
 // Glyphwake: metals, runes, weapon stats, and the anvil (3D blade preview + panel).
 (function () {
   'use strict';
@@ -11050,6 +11154,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   };
   UI.bookPick = function (G, i) { bookSel = i; UI.renderBook(G); };
   UI.renderBook = function (G) {
+    const tab = UI._bookTab || 'load', pts = GW.Skills.points(G.player);
+    $('bt-pts').textContent = pts ? '(' + pts + ')' : '';
+    document.querySelectorAll('#book-tabs .bt').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.onclick = () => { UI._bookTab = b.dataset.tab; GWAudio.sfx('ui'); UI.renderBook(G); }; });
+    $('book-arms').style.display = tab === 'load' ? '' : 'none'; $('book-slots').style.display = tab === 'load' ? '' : 'none';
+    $('book-close').onclick = () => UI.toggleBook(G, false);
+    $('book-body').classList.toggle('skills', tab === 'skills');
+    if (tab === 'skills') { GW.Skills.render(G, $('book-body')); return; }
     const P = G.player, A = GW.Abil, b = A.ensure(P), atStation = G.craftStation && G.craftStation();
     // weapons: two carried, X swaps between them
     const AR = GW.Arms, ar = AR.ensure(P);
@@ -11949,10 +12060,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     return best;
   };
   G.finisher = function (e) {
-    const P = G.player, dmg = e.T.boss ? e.maxHp * 0.08 + P.ws.dmg * 4 : e.maxHp * 0.5 + P.ws.dmg * 4;
+    const P = G.player, ex = GW.Skills.r(P, 'b_exec'), dmg = (e.T.boss ? e.maxHp * 0.08 + P.ws.dmg * 4 : e.maxHp * 0.5 + P.ws.dmg * 4) * (1 + 0.5 * ex);
     e.brokenT = 0; e.model.rotation.z = 0;
     G.hitEnemy(e, dmg, { heavy: true, from: P.pos, melee: true, finisher: true });
-    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.12); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * (0.12 + 0.08 * ex)); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
     UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
   };
   // attack tokens: only a few melee enemies may commit to an attack on the hero at once; the rest circle and wait
@@ -12318,8 +12429,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (P.mightT > 0) dmg *= 1.25;
     if (!o.dot && !o.chain && !o.react && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
     if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
+    if (P.state === 'skill' && !o.dot && !o.react) dmg *= 1 + 0.12 * GW.Skills.r(P, 'y_potent');
     dmg = Math.max(1, Math.round(dmg));
-    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
+    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1) * (1 + 0.2 * GW.Skills.r(P, 'b_sunder')); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
     if (o.chain) e.status.shock = 3;
     if ((o.heavy || o.finisher) && !o.dot && !o.react && e.status.slow > 0 && !((e.reactCd || 0) > 0)) G.react(e, 'shatter', dmg);
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
@@ -12339,11 +12451,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (o.melee || o.proj) {
         G.hitstop = Math.max(G.hitstop, o.heavy ? 0.085 : crit ? 0.07 : 0.045);
         G.shake(o.heavy ? 0.25 : 0.12);
-        P.fo = Math.min(100, P.fo + 3);
+        P.fo = Math.min(100, P.fo + (GW.Skills.r(P, 'y_thirst') ? 5 : 3));
+        const att = 1 + 0.25 * GW.Skills.r(P, 'y_attune');
         // rune effects
-        if (ws.burn) { e.status.burn = 3; e.status.burnD = Math.max(1, dmg * ws.burn / 6); }
-        if (ws.slow) e.status.slow = 2;
-        if (ws.poison) { e.status.poison = 4; e.status.poisonD = Math.min(dmg, e.status.poisonD * 0.6 + dmg * ws.poison); }
+        if (ws.burn) { e.status.burn = 3 * att; e.status.burnD = Math.max(1, dmg * ws.burn / 6); }
+        if (ws.slow) e.status.slow = 2 * att;
+        if (ws.poison) { e.status.poison = 4 * att; e.status.poisonD = Math.min(dmg, e.status.poisonD * 0.6 + dmg * ws.poison); }
         if (ws.steal) P.hp = Math.min(P.maxHp, P.hp + dmg * ws.steal);
         if (ws.chain && Math.random() < ws.chain) chain(e, dmg * 0.5);
       }
@@ -12366,6 +12479,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 5, vz: Math.sin(a) * s, t: 0, life: 0.45 + Math.random() * 0.35, ch: R.ch[Math.floor(Math.random() * R.ch.length)], col: R.col }); } };
   G.react = function (e, kind, dmg) {
     const P = G.player, R = REACT[kind], s = e.status; if (!e.alive || !R) return;
+    const RK = 1 + 0.4 * GW.Skills.r(P, 'b_shatter');
     e.reactCd = 1.0;
     UI.float(R.name, e.pos, { color: R.col, size: 16, y: e.T.radius * 2 + 1.9, life: 1.1 });
     reactGlyphs(e.pos.x, e.pos.y + 1.1, e.pos.z, 18, R);
@@ -12377,11 +12491,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       GWAudio.sfx('zap'); GWAudio.sfx('crit'); G.shake(0.35); G.hitstop = Math.max(G.hitstop, 0.07);
       s.slow = 0;
       e.brk = (e.brk || 0) + G.brkMax(e) * 0.4; if (!(e.brokenT > 0) && e.brk >= G.brkMax(e)) G.breakEnemy(e);
-      G.hitEnemy(e, Math.max(10, (dmg || P.ws.dmg) * 0.8), { react: true, reactCol: R.col });
+      G.hitEnemy(e, Math.max(10, (dmg || P.ws.dmg) * 0.8) * RK, { react: true, reactCol: R.col });
     } else if (kind === 'blight') {
       GWAudio.sfx('fire'); GWAudio.sfx('cast');
       const pd = Math.max(s.poisonD || 0, P.ws.dmg * 0.25);
-      G.hitEnemy(e, Math.max(8, pd * 4 + (s.burnD || 0) * 2), { react: true, reactCol: R.col });
+      G.hitEnemy(e, Math.max(8, pd * 4 + (s.burnD || 0) * 2) * RK, { react: true, reactCol: R.col });
       for (const o of G.enemies) if (o !== e && o.alive && o.distTo(e.pos) < 5) {
         o.status.poison = Math.max(o.status.poison, 4); o.status.poisonD = Math.max(o.status.poisonD || 0, pd); o.aggro = true; o.reactCd = 0.6;
         for (let k = 0; k <= 8; k++) { const t = k / 8; G.parts.spark.emit(GW.lerp(e.pos.x, o.pos.x, t), GW.lerp(e.pos.y, o.pos.y, t) + 1 + Math.sin(t * Math.PI), GW.lerp(e.pos.z, o.pos.z, t), 0, 0.5, 0, 0.6, 1.1, R.hex, 0); }
@@ -12389,7 +12503,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     } else if (kind === 'conduct') {
       GWAudio.sfx('zap'); G.shake(0.25);
       const W = GW.World, wetOrCold = o => o.status.slow > 0 || W.inWater(o.pos.x, o.pos.z);
-      const base = Math.max(10, P.ws.dmg * 1.1);
+      const base = Math.max(10, P.ws.dmg * 1.1) * RK;
       G.hitEnemy(e, base, { react: true, reactCol: R.col });
       const near = G.enemies.filter(o => o !== e && o.alive && o.distTo(e.pos) < 7 && wetOrCold(o)).slice(0, 5);
       for (const o of near) {
@@ -12437,6 +12551,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     while (P.xp >= P.need()) {
       P.xp -= P.need(); P.level++; P.recalc(); P.hp = P.maxHp;
       GWAudio.sfx('level'); UI.banner('you feel the ink settle', 'LEVEL ' + P.level, 2.6);
+      setTimeout(() => UI.toast('<span style="color:#ffd860">+1 skill point</span> · <b>B</b> → Skills', 4), 1200);
       for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2; G.parts.spark.emit(P.pos.x + Math.cos(a), P.pos.y + 0.3, P.pos.z + Math.sin(a), Math.cos(a) * 2, 4, Math.sin(a) * 2, 1, 1, 0xffd060, -2); }
     }
   }
@@ -12464,8 +12579,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (P.state === 'dead') return;
     if (P.iframe > 0) {
       // perfect dodge: rolled at the last instant -> glyph-time
-      if (P.state === 'roll' && P.t < 0.22 && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
-        G.pdCd = G.t + 1.4; G.slowmo(0.3, 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
+      const aft = GW.Skills.r(P, 'g_after');
+      if (P.state === 'roll' && P.t < (aft ? 0.32 : 0.22) && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
+        G.pdCd = G.t + 1.4; G.slowmo(0.3, aft ? 1.3 : 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
         UI.float('PERFECT', P.pos, { color: '#ffd860', size: 15, y: 2.6, life: 1 }); GWAudio.sfx('socket'); G.addHitGlyphs(P.pos.x, P.pos.y + 1, P.pos.z, 14, '#9fd8ff');
       } else if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
@@ -12474,7 +12590,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const ang = from ? Math.atan2(from.x - P.pos.x, from.z - P.pos.z) : P.yaw;
       if (Math.abs(GW.angDiff(P.yaw, ang)) < 1.9) {
         const BK = GW.Arms.cur(P).block;
-        if (G.t - P.blockStart < BK.parry) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
+        if (G.t - P.blockStart < BK.parry + 0.04 * GW.Skills.r(P, 'g_parry')) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
           G.slowmo(0.25, 0.45); P.riposteT = 1.5; P.st = Math.min(100, P.st + 15);
           GWAudio.sfx('block'); GWAudio.sfx('crit'); G.shake(0.3); G.hitstop = 0.08;
           UI.float('PARRY', P.pos, { color: '#ffd860', size: 16, y: 2.6, life: 1 }); G.addHitGlyphs(P.pos.x + Math.sin(P.yaw) * 0.8, P.pos.y + 1.3, P.pos.z + Math.cos(P.yaw) * 0.8, 16, '#ffe8a0');
@@ -12482,7 +12598,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           return 'parry';
         }
         // blocked: most damage soaked, paid in stamina
-        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st; P.stDelay = 0.8; GWAudio.sfx('block');
+        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st * (1 - 0.2 * GW.Skills.r(P, 'g_wall')); P.stDelay = 0.8; GWAudio.sfx('block');
         G.parts.spark.burst(P.pos.x + Math.sin(P.yaw) * 0.7, P.pos.y + 1.2, P.pos.z + Math.cos(P.yaw) * 0.7, 8, 3, 0xffe0a0, 0.3, 0.7, -5);
         if (P.st <= 0) { P.st = 0; P.state = 'hurt'; P.t = 0; UI.float('GUARD BROKEN', P.pos, { color: '#ff8a60', size: 12, y: 2.5 }); dmg *= 0.5; }
         else { P.hp -= dmg - soak; P.hurtT = 0.1; if (P.hp <= 0) { P.hp = 1; } return 'block'; }
@@ -12496,6 +12612,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     navigator.vibrate && navigator.vibrate(o.heavy ? 60 : 25);
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
     if (!o.noStagger && (P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
+    if (P.hp <= 0 && GW.Skills.r(P, 'g_wind') && !(P.swT > G.t)) {   // Second Wind
+      P.hp = P.maxHp * 0.3; P.swT = G.t + 120; P.iframe = 1; G.slowmo(0.3, 0.8);
+      UI.float('SECOND WIND', P.pos, { color: '#8ac8ff', size: 16, y: 2.8, life: 1.4 }); GWAudio.sfx('level');
+    }
     if (P.hp <= 0) {
       P.hp = 0; P.state = 'dead'; P.t = 0; G.state = 'dying';
       GWAudio.sfx('die'); UI.boss(false);

@@ -273,10 +273,10 @@
     return best;
   };
   G.finisher = function (e) {
-    const P = G.player, dmg = e.T.boss ? e.maxHp * 0.08 + P.ws.dmg * 4 : e.maxHp * 0.5 + P.ws.dmg * 4;
+    const P = G.player, ex = GW.Skills.r(P, 'b_exec'), dmg = (e.T.boss ? e.maxHp * 0.08 + P.ws.dmg * 4 : e.maxHp * 0.5 + P.ws.dmg * 4) * (1 + 0.5 * ex);
     e.brokenT = 0; e.model.rotation.z = 0;
     G.hitEnemy(e, dmg, { heavy: true, from: P.pos, melee: true, finisher: true });
-    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.12); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp * (0.12 + 0.08 * ex)); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
     UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
   };
   // attack tokens: only a few melee enemies may commit to an attack on the hero at once; the rest circle and wait
@@ -642,8 +642,9 @@
     if (P.mightT > 0) dmg *= 1.25;
     if (!o.dot && !o.chain && !o.react && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
     if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
+    if (P.state === 'skill' && !o.dot && !o.react) dmg *= 1 + 0.12 * GW.Skills.r(P, 'y_potent');
     dmg = Math.max(1, Math.round(dmg));
-    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
+    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1) * (1 + 0.2 * GW.Skills.r(P, 'b_sunder')); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
     if (o.chain) e.status.shock = 3;
     if ((o.heavy || o.finisher) && !o.dot && !o.react && e.status.slow > 0 && !((e.reactCd || 0) > 0)) G.react(e, 'shatter', dmg);
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
@@ -663,11 +664,12 @@
       if (o.melee || o.proj) {
         G.hitstop = Math.max(G.hitstop, o.heavy ? 0.085 : crit ? 0.07 : 0.045);
         G.shake(o.heavy ? 0.25 : 0.12);
-        P.fo = Math.min(100, P.fo + 3);
+        P.fo = Math.min(100, P.fo + (GW.Skills.r(P, 'y_thirst') ? 5 : 3));
+        const att = 1 + 0.25 * GW.Skills.r(P, 'y_attune');
         // rune effects
-        if (ws.burn) { e.status.burn = 3; e.status.burnD = Math.max(1, dmg * ws.burn / 6); }
-        if (ws.slow) e.status.slow = 2;
-        if (ws.poison) { e.status.poison = 4; e.status.poisonD = Math.min(dmg, e.status.poisonD * 0.6 + dmg * ws.poison); }
+        if (ws.burn) { e.status.burn = 3 * att; e.status.burnD = Math.max(1, dmg * ws.burn / 6); }
+        if (ws.slow) e.status.slow = 2 * att;
+        if (ws.poison) { e.status.poison = 4 * att; e.status.poisonD = Math.min(dmg, e.status.poisonD * 0.6 + dmg * ws.poison); }
         if (ws.steal) P.hp = Math.min(P.maxHp, P.hp + dmg * ws.steal);
         if (ws.chain && Math.random() < ws.chain) chain(e, dmg * 0.5);
       }
@@ -690,6 +692,7 @@
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 5, vz: Math.sin(a) * s, t: 0, life: 0.45 + Math.random() * 0.35, ch: R.ch[Math.floor(Math.random() * R.ch.length)], col: R.col }); } };
   G.react = function (e, kind, dmg) {
     const P = G.player, R = REACT[kind], s = e.status; if (!e.alive || !R) return;
+    const RK = 1 + 0.4 * GW.Skills.r(P, 'b_shatter');
     e.reactCd = 1.0;
     UI.float(R.name, e.pos, { color: R.col, size: 16, y: e.T.radius * 2 + 1.9, life: 1.1 });
     reactGlyphs(e.pos.x, e.pos.y + 1.1, e.pos.z, 18, R);
@@ -701,11 +704,11 @@
       GWAudio.sfx('zap'); GWAudio.sfx('crit'); G.shake(0.35); G.hitstop = Math.max(G.hitstop, 0.07);
       s.slow = 0;
       e.brk = (e.brk || 0) + G.brkMax(e) * 0.4; if (!(e.brokenT > 0) && e.brk >= G.brkMax(e)) G.breakEnemy(e);
-      G.hitEnemy(e, Math.max(10, (dmg || P.ws.dmg) * 0.8), { react: true, reactCol: R.col });
+      G.hitEnemy(e, Math.max(10, (dmg || P.ws.dmg) * 0.8) * RK, { react: true, reactCol: R.col });
     } else if (kind === 'blight') {
       GWAudio.sfx('fire'); GWAudio.sfx('cast');
       const pd = Math.max(s.poisonD || 0, P.ws.dmg * 0.25);
-      G.hitEnemy(e, Math.max(8, pd * 4 + (s.burnD || 0) * 2), { react: true, reactCol: R.col });
+      G.hitEnemy(e, Math.max(8, pd * 4 + (s.burnD || 0) * 2) * RK, { react: true, reactCol: R.col });
       for (const o of G.enemies) if (o !== e && o.alive && o.distTo(e.pos) < 5) {
         o.status.poison = Math.max(o.status.poison, 4); o.status.poisonD = Math.max(o.status.poisonD || 0, pd); o.aggro = true; o.reactCd = 0.6;
         for (let k = 0; k <= 8; k++) { const t = k / 8; G.parts.spark.emit(GW.lerp(e.pos.x, o.pos.x, t), GW.lerp(e.pos.y, o.pos.y, t) + 1 + Math.sin(t * Math.PI), GW.lerp(e.pos.z, o.pos.z, t), 0, 0.5, 0, 0.6, 1.1, R.hex, 0); }
@@ -713,7 +716,7 @@
     } else if (kind === 'conduct') {
       GWAudio.sfx('zap'); G.shake(0.25);
       const W = GW.World, wetOrCold = o => o.status.slow > 0 || W.inWater(o.pos.x, o.pos.z);
-      const base = Math.max(10, P.ws.dmg * 1.1);
+      const base = Math.max(10, P.ws.dmg * 1.1) * RK;
       G.hitEnemy(e, base, { react: true, reactCol: R.col });
       const near = G.enemies.filter(o => o !== e && o.alive && o.distTo(e.pos) < 7 && wetOrCold(o)).slice(0, 5);
       for (const o of near) {
@@ -761,6 +764,7 @@
     while (P.xp >= P.need()) {
       P.xp -= P.need(); P.level++; P.recalc(); P.hp = P.maxHp;
       GWAudio.sfx('level'); UI.banner('you feel the ink settle', 'LEVEL ' + P.level, 2.6);
+      setTimeout(() => UI.toast('<span style="color:#ffd860">+1 skill point</span> · <b>B</b> → Skills', 4), 1200);
       for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2; G.parts.spark.emit(P.pos.x + Math.cos(a), P.pos.y + 0.3, P.pos.z + Math.sin(a), Math.cos(a) * 2, 4, Math.sin(a) * 2, 1, 1, 0xffd060, -2); }
     }
   }
@@ -788,8 +792,9 @@
     if (P.state === 'dead') return;
     if (P.iframe > 0) {
       // perfect dodge: rolled at the last instant -> glyph-time
-      if (P.state === 'roll' && P.t < 0.22 && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
-        G.pdCd = G.t + 1.4; G.slowmo(0.3, 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
+      const aft = GW.Skills.r(P, 'g_after');
+      if (P.state === 'roll' && P.t < (aft ? 0.32 : 0.22) && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
+        G.pdCd = G.t + 1.4; G.slowmo(0.3, aft ? 1.3 : 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
         UI.float('PERFECT', P.pos, { color: '#ffd860', size: 15, y: 2.6, life: 1 }); GWAudio.sfx('socket'); G.addHitGlyphs(P.pos.x, P.pos.y + 1, P.pos.z, 14, '#9fd8ff');
       } else if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
@@ -798,7 +803,7 @@
       const ang = from ? Math.atan2(from.x - P.pos.x, from.z - P.pos.z) : P.yaw;
       if (Math.abs(GW.angDiff(P.yaw, ang)) < 1.9) {
         const BK = GW.Arms.cur(P).block;
-        if (G.t - P.blockStart < BK.parry) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
+        if (G.t - P.blockStart < BK.parry + 0.04 * GW.Skills.r(P, 'g_parry')) {   // PARRY: the blow is turned aside, the attacker reels, time slows, riposte ready
           G.slowmo(0.25, 0.45); P.riposteT = 1.5; P.st = Math.min(100, P.st + 15);
           GWAudio.sfx('block'); GWAudio.sfx('crit'); G.shake(0.3); G.hitstop = 0.08;
           UI.float('PARRY', P.pos, { color: '#ffd860', size: 16, y: 2.6, life: 1 }); G.addHitGlyphs(P.pos.x + Math.sin(P.yaw) * 0.8, P.pos.y + 1.3, P.pos.z + Math.cos(P.yaw) * 0.8, 16, '#ffe8a0');
@@ -806,7 +811,7 @@
           return 'parry';
         }
         // blocked: most damage soaked, paid in stamina
-        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st; P.stDelay = 0.8; GWAudio.sfx('block');
+        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st * (1 - 0.2 * GW.Skills.r(P, 'g_wall')); P.stDelay = 0.8; GWAudio.sfx('block');
         G.parts.spark.burst(P.pos.x + Math.sin(P.yaw) * 0.7, P.pos.y + 1.2, P.pos.z + Math.cos(P.yaw) * 0.7, 8, 3, 0xffe0a0, 0.3, 0.7, -5);
         if (P.st <= 0) { P.st = 0; P.state = 'hurt'; P.t = 0; UI.float('GUARD BROKEN', P.pos, { color: '#ff8a60', size: 12, y: 2.5 }); dmg *= 0.5; }
         else { P.hp -= dmg - soak; P.hurtT = 0.1; if (P.hp <= 0) { P.hp = 1; } return 'block'; }
@@ -820,6 +825,10 @@
     navigator.vibrate && navigator.vibrate(o.heavy ? 60 : 25);
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
     if (!o.noStagger && (P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
+    if (P.hp <= 0 && GW.Skills.r(P, 'g_wind') && !(P.swT > G.t)) {   // Second Wind
+      P.hp = P.maxHp * 0.3; P.swT = G.t + 120; P.iframe = 1; G.slowmo(0.3, 0.8);
+      UI.float('SECOND WIND', P.pos, { color: '#8ac8ff', size: 16, y: 2.8, life: 1.4 }); GWAudio.sfx('level');
+    }
     if (P.hp <= 0) {
       P.hp = 0; P.state = 'dead'; P.t = 0; G.state = 'dying';
       GWAudio.sfx('die'); UI.boss(false);

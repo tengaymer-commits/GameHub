@@ -101,6 +101,12 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Hero movesets**: each weapon has its own key poses (`js/moves.js`, two-bone IK on the rig): sword forehand / backhand / overhead chop, greatsword sweeps and a jumping slam, spear thrusts (mid, low, high) and a spinning sweep, dagger jabs from alternating hands and an X-cut, and a bow draw and loose. Snappy timing: hold the anticipation, snap in about 5 frames, hold the follow-through. Swings leave glyph arcs (`/ | \ -`) in the blade's colour that flicker and shed characters.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
+## Skill tree (Book → Skills)
+One point per level; reset is free while testing. Deeper rows need 2, 4 or 6 points already spent in that branch.
+- **Blade:** Honed Edge (+6% damage per rank), Flow (cheaper light attacks), Quick Draw (faster charge), Momentum (deeper combo hits hit harder), Sunder (+break), Keen Eye (+crit), Executioner (finishers +50% and heal more), Shatterpoint (reactions +40%).
+- **Guard:** Steady Hand (+0.04 s parry window per rank), Vigor (+15 health), Iron Wall (cheaper blocks), Light Feet (cheaper rolls), Riposte Master (×4.5 riposte and +20 stamina), Afterimage (wider perfect-dodge window), Deep Flask (+1 flask), Second Wind (survive a killing blow at 30% health, every 2 minutes).
+- **Glyph:** Wellspring (+focus regeneration), Thrift (cheaper abilities), Quickened Ink (shorter cooldowns), Ink Thirst (+focus per hit), Attunement (longer rune effects), Potency (+ability damage), Echo (15% instant cooldown refresh), Fusion (unlocks combo-fused abilities, coming next).
+
 ## World map (M)
 A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.
 - **V** cycles four styles: *Touring map*, *ASCII relief* (the whole map in the game's brightness ramp), *Explorer's ink* (parchment and sepia) and *Glyph mosaic* (colour tiles with shade blocks).

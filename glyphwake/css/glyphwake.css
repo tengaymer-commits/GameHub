@@ -230,3 +230,24 @@ body.touch #hotbar { display: none; }
 #book-arms .wf:hover { background: rgba(255,255,255,.05); }
 #book-arms .wf.unk { cursor: default; opacity: .7; }
 #book-arms .dim { color: #737888; }
+/* Book tabs + skill tree */
+#book-tabs { display: flex; gap: 6px; margin: 4px 0 8px; }
+#book-tabs .bt { flex: none; width: auto; padding: 5px 14px; font-size: 12px; letter-spacing: .1em; background: rgba(20,22,30,.7); border: 1px solid #3a3e4a; color: #a8acb8; cursor: pointer; }
+#book-tabs .bt.on { border-color: #ffcf6a; color: #ffe0a0; }
+#book-tabs #bt-pts { color: #ffd860; }
+.sk-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; }
+.sk-head .btn.sm { width: auto; padding: 3px 10px; font-size: 11px; margin: 0; }
+.sk-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sk-br { font-size: 14px; font-weight: 700; letter-spacing: .15em; margin-bottom: 6px; }
+.sk-br span { display: block; font-size: 10px; font-weight: 400; letter-spacing: .05em; color: #8a90a0; }
+.sk-tier { border-top: 1px dashed #2a2e38; padding: 4px 0; }
+.sk-tier.locked { opacity: .45; }
+.sk-req { font-size: 10px; color: #737888; margin-bottom: 3px; }
+.sk-node { display: flex; gap: 8px; padding: 5px 6px; margin: 3px 0; border: 1px solid #2a2e38; background: rgba(14,16,22,.7); cursor: pointer; font-size: 11px; line-height: 1.35; }
+.sk-node .g { font-size: 18px; width: 20px; text-align: center; color: #5a5e6a; }
+.sk-node.got { border-color: var(--c); } .sk-node.got .g { color: var(--c); }
+.sk-node.can { box-shadow: 0 0 0 1px rgba(255,216,96,.35) inset; } .sk-node.can:hover { background: rgba(40,36,20,.7); }
+.sk-node.full .rk { color: var(--c); }
+.sk-node .rk { color: #8a90a0; font-size: 10px; } .sk-node .d { color: #a8acb8; }
+@media (max-width: 760px) { .sk-cols { grid-template-columns: 1fr; } }
+#book-body.skills { max-height: 68vh; min-width: min(860px, 92vw); }
