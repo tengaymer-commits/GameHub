@@ -387,6 +387,7 @@ body.touch #hotbar { display: none; }
   <label>Enemies respawn when you rest (souls-like) <input type="checkbox" id="o-respawn" /></label>
   <label>Night hunts (packs roam after dark) <input type="checkbox" id="o-hunts" /></label>
   <label>Reveal the whole map (testing; off = fog of war) <input type="checkbox" id="o-reveal" /></label>
+  <label>Map style <select id="o-mapstyle"><option value="tour">Touring map</option><option value="ascii">ASCII relief</option><option value="ink">Explorer's ink</option><option value="mosaic">Glyph mosaic</option></select></label>
   <label>Time of day
     <select id="o-time"><option value="cycle">Day / night cycle</option><option value="day">Always day</option><option value="night">Always night</option></select>
   </label>
@@ -430,7 +431,7 @@ body.touch #hotbar { display: none; }
 <div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
 <div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
 <div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
-<div id="worldmap" class="hidden"><canvas id="wm"></canvas><div class="wm-foot">M / Esc close · wheel or + − zoom · drag to pan · click to set your mark · Space: back to you</div></div>
+<div id="worldmap" class="hidden"><canvas id="wm"></canvas><div class="wm-foot">M / Esc close · wheel or + − zoom · drag to pan · click to set your mark · Space: back to you · V: map style</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script>
@@ -6854,6 +6855,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     vfrost: { x: -150, z: -2552 },    // villages beside the two landmark hubs
     vash: { x: 2250, z: 1348 },
   };
+  // region boss arenas (flattened, kept clear of points of interest and trees). The Rime Knight duels on the frozen mere;
+  // the Colossus stands out in the open Barrens, well away from Cinder Watch and Emberfall.
+  const ARENAS = [{ key: 'colossus', x: 2600, z: 1500 }, { key: 'rimeknight', x: 120, z: -2470 }, { key: 'mirehag', x: -2050, z: 1560 }, { key: 'cragwarlord', x: 2470, z: -1520 }];
   // one village per region (plus Hearthwick at the crossroads)
   const HUBS = [
     { id: 'vale', name: 'Hearthwick', at: 'hearth' },
@@ -6904,8 +6908,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
     { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -150, z: -2552, r: 30 },
     { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 2620, z: -1760, r: 26 },
-    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2250, z: 1220, r: 22 },
-    { name: 'THE ABBEY YARD', sub: 'a knight keeps vigil', x: -150, z: -2650, r: 22 },
+    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2600, z: 1500, r: 26 },
+    { name: 'THE FROZEN MERE', sub: 'a knight keeps vigil on the ice', x: 120, z: -2470, r: 40 },
     { name: "THE HAG'S POOL", sub: 'green light under the water', x: -2050, z: 1560, r: 22 },
     { name: 'THE WARLORD\'S CROWN', sub: 'he never stopped ruling', x: 2470, z: -1520, r: 22 },
     { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 2250, z: -1300, r: 30 },
@@ -6986,7 +6990,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
     flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
-    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash', 'dunmaer']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[k]));
+    // twin sites (a village beside its landmark) share one ground height, so the land between them doesn't ramp
+    const TWIN = { vfrost: 'abbey', vash: 'cinder' };
+    for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk', 'vfrost', 'vash', 'dunmaer']) flatK(L[k].x, L[k].z, 30, 60, h0At(L[TWIN[k] || k]));
+    for (const a of ARENAS) if (a.key !== 'rimeknight') flatK(a.x, a.z, 22, 38, h0At(a));
     flatK(L.frostLake.x, L.frostLake.z, 75, 110, h0At(L.frostLake) - 0.6);
     return h;
   }
@@ -7803,7 +7810,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
     for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash, L.dunmaer]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
-    if (W.poisNear(x, z, 13 + r).length) return false;
+    if (W.poisNear(x, z, 16 + r).length) return false;
+    for (const a of ARENAS) if (Math.hypot(x - a.x, z - a.z) < 34 + r) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
   }
@@ -7822,14 +7830,27 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
     let p = null;
     const r0 = hsh(i * 3.1 + 0.7, j * 1.7 - 2.3);
-    const x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 90, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 90;
+    let x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 70, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 70;
+    // steep ground: slide to the flattest spot within 40 m (props on a slope float on one side and sink on the other)
+    const hh = (a, b) => rawHeight(a, b, biomeW(a, b)), slopeAt = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 10, b + Math.sin(t) * 10) - h0)); } return m; };
+    let slope = slopeAt(x, z);
+    if (slope > 2.4) {
+      // neighbours' un-nudged spots: a slid point must not crowd them
+      const nb = []; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (di || dj) { const a2 = i + di, b2 = j + dj; nb.push([(a2 + 0.5) * POI_CELL + (hsh(a2 + 11.3, b2 - 4.1) - 0.5) * 70, (b2 + 0.5) * POI_CELL + (hsh(a2 - 7.7, b2 + 9.9) - 0.5) * 70]); }
+      const x1 = x, z1 = z;
+      for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2 + hsh(i, j), cx = x1 + Math.cos(t) * 40, cz = z1 + Math.sin(t) * 40;
+        if (nb.some(q => Math.hypot(q[0] - cx, q[1] - cz) < 85)) continue;
+        const s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
+    }
     const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
-      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 14 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 9;   // exact distances: no chunk needs computing
+      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
+      && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 16;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
     if (ok) {
       const bwp = biomeW(x, z); let region = 'vale', rbv = 0.5; bwp.forEach((v, q) => { if (v > rbv) { rbv = v; region = BIOMES[q]; } });   // straight from the formula: no data chunk needed
       const w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
+      if (slope > 2.4 && type !== 'ambush') type = 'vista';   // still a crag: make it a lookout
       const lvl = 1 + Math.floor(Math.hypot(x, z) / 280);
       p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };
     }
@@ -7848,11 +7869,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
     const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
     switch (p.type) {
-      case 'camp': ring(3, 7, (x, z) => kit('kit_hut', x, z, 0.65, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); break;
+      case 'camp': ring(3, 7, (x, z) => kit('kit_hut', x, z, 0.9, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); break;
       case 'ruin': ring(4 + Math.floor(R() * 3), 6 + R() * 3, (x, z) => kit(R() < 0.5 ? 'kit_arch' : (R() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b'), x, z, 0.9 + R() * 0.3, 0.6, bio)); chest(p.x, p.z); break;
       case 'chest': ring(3, 2.4, (x, z) => kit('kit_rock_a', x, z, 0.35 + R() * 0.2, 0.6, bio)); chest(p.x, p.z); break;
       case 'shrine': kit('kit_shrine', p.x, p.z, 1, 0.7, bio); inter.push({ type: 'shrine', x: p.x, z: p.z + 1.6, r: 2.4, label: 'Pray at the shrine', poi: p }); break;
-      case 'waystone': kit('kit_pillar_b', p.x, p.z, 1.6, 0.7, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
+      case 'waystone': kit('kit_pillar_a', p.x, p.z, 1.35, 0.6, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
       case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
       case 'elite': ring(5, 6, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
@@ -8486,6 +8507,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     return c;
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
+  W.kitParts = n => kitParts(n);   // for audits / tools
+  W.ARENAS = ARENAS;
   W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {
@@ -11227,6 +11250,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
     const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
+    const ms = $('o-mapstyle'); if (ms) { ms.value = S.mapStyle || 'tour'; ms.onchange = () => { S.mapStyle = ms.value; UI.saveSettings(); }; }
     const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };
@@ -11310,6 +11334,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'] };
 
   const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1 };
+  // ---------- map styles: V cycles them on the map ----------
+  const STYLES = ['tour', 'ascii', 'ink', 'mosaic'];
+  const STYLE_NAME = { tour: 'Touring map', ascii: 'ASCII relief', ink: "Explorer's ink", mosaic: 'Glyph mosaic' };
+  const RAMP = ' .:-=+*#%@';
+  const style = () => STYLES.includes(UI.settings.mapStyle) ? UI.settings.mapStyle : 'tour';
+  UI.MAP_STYLES = STYLES; UI.MAP_STYLE_NAME = STYLE_NAME;
   const pxPerM = (w, h) => Math.min(w, h) * 0.9 / GW.World.SIZE * WM.zoom;
   const reveal = () => UI.settings.revealMap !== false;
   function seenFn(G) {
@@ -11346,24 +11376,28 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const fade = edge > 3950 ? 0.35 : 1, o = k * 4;
       img.data[o] = Math.min(255, c[0] * sh * ck * fade); img.data[o + 1] = Math.min(255, c[1] * sh * ck * fade); img.data[o + 2] = Math.min(255, c[2] * sh * ck * fade); img.data[o + 3] = 255;
     }
-    g.putImageData(img, 0, 0); RELIEF = cv; return cv;
+    g.putImageData(img, 0, 0); RELIEF = cv; RELIEF.px = img.data; return cv;
   }
   // ---------- the terrain layer (cached; only redrawn when the view changes) ----------
   function terrainLayer(G, w, h, dpr) {
     const W = GW.World, D = W.mapData(), S = W.SIZE, half = S / 2, px = pxPerM(w, h);
-    const key = [WM.cx | 0, WM.cz | 0, WM.zoom.toFixed(3), w, h, dpr, reveal(), G.fogVer || 0].join(':');
+    const ST = style(), key = [ST, WM.cx | 0, WM.cz | 0, WM.zoom.toFixed(3), w, h, dpr, reveal(), G.fogVer || 0].join(':');
     if (WM.layer && WM.key === key) return WM.layer;
     WM.key = key;
     const cv = WM.layer || (WM.layer = document.createElement('canvas'));
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = ST === 'ink' ? '#cdbb90' : ST === 'ascii' ? '#030405' : '#05070a'; g.fillRect(0, 0, w, h);
+    const RL = relief(), RP = RL.px;
     { const [ox, oy] = [w / 2 + (-half - WM.cx) * px, h / 2 + (-half - WM.cz) * px];   // the coloured relief underneath
-      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = GW.clamp(0.95 - (WM.zoom - 4) * 0.025, 0.5, 0.92); g.drawImage(relief(), ox, oy, S * px, S * px); g.globalAlpha = 1;
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      if (ST === 'tour') { g.globalAlpha = GW.clamp(0.95 - (WM.zoom - 4) * 0.025, 0.5, 0.92); g.drawImage(RL, ox, oy, S * px, S * px); }
+      if (ST === 'ink') { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.3; g.drawImage(RL, ox, oy, S * px, S * px); g.globalCompositeOperation = 'source-over'; }
+      g.globalAlpha = 1;
       if (!reveal() && G.fog) { const FN = G.FOG_N; if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
         const fg = WM.fogCv.getContext('2d'), im = fg.createImageData(FN, FN); for (let q = 0; q < FN * FN; q++) { im.data[q * 4] = 6; im.data[q * 4 + 1] = 7; im.data[q * 4 + 2] = 10; im.data[q * 4 + 3] = G.fog[q] ? 0 : 245; }
         fg.putImageData(im, 0, 0); g.drawImage(WM.fogCv, ox, oy, S * px, S * px); } }
-    const CS = 11, cw = CS / px;                                   // screen cell (px) and its size in metres
+    const CS = ST === 'ascii' ? 10 : 11, cw = CS / px;                                   // screen cell (px) and its size in metres
     const x0 = Math.floor((WM.cx - w / 2 / px) / cw), z0 = Math.floor((WM.cz - h / 2 / px) / cw);
     const nx = Math.ceil(w / CS) + 2, nz = Math.ceil(h / CS) + 2;
     const N = D.N, idx = (x, z) => { const i = Math.floor((x + half) / D.cell), j = Math.floor((z + half) / D.cell); return i < 0 || j < 0 || i >= N || j >= N ? -1 : j * N + i; };
@@ -11375,7 +11409,26 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const ci = x0 + ix, cj = z0 + jz, x = (ci + 0.5) * cw, z = (cj + 0.5) * cw;
       const sx = w / 2 + (x - WM.cx) * px, sy = h / 2 + (z - WM.cz) * px;
       const k = idx(x, z);
-      if (k < 0) { if (hash(ci, cj) < 0.35) { g.fillStyle = '#121820'; g.fillText(EDGE, sx, sy); } continue; }
+      if (k < 0) { if (ST !== 'ink' && hash(ci, cj) < 0.35) { g.fillStyle = '#121820'; g.fillText(EDGE, sx, sy); } continue; }
+      if (ST === 'ascii' || ST === 'mosaic') {   // the glyph-heavy styles read the relief colour straight
+        if (!seen(x, z)) { if (hash(ci, cj) < 0.12) { g.fillStyle = '#1a1e26'; g.fillText('·', sx, sy); } continue; }
+        const o = k * 4, r = RP[o], gg = RP[o + 1], bb = RP[o + 2], L = (0.3 * r + 0.59 * gg + 0.11 * bb) / 255, wet = D.Lk[k] || D.R[k] < W.RIVER_W * 1.4;
+        if (ST === 'ascii') {
+          const Ln = GW.clamp((L - 0.1) / 0.42, 0, 1), ch = wet ? '≈~'[(ci + cj) & 1] : RAMP[Math.min(9, 1 + Math.floor(Ln * 9))];
+          const k2 = 1.55 + 0.9 * Ln; g.fillStyle = rgb(Math.min(255, r * k2) | 0, Math.min(255, gg * k2) | 0, Math.min(255, bb * k2) | 0); g.fillText(ch, sx, sy);
+        } else {
+          const q = v => Math.min(255, (v * 1.05) & 0xe0) | 0;
+          g.fillStyle = rgb(q(r), q(gg), q(bb)); g.fillRect(sx - CS / 2, sy - CS / 2, CS + 0.5, CS + 0.5);
+          const hgt = D.H[k], bi = D.B[k], r0 = hash(ci, cj);
+          let ch = null, col = 'rgba(0,0,0,.35)';
+          if (wet) { ch = '≈'; col = 'rgba(190,220,255,.55)'; }
+          else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3720) { ch = hgt > 30 ? '▲' : '^'; col = 'rgba(255,255,255,.55)'; }
+          else if (r0 < 0.3) { ch = SETS[bi].ch[Math.floor(hash(cj, ci) * SETS[bi].ch.length)]; col = 'rgba(0,0,0,.35)'; }
+          else if (r0 < 0.42) { ch = L > 0.45 ? '░' : L > 0.3 ? '▒' : '▓'; col = 'rgba(0,0,0,.22)'; }
+          if (ch) { g.fillStyle = col; g.fillText(ch, sx, sy); }
+        }
+        continue;
+      }
       if (!seen(x, z)) { if (hash(ci, cj) < 0.12) { g.fillStyle = '#1a1e26'; g.fillText('·', sx, sy); } continue; }
       const hgt = D.H[k], rd = D.R[k], bi = D.B[k], r0 = hash(ci, cj);
       // hillshade from the height grid (light from the north-west)
@@ -11392,31 +11445,46 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         else ch = set.ch[Math.floor(hash(cj, ci) * set.ch.length)];
         c = set.col; if (D.BW[k] < 0.75) { const v = SETS[0].col, t = 1 - D.BW[k]; c = [GW.lerp(c[0], v[0], t * 0.5), GW.lerp(c[1], v[1], t * 0.5), GW.lerp(c[2], v[2], t * 0.5)]; }
       }
-      const b = shade * (1.05 + 0.25 * r0);
-      g.globalAlpha = 0.78;
-      g.fillStyle = rgb(Math.min(255, c[0] * b) | 0, Math.min(255, c[1] * b) | 0, Math.min(255, c[2] * b) | 0); g.fillText(ch, sx, sy);
-      g.globalAlpha = 1;
+      if (ST === 'ink') {   // dark ink on parchment; shaded slopes get a hatch stroke
+        const mount = MOUNT.includes(ch), water = WATER.includes(ch);
+        g.globalAlpha = water ? 0.7 : mount ? 0.85 : 0.5; g.fillStyle = water ? '#2a4e72' : mount ? '#2a1c10' : '#3e3020'; g.fillText(ch, sx, sy);
+        if (shade < 0.75 && !water) { g.globalAlpha = 0.35; g.fillStyle = '#2a1c10'; g.fillText('/', sx + CS * 0.45, sy); }
+        g.globalAlpha = 1;
+      } else {
+        const b = shade * (1.05 + 0.25 * r0);
+        g.globalAlpha = 0.78;
+        g.fillStyle = rgb(Math.min(255, c[0] * b) | 0, Math.min(255, c[1] * b) | 0, Math.min(255, c[2] * b) | 0); g.fillText(ch, sx, sy);
+        g.globalAlpha = 1;
+      }
       // region borders: a faint dotted seam where the dominant land changes
       const kr = idx(x + cw, z), kd = idx(x, z + cw);
-      if (((kr >= 0 && D.B[kr] !== bi) || (kd >= 0 && D.B[kd] !== bi)) && (ci + cj) % 2 === 0) { g.fillStyle = 'rgba(230,220,190,.35)'; g.fillText('·', sx + CS / 2, sy + CS / 2); }
+      if (((kr >= 0 && D.B[kr] !== bi) || (kd >= 0 && D.B[kd] !== bi)) && (ci + cj) % 2 === 0) { g.fillStyle = ST === 'ink' ? 'rgba(130,40,20,.55)' : 'rgba(230,220,190,.35)'; g.fillText(ST === 'ink' ? '-' : '·', sx + CS / 2, sy + CS / 2); }
     }
     // rivers and roads as ink lines
     const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
     const poly = (pts, style, width, dash) => { g.strokeStyle = style; g.lineWidth = width; g.setLineDash(dash || []); g.beginPath(); pts.forEach((p, i) => { const [a, b] = to(p[0], p[1]); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); };
     g.lineCap = 'round'; g.lineJoin = 'round';
-    for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), [5, 4]); }
-    poly(W.RIVER_LINE, 'rgba(10,24,48,.9)', Math.max(4, W.RIVER_W * 2.6 * px), []);
-    poly(W.RIVER_LINE, 'rgba(96,160,240,.95)', Math.max(2, W.RIVER_W * 1.7 * px), []);
-    poly(W.RIVER_LINE, 'rgba(200,228,255,.55)', 1, [2, 6]);
+    if (ST === 'ink') {
+      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(90,50,24,.8)', Math.max(1.2, 1.6 * px), [6, 3, 1, 3]); }
+      poly(W.RIVER_LINE, 'rgba(42,78,114,.85)', Math.max(2, W.RIVER_W * 1.6 * px), []); poly(W.RIVER_LINE, 'rgba(205,187,144,.9)', Math.max(0.6, W.RIVER_W * 0.5 * px), []);
+    } else {
+      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,200,120,.9)' : 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), ST === 'ascii' ? [1, 4] : [5, 4]); }
+      poly(W.RIVER_LINE, 'rgba(10,24,48,.9)', Math.max(4, W.RIVER_W * 2.6 * px), []);
+      poly(W.RIVER_LINE, 'rgba(96,160,240,.95)', Math.max(2, W.RIVER_W * 1.7 * px), []);
+      poly(W.RIVER_LINE, 'rgba(200,228,255,.55)', 1, [2, 6]);
+    }
     g.setLineDash([]);
     // the old-chart grid: 1 km squares, lettered and numbered at the frame
-    g.strokeStyle = 'rgba(220,210,180,.07)'; g.lineWidth = 1;
+    g.strokeStyle = ST === 'ink' ? 'rgba(60,40,20,.18)' : 'rgba(220,210,180,.07)'; g.lineWidth = 1;
     for (let k = -4; k <= 4; k++) { const [gx] = to(k * 1000, 0), [, gy] = to(0, k * 1000); g.beginPath(); g.moveTo(gx, 0); g.lineTo(gx, h); g.moveTo(0, gy); g.lineTo(w, gy); g.stroke(); }
     return cv;
   }
 
   // ---------- labels, icons, frame (redrawn every time) ----------
-  function halo(g, text, x, y, fill, lw) { g.lineWidth = lw || 4; g.strokeStyle = 'rgba(4,5,8,.85)'; g.strokeText(text, x, y); g.fillStyle = fill; g.fillText(text, x, y); }
+  function halo(g, text, x, y, fill, lw) {
+    const ink = style() === 'ink' && !halo.keep;
+    g.lineWidth = lw || 4; g.strokeStyle = ink ? 'rgba(222,206,166,.92)' : 'rgba(4,5,8,.85)'; g.strokeText(text, x, y); g.fillStyle = ink ? '#2a1a0e' : fill; g.fillText(text, x, y);
+  }
   function spaced(s, n) { return s.split('').join(' '.repeat(n || 1)); }
   UI.drawWorldMap = function (G) {
     if (!WM.open) return;
@@ -11433,7 +11501,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
     // vignette
     const vg = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, style() === 'ink' ? 'rgba(70,44,20,.55)' : 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, w, h);
     // region titles (fade out as you zoom in)
     const ta = GW.clamp((7 - WM.zoom) / 4, 0, 1);
     if (ta > 0.02) {
@@ -11518,7 +11586,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     { const title = '══ ◈  ' + spaced('THE NINEFOLD', 1) + '  ◈ ══'; g.font = 'bold 15px ui-monospace, Menlo, monospace'; const tw = g.measureText(title).width + 24;
       g.fillStyle = 'rgba(6,6,8,.88)'; g.fillRect(w / 2 - tw / 2, M + 18, tw, 28); g.strokeStyle = ink; g.strokeRect(w / 2 - tw / 2 + 0.5, M + 18.5, tw - 1, 27);
       g.fillStyle = '#e8d8a8'; g.fillText(title, w / 2, M + 32);
-      const here = W.REGIONS[W.regionAt(WM.cx, WM.cz)]; if (here) { g.font = 'italic 12px Georgia, serif'; halo(g, here.name.toLowerCase(), w / 2, M + 58, here.col, 3); } }
+      const here = W.REGIONS[W.regionAt(WM.cx, WM.cz)]; if (here) { g.font = 'italic 12px Georgia, serif'; halo(g, here.name.toLowerCase() + '  ·  ' + STYLE_NAME[style()].toLowerCase() + ' (V)', w / 2, M + 58, here.col, 3); } }
     // compass rose
     { const cx = w - M - 58, cy = M + 64, col = 'rgba(232,216,170,.85)'; g.font = 'bold 13px ui-monospace, Menlo, monospace';
       g.fillStyle = 'rgba(6,6,8,.7)'; g.beginPath(); g.arc(cx, cy, 34, 0, Math.PI * 2); g.fill(); g.strokeStyle = 'rgba(214,196,150,.5)'; g.stroke();
@@ -11594,6 +11662,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     addEventListener('keydown', e => { if (!WM.open) return;
       if (e.code === 'Equal' || e.code === 'NumpadAdd') { WM.zoom = GW.clamp(WM.zoom * 1.25, 0.9, 48); redraw(); }
       if (e.code === 'Minus' || e.code === 'NumpadSubtract') { WM.zoom = GW.clamp(WM.zoom / 1.25, 0.9, 48); redraw(); }
+      if (e.code === 'KeyV') { const i = STYLES.indexOf(style()); UI.settings.mapStyle = STYLES[(i + 1) % STYLES.length]; UI.saveSettings && UI.saveSettings(); UI.toast(STYLE_NAME[UI.settings.mapStyle], 1.2); redraw(); }
       if (e.code === 'Space') { WM.cx = GW.G.player.pos.x; WM.cz = GW.G.player.pos.z; redraw(); e.preventDefault(); } });
   })();
 })();
@@ -11794,12 +11863,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.widow = G.spawnEnemy('widow', Lw.lair.x, Lw.lair.z);
     // the region bosses, each in its own lair
     G.regionBosses = [
-      { key: 'colossus', type: 'colossus', x: 2250, z: 1220, title: 'THE ASH COLOSSUS', sub: 'the ground cracks open' },
-      { key: 'rimeknight', type: 'rimeknight', x: -150, z: -2650, title: 'THE RIME KNIGHT', sub: 'frost climbs your armour' },
+      { key: 'colossus', type: 'colossus', x: 2600, z: 1500, title: 'THE ASH COLOSSUS', sub: 'the ground cracks open' },
+      { key: 'rimeknight', type: 'rimeknight', x: 120, z: -2470, title: 'THE RIME KNIGHT', sub: 'frost climbs your armour' },
       { key: 'mirehag', type: 'mirehag', x: -2050, z: 1560, title: 'THE MIRE HAG', sub: 'the water starts to boil' },
       { key: 'cragwarlord', type: 'cragwarlord', x: 2470, z: -1520, title: 'THE CRAG WARLORD', sub: 'kneel, or be broken' },
     ];
-    G.regionBosses.forEach(b => { b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / 280)); b.e.bossKey = b.key; });
+    G.regionBosses.forEach(b => { const A = GW.World.ARENAS.find(a => a.key === b.key); if (A) { b.x = A.x; b.z = A.z; }   // world.js owns the arena spots
+      b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / 280)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
     [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens

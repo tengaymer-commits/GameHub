@@ -101,6 +101,17 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Hero movesets**: each weapon has its own key poses (`js/moves.js`, two-bone IK on the rig): sword forehand / backhand / overhead chop, greatsword sweeps and a jumping slam, spear thrusts (mid, low, high) and a spinning sweep, dagger jabs from alternating hands and an X-cut, and a bow draw and loose. Snappy timing: hold the anticipation, snap in about 5 frames, hold the follow-through. Swings leave glyph arcs (`/ | \ -`) in the blade's colour that flicker and shed characters.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
+## World map (M)
+A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.
+- **V** cycles four styles: *Touring map*, *ASCII relief* (the whole map in the game's brightness ramp), *Explorer's ink* (parchment and sepia) and *Glyph mosaic* (colour tiles with shade blocks).
+- Hover for names, types and distances. Click to drop your ✚ mark, which also shows on the compass and minimap. Wheel or + / − zooms around the cursor, and Space recentres on you.
+- *Settings → Reveal the whole map* is on for now (testing). Turn it off for fog of war.
+
+## World layout rules (from the placement audit)
+- Points of interest sit at least 18 m from rivers, 16 m from roads and 140 m from boss arenas, and are kept apart from each other. On ground steeper than 2.4 m across their 10 m footprint, they slide up to 40 m to flatter ground (never crowding a neighbour). If no flatter ground is found, they become vistas.
+- Boss arenas are flattened and kept clear of trees within 34 m. The Rime Knight fights on the frozen mere, and the Colossus is out in the open Barrens.
+- Twin sites (Rimehold and the Abbey, Emberfall and Cinder Watch) share one ground height.
+
 ## Elemental reactions
 Statuses come from runes (Ember burn, Frost chill, Venom poison, Storm shock), abilities (Rime Nova, Rime Lance, Chain Spark, Blight Cloud, Skyfall) and the river (standing in water makes a foe wet). Two of them together react. Each foe can react once per second, and the reaction's name floats up in its colour.
 
