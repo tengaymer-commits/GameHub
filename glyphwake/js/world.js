@@ -525,7 +525,7 @@
       const t0 = RIVER[Math.max(0, i - 1)], t1 = RIVER[Math.min(RIVER.length - 1, i + 1)];
       const ang = Math.atan2(t1[1] - t0[1], t1[0] - t0[0]); // river direction
       W.bridge = { x: RIVER[i][0], z: RIVER[i][1], c: Math.cos(ang), s: Math.sin(ang), len: RIVER_W * 2 + 4 };
-      const wood = GW.mat({ id: ID.WOOD, color: 0x6a4a2c });
+      const wood = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.1 });
       const plank = new THREE.BoxGeometry(0.5, 0.12, 3.2);
       const grp = new THREE.Group();
       for (let k = -9; k <= 9; k++) {
@@ -933,7 +933,7 @@
       const c = L[h.at]; campfire(scene, c.x, c.z, h.name);
       // a smith's anvil in every village
       const ax = c.x + 7, az = c.z + 6, ay = W.heightAt(ax, az), metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.WOOD, color: 0x3a2818 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a4a30 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
       const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
       W.addCollider(ax, az, 0.8, 'anvil'); W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
     }
@@ -1345,9 +1345,9 @@
   function campfire(scene, x, z, label, own) {
     const y = W.heightAt(x, z);
     const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
-    const wood = GW.mat({ id: ID.WOOD, color: 0x4a3020 }), stone = GW.mat({ id: ID.STONE, color: 0x707480 });
+    const wood = GW.mat({ id: ID.BARK, tex: 3, color: 0x7a5636 }), stone = GW.mat({ id: ID.ROCK, tex: 6, color: 0x84868c });
     for (let k = 0; k < 4; k++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 5), wood); l.rotation.z = Math.PI / 2; l.rotation.y = k * Math.PI / 4; l.position.y = 0.12; g.add(l); }
-    for (let k = 0; k < 9; k++) { const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), stone); const a = k / 9 * 6.28; s.position.set(Math.cos(a) * 0.95, 0.08, Math.sin(a) * 0.95); g.add(s); }
+    for (let k = 0; k < 9; k++) { const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.27, 0), stone); const a = k / 9 * 6.28; s.position.set(Math.cos(a) * 0.95, 0.08, Math.sin(a) * 0.95); g.add(s); }
     const flames = [];
     const fm = GW.mat({ id: ID.FIRE, color: 0x000000, emissive: 0xff8a2a, unlit: true });
     const fm2 = GW.mat({ id: ID.FIRE, color: 0x000000, emissive: 0xffd070, unlit: true });
@@ -1368,7 +1368,7 @@
 
   function torch(scene, x, z, h) {
     const y = W.heightAt(x, z);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, h, 5), GW.mat({ id: ID.WOOD, color: 0x5a3e26 }));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, h, 6), GW.mat({ id: ID.BARK, tex: 3, color: 0x6e4e30 }));
     pole.position.set(x, y + h / 2, z); scene.add(pole);
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.55, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }));
     f.position.set(x, y + h + 0.25, z); scene.add(f);
@@ -1380,7 +1380,7 @@
   function buildShrine(scene, x, z, s, glow) {
     const y = W.heightAt(x, z);
     const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
-    const st = new THREE.Mesh(new THREE.BoxGeometry(1.2 * s, 4.2 * s, 0.8 * s), GW.mat({ id: ID.STONE, color: 0x8890a4, rim: 0.25 }));
+    const st = new THREE.Mesh(new THREE.BoxGeometry(1.2 * s, 4.2 * s, 0.8 * s, 2, 6, 2), GW.mat({ id: ID.MASONRY, tex: 1, color: 0x8c94aa, rim: 0.25 }));
     st.position.y = 2.0 * s; st.rotation.y = Math.atan2(x, z); st.rotation.z = (Math.random() - 0.5) * 0.12; g.add(st);
     const band = new THREE.Mesh(new THREE.BoxGeometry(1.25 * s, 1.6 * s, 0.84 * s), GW.mat({ id: ID.RUNE, color: 0, emissive: glow ? 0x4fb8ff : 0x203040, unlit: true }));
     band.position.y = 2.5 * s; st.add(band); band.position.set(0, 0.5 * s, 0);
@@ -1392,44 +1392,38 @@
   function buildVillage(scene, batch, place, rnd, boxG0, woodM) {
     const { x: vx, z: vz } = L.village;
     campfire(scene, L.fire.x, L.fire.z, 'Emberhold');
-    // fence ring with gaps N and S and E/W path gaps
-    const postG = new THREE.CylinderGeometry(0.09, 0.11, 1.5, 5); postG.translate(0, 0.75, 0);
-    for (let k = 0; k < 64; k++) {
-      const a = k / 64 * Math.PI * 2;
-      const gapAng = [Math.PI / 2, -Math.PI / 2, 0, Math.PI];
-      if (gapAng.some(g => Math.abs(GW.angDiff(a, g)) < 0.16)) continue;
+    // built from the same kit as every other village (glyph-textured masonry, thatch and planks)
+    const put = (name, x, z, s, ry, col) => { const y = W.heightAt(x, z) - 0.04;
+      kitParts(name).forEach((p, i) => batch.add('kit_' + name + i, p.geo, kitMat(p.mn), place(x, y, z, ry, s, s, s), new THREE.Color(1, 1, 1).multiplyScalar(0.88 + rnd() * 0.24)));
+      if (col) W.addCollider(x, z, col * s, 'kit'); };
+    // fence ring (gates N, S, E, W where the paths come in)
+    for (let k = 0; k < 30; k++) {
+      const a = (k + 0.5) / 30 * Math.PI * 2;
+      if ([Math.PI / 2, -Math.PI / 2, 0, Math.PI].some(g => Math.abs(GW.angDiff(a, g)) < 0.2)) continue;
       const x = vx + Math.cos(a) * 15.5, z = vz + Math.sin(a) * 15.5;
-      batch.add('post', postG, woodM, place(x, W.heightAt(x, z), z, 0, 1.6, 0.7 + rnd() * 0.5, 1.6), 0xb89a78);
-      W.addCollider(x, z, 0.35, 'fence');
+      put('kit_fence', x, z, 1, -a + Math.PI / 2, 0); W.addCollider(x, z, 0.6, 'fence');
     }
-    // tents
-    const tentG = new THREE.ConeGeometry(2.0, 2.6, 4); tentG.translate(0, 1.3, 0);
-    const tents = [[-10, 37, 0x9a8460], [-2, 42, 0x8a8a70]];
-    tents.forEach(([dx, dz, c]) => {
-      const m = new THREE.Mesh(tentG, GW.mat({ id: ID.WOOD, color: c, rim: 0.2 })); const x = vx + dx, z = vz + dz - 30 + 30;
-      m.position.set(dx, W.heightAt(dx, dz), dz); m.rotation.y = rnd() * 3; scene.add(m);
-      W.addCollider(dx, dz, 1.6, 'tent');
-    });
-    // crates & barrels
-    for (let k = 0; k < 8; k++) {
+    // two more houses where the old tents stood, facing the square
+    [[-10, 37], [-2, 42]].forEach(([x, z]) => put('kit_hut', x, z, 1.2, Math.atan2(vx - x, vz - z), 1.9));
+    // crates
+    for (let k = 0; k < 6; k++) {
       const a = rnd() * 6.28, r = 9 + rnd() * 4, x = vx + Math.cos(a) * r, z = vz + Math.sin(a) * r;
-      if (W.blocked(x, z, 0.8) || Math.abs(x) < 3) continue;
-      batch.add('crate', boxG0, woodM, place(x, W.heightAt(x, z), z, rnd() * 3, 0.8, 0.8, 0.8));
-      W.addCollider(x, z, 0.6, 'crate');
+      if (W.blocked(x, z, 0.9) || Math.abs(x) < 3) continue;
+      put('kit_crate', x, z, 1, rnd() * 3, 0.5);
     }
     // torches at gates
     [[-2.4, 14.2], [2.4, 14.2], [-2.4, 45.8], [2.4, 45.8], [14.4, 27.5], [-14.4, 27.5]].forEach(([x, z]) => torch(scene, x, z, 2.2));
     // anvil + brazier
     const ax = L.anvil.x, az = L.anvil.z, ay = W.heightAt(ax, az);
     const metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.WOOD, color: 0x3a2818 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a4a30 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
     const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
     const horn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 6), metal); horn.rotation.z = Math.PI / 2; horn.position.set(ax - 0.85, ay + 0.8, az); scene.add(horn);
     W.addCollider(ax, az, 0.8, 'anvil');
     W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
     // forge brazier
     const bx = ax + 2.4, bz = az - 1.2, by = W.heightAt(bx, bz);
-    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.6, 0.9, 8), GW.mat({ id: ID.STONE, color: 0x5a5a62 })); br.position.set(bx, by + 0.45, bz); scene.add(br);
+    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.6, 0.9, 8, 2), GW.mat({ id: ID.MASONRY, tex: 8, color: 0x7a7b80, fill: 0.08 })); br.position.set(bx, by + 0.45, bz); scene.add(br);
     const coals = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.1, 8), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xff5a1a, unlit: true })); coals.position.set(bx, by + 0.92, bz); scene.add(coals);
     W.flames.push({ m: coals, s: 3, base: 1, flat: true });
     W.lights.add(bx, by + 1.6, bz, new THREE.Color(1.0, 0.38, 0.1).multiplyScalar(1.3), 9, 0.5);
