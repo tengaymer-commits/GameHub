@@ -12,7 +12,7 @@
 
   // ---------- terrain glyph sets per region (index: 0 vale, then frost, high, ash, salt, mire, dusk) ----------
   const SETS = [
-    { ch: '"\',.;"\'`', col: [96, 168, 104] },        // the vale: grass and meadow
+    { ch: '"\',.;"\'`', col: [112, 190, 118] },        // the vale: grass and meadow
     { ch: '*·\'˙*.:', col: [178, 206, 236] },        // frostmere: snow and rime
     { ch: '∩ⁿ^.:\'"', col: [152, 166, 122] },        // highlands: heather and crag
     { ch: '∴:.`·;,', col: [200, 118, 74] },          // ashen barrens
@@ -25,6 +25,7 @@
   const POI_ICON = { camp: ['x', '#e07a64', 'bandit camp'], ruin: ['#', '#b4b8c4', 'ruin'], chest: ['■', '#ffd860', 'cache'], shrine: ['†', '#9fd8ff', 'shrine'], waystone: ['◊', '#9fd8ff', 'waystone'],
     vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'] };
 
+  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1 };
   const pxPerM = (w, h) => Math.min(w, h) * 0.9 / GW.World.SIZE * WM.zoom;
   const reveal = () => UI.settings.revealMap !== false;
   function seenFn(G) {
@@ -61,14 +62,14 @@
       // hillshade from the height grid (light from the north-west)
       const kx = idx(x + step, z), kz = idx(x, z + step);
       const dhx = kx >= 0 ? D.H[kx] - hgt : 0, dhz = kz >= 0 ? D.H[kz] - hgt : 0;
-      const shade = GW.clamp(0.72 - (dhx + dhz) * 0.9 / Math.max(1, step / 16), 0.35, 1.25);
+      const shade = GW.clamp(0.85 - (dhx + dhz) * 0.9 / Math.max(1, step / 16), 0.4, 1.3);
       let ch, c;
       if (D.Lk[k] || rd < W.RIVER_W * 0.8) { ch = WATER[Math.floor(r0 * WATER.length)]; c = [86, 146, 228]; }
       else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3720) {
         ch = MOUNT[Math.floor(r0 * MOUNT.length)]; const t = GW.clamp((hgt - 10) / 30, 0, 1); c = [150 + 80 * t, 150 + 80 * t, 160 + 70 * t];
       } else {
         const set = SETS[bi]; const dense = D.Gr[k];
-        if (r0 > 0.25 + 0.6 * GW.clamp(dense, 0, 1) && bi !== 6) { if (r0 > 0.93) { ch = '.'; } else continue; }   // open ground breathes
+        if (r0 > (bi === 0 ? 0.5 : 0.25) + 0.6 * GW.clamp(dense, 0, 1) && bi !== 6) { if (r0 > 0.93) { ch = '.'; } else continue; }   // open ground breathes
         else ch = set.ch[Math.floor(hash(cj, ci) * set.ch.length)];
         c = set.col; if (D.BW[k] < 0.75) { const v = SETS[0].col, t = 1 - D.BW[k]; c = [GW.lerp(c[0], v[0], t * 0.5), GW.lerp(c[1], v[1], t * 0.5), GW.lerp(c[2], v[2], t * 0.5)]; }
       }
@@ -107,6 +108,7 @@
     const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
     const onScreen = (x, y, m) => x > -m && y > -m && x < w + m && y < h + m;
     const feats = [];   // hover targets: {x, y, name, sub}
+    const placed = [], free = (x, y, w2, h2) => { if (placed.some(r => Math.abs(r[0] - x) < (r[2] + w2) / 2 && Math.abs(r[1] - y) < (r[3] + h2) / 2)) return false; placed.push([x, y, w2, h2]); return true; };
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
     // vignette
     const vg = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
@@ -116,7 +118,7 @@
     if (ta > 0.02) {
       const keys = ['vale'].concat(W.BIOMES);
       keys.forEach((k, i) => { const cen = i === 0 ? { x: 0, z: 260 } : D.centroids[i]; if (!cen || !seen(cen.x, cen.z)) return; const R = W.REGIONS[k];
-        const [x, y] = to(cen.x, cen.z); if (!onScreen(x, y, 200)) return;
+        let [x, y] = to(cen.x, cen.z); if (!onScreen(x, y, 200)) return; if (i > 0) y -= 52;
         g.globalAlpha = ta; g.font = `600 ${Math.round(GW.clamp(15 + WM.zoom * 4, 16, 30))}px ui-monospace, Menlo, monospace`;
         halo(g, spaced(R.name.replace(/^THE /, '')), x, y, R.col, 6);
         g.font = `italic ${Math.round(GW.clamp(10 + WM.zoom, 11, 14))}px Georgia, serif`; halo(g, '— ' + R.sub + ' —', x, y + 22, 'rgba(230,224,206,.75)', 4);
@@ -130,14 +132,15 @@
       if (hub) {
         const label = '⌂ ' + spaced(hub.name.toUpperCase());
         g.font = `bold ${Math.round(GW.clamp(10 + WM.zoom * 0.9, 11, 15))}px ui-monospace, Menlo, monospace`;
-        const tw = g.measureText(label).width + 14;
+        const tw = g.measureText(label).width + 14; free(x, y - 12, tw, 20);
         g.fillStyle = 'rgba(8,8,10,.82)'; g.fillRect(x - tw / 2, y - 21, tw, 18); g.strokeStyle = 'rgba(232,190,110,.8)'; g.lineWidth = 1; g.strokeRect(x - tw / 2 + 0.5, y - 20.5, tw - 1, 17);
         g.fillStyle = '#f0c878'; g.fillText(label, x, y - 12);
         g.fillStyle = '#ffd890'; g.font = 'bold 14px ui-monospace, Menlo, monospace'; g.fillText('⌂', x, y + 2);
         feats.push({ x, y, name: hub.name, sub: 'village · trader, bounties, a fire to rest', wx: z.x, wz: z.z });
       } else {
         g.font = `${Math.round(GW.clamp(9 + WM.zoom * 0.6, 10, 13))}px ui-monospace, Menlo, monospace`;
-        halo(g, '◇ ' + z.name, x, y - 10, 'rgba(214,218,230,.9)', 3);
+        const lw3 = g.measureText('◇ ' + z.name).width + 6;
+        if (free(x, y - 10, lw3, 15)) halo(g, '◇ ' + z.name, x, y - 10, 'rgba(214,218,230,.9)', 3); else { g.fillStyle = 'rgba(214,218,230,.9)'; g.fillText('◇', x, y - 10); }
         feats.push({ x, y: y - 10, name: z.name, sub: 'landmark', wx: z.x, wz: z.z });
       }
     }
@@ -148,6 +151,7 @@
       g.font = `bold ${big ? 14 : 12}px ui-monospace, Menlo, monospace`;
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
         const p = W.poiAt(i, j); if (!p || !POI_ICON[p.type]) continue;
+        if (WM.zoom < 5 && !LANDMARK[p.type]) continue;
         if (!reveal() && !(G.poiSeen && G.poiSeen[p.id])) continue;
         const [x, y] = to(p.x, p.z); if (!onScreen(x, y, pxPad)) continue;
         const ic = POI_ICON[p.type], done = (G.cleared && G.cleared[p.id]) || (G.opened && G.opened['poi:' + p.id]);
@@ -206,10 +210,10 @@
     if (w > 760) {
       const items = [['▲', '#ff9a40', 'fire'], ['⌂', '#ffd890', 'village'], ['Ω', '#ff4a3a', 'boss'], ['◆', '#ffd860', 'objective'], ['✚', '#6ae8ff', 'your mark'], ['π', '#ffcf6a', 'anvil']]
         .concat(Object.values(POI_ICON).map(v => [v[0], v[1], v[2]]));
-      const lx = w - M - 150, ly = h - M - 22 - Math.ceil(items.length / 2) * 17, lw2 = 140;
+      const lx = w - M - 186, ly = h - M - 22 - Math.ceil(items.length / 2) * 17, lw2 = 176;
       g.fillStyle = 'rgba(6,6,8,.8)'; g.fillRect(lx - 10, ly - 22, lw2 + 14, Math.ceil(items.length / 2) * 17 + 30); g.strokeStyle = 'rgba(214,196,150,.4)'; g.strokeRect(lx - 9.5, ly - 21.5, lw2 + 13, Math.ceil(items.length / 2) * 17 + 29);
       g.font = '10px ui-monospace, Menlo, monospace'; g.fillStyle = 'rgba(214,196,150,.8)'; g.textAlign = 'left'; g.fillText(spaced('LEGEND'), lx, ly - 10);
-      items.forEach((it, i) => { const x = lx + (i % 2) * 72, y = ly + 6 + Math.floor(i / 2) * 17; g.font = 'bold 12px ui-monospace, Menlo, monospace'; g.fillStyle = it[1]; g.fillText(it[0], x, y);
+      items.forEach((it, i) => { const x = lx + (i % 2) * 92, y = ly + 6 + Math.floor(i / 2) * 17; g.font = 'bold 12px ui-monospace, Menlo, monospace'; g.fillStyle = it[1]; g.fillText(it[0], x, y);
         g.font = '10px ui-monospace, Menlo, monospace'; g.fillStyle = 'rgba(210,210,220,.8)'; g.fillText(it[2], x + 14, y); });
       g.textAlign = 'center';
     }
