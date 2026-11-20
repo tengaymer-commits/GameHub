@@ -1672,6 +1672,7 @@
     return c;
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
+  W.kitParts = n => kitParts(n);   // for audits / tools
   W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {
