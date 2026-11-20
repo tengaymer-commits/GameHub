@@ -306,6 +306,25 @@
   G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
+  // glyph lightning: a jagged run of bright characters between two points, flickering for a moment, with a light flash
+  G.bolt = function (a, b, col, o) {
+    o = o || {}; col = col || '#d8c0ff';
+    const ay = (a.y || 0) + (o.ay !== undefined ? o.ay : 1.2), by = (b.y || 0) + (o.by !== undefined ? o.by : 1.1);
+    const dx = b.x - a.x, dy = by - ay, dz = b.z - a.z, L = Math.hypot(dx, dy, dz) || 1, n = Math.max(4, Math.round(L / 0.45));
+    const px = -dz / L, pz = dx / L, CH = 'ϟ/\\|';
+    for (let pass = 0; pass < 2; pass++) {   // two strands, the second fainter and later, so the bolt flickers
+      let jx = 0, jy = 0;
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, edge = k === 0 || k === n; jx = edge ? 0 : GW.clamp(jx + (Math.random() - 0.5) * 0.5, -0.45, 0.45); jy = edge ? 0 : GW.clamp(jy + (Math.random() - 0.5) * 0.4, -0.35, 0.35);
+        G.hitGlyphs.push({ x: a.x + dx * t + px * jx, y: ay + dy * t + jy, z: a.z + dz * t + pz * jx, still: true, size: pass ? 18 : 26, t: -pass * 0.07, life: 0.32 + Math.random() * 0.14,
+          ch: CH[Math.floor(Math.random() * CH.length)], col: pass ? col : (k % 3 ? '#ffffff' : col) });
+      }
+    }
+    G.parts.spark.burst(b.x, by, b.z, 10, 4, 0xd8c0ff, 0.3, 1.2, -4);
+    const lt = GW.World.lights.add(b.x, by, b.z, new THREE.Color(0.75, 0.6, 1.0).multiplyScalar(2.2), 9, 0.6);
+    setTimeout(() => GW.World.lights.remove(lt), 160);
+    if (G.hitGlyphs.length > 260) G.hitGlyphs.splice(0, G.hitGlyphs.length - 260);
+  };
   // the glint: a star flashes on the enemy's weapon as the parry window opens (red = unblockable, dodge it)
   G.glint = function (e, red, sp) {
     let p;
@@ -360,6 +379,7 @@
       if (g.follow) { g.x = g.follow.x; g.y = g.follow.y; g.z = g.follow.z; }
       else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt; }
       _hg.set(g.x, g.y, g.z).project(G.camera); if (_hg.z > 1) return true;
+      if (g.t < 0) return true;
       const k = g.t / g.life;
       if (g.size) cx.font = `bold ${Math.round(g.size * (g.pop ? 1 + 0.6 * Math.sin(Math.min(1, k * 2) * Math.PI) : 1) * dpr)}px ui-monospace, Menlo, monospace`;
       cx.globalAlpha = 1 - k; cx.fillStyle = g.col; cx.fillText(g.ch, (_hg.x * 0.5 + 0.5) * W, (-_hg.y * 0.5 + 0.5) * H);
@@ -694,7 +714,7 @@
       G.hitEnemy(e, base, { react: true, reactCol: R.col });
       const near = G.enemies.filter(o => o !== e && o.alive && o.distTo(e.pos) < 7 && wetOrCold(o)).slice(0, 5);
       for (const o of near) {
-        for (let k = 0; k <= 10; k++) { const t = k / 10; G.parts.spark.emit(GW.lerp(e.pos.x, o.pos.x, t) + (Math.random() - 0.5) * 0.5, GW.lerp(e.pos.y, o.pos.y, t) + 1.2 + (Math.random() - 0.5) * 0.6, GW.lerp(e.pos.z, o.pos.z, t) + (Math.random() - 0.5) * 0.5, 0, 0, 0, 0.25, 1.1, R.hex, 0); }
+        G.bolt(e.pos, o.pos, R.col);
         o.reactCd = 1.0; G.hitEnemy(o, base * 0.8, { react: true, reactCol: R.col }); reactGlyphs(o.pos.x, o.pos.y + 1.1, o.pos.z, 8, R);
       }
     }
@@ -703,7 +723,7 @@
     const near = G.enemies.filter(o => o !== src && o.alive && o.distTo(src.pos) < 7).sort((a, b) => a.distTo(src.pos) - b.distTo(src.pos)).slice(0, 2);
     GWAudio.sfx('zap');
     for (const o of near) {
-      for (let k = 0; k <= 10; k++) { const t = k / 10; G.parts.spark.emit(GW.lerp(src.pos.x, o.pos.x, t) + (Math.random() - 0.5) * 0.5, GW.lerp(src.pos.y, o.pos.y, t) + 1.2 + (Math.random() - 0.5) * 0.6, GW.lerp(src.pos.z, o.pos.z, t) + (Math.random() - 0.5) * 0.5, 0, 0, 0, 0.25, 1.1, 0xc8a0ff, 0); }
+      G.bolt(src.pos, o.pos, '#c8a0ff');
       G.hitEnemy(o, dmg, { chain: true });
     }
   }

@@ -67,14 +67,21 @@
       start(P) { P.fired = false; GWAudio.sfx('cast'); },
       tick(P, G) {
         if (P.t > 0.14 && !P.fired) { P.fired = true; GWAudio.sfx('zap');
-          let from = { x: P.pos.x, y: P.pos.y, z: P.pos.z }, left = 4; const done = new Set();
+          // the bolt leaves the casting hand
+          const hand = new THREE.Vector3(); (P.sword || P.model).getWorldPosition(hand);
+          let from = { x: P.pos.x, y: P.pos.y, z: P.pos.z }, left = 4, first = true; const done = new Set();
+          G.parts.spark.burst(hand.x, hand.y, hand.z, 16, 3, 0xd8c0ff, 0.35, 1.2, 0);
+          const lt = GW.World.lights.add(hand.x, hand.y, hand.z, new THREE.Color(0.75, 0.6, 1.0).multiplyScalar(2), 7, 0.5); setTimeout(() => GW.World.lights.remove(lt), 200);
           while (left-- > 0) {
             const t = G.enemies.filter(e => e.alive && !done.has(e) && Math.hypot(e.pos.x - from.x, e.pos.z - from.z) < (done.size ? 7 : 11))
               .sort((a, b) => Math.hypot(a.pos.x - from.x, a.pos.z - from.z) - Math.hypot(b.pos.x - from.x, b.pos.z - from.z))[0];
-            if (!t) break; done.add(t); line(G, from, t.pos, 0xc8a0ff);
+            if (!t) break; done.add(t);
+            if (first) { G.bolt({ x: hand.x, y: 0, z: hand.z }, t.pos, '#d8c0ff', { ay: hand.y }); first = false; } else G.bolt(from, t.pos, '#c8a0ff');
             G.hitEnemy(t, P.ws.dmg * 1.5, { chain: true, from: P.pos, brk: 1 }); from = t.pos;
           }
-          if (!done.size) G.ui.toast('No foe in reach', 0.8);
+          if (!done.size) {   // nothing in reach: the bolt crackles out and grounds itself
+            const f = P.fwd(); G.bolt({ x: hand.x, y: 0, z: hand.z }, { x: P.pos.x + f.x * 6, y: P.pos.y, z: P.pos.z + f.z * 6 }, '#d8c0ff', { ay: hand.y, by: 0.1 });
+          }
         }
       },
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
