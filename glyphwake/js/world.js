@@ -1013,7 +1013,8 @@
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
       && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 14 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 9;   // exact distances: no chunk needs computing
     if (ok) {
-      const region = W.regionAt(x, z), w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
+      const bwp = biomeW(x, z); let region = 'vale', rbv = 0.5; bwp.forEach((v, q) => { if (v > rbv) { rbv = v; region = BIOMES[q]; } });   // straight from the formula: no data chunk needed
+      const w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
       const lvl = 1 + Math.floor(Math.hypot(x, z) / 280);
       p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };

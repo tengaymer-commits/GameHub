@@ -75,7 +75,7 @@
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
     { const [ox, oy] = [w / 2 + (-half - WM.cx) * px, h / 2 + (-half - WM.cz) * px];   // the coloured relief underneath
-      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = 0.92; g.drawImage(relief(), ox, oy, S * px, S * px); g.globalAlpha = 1;
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = GW.clamp(0.95 - (WM.zoom - 4) * 0.025, 0.5, 0.92); g.drawImage(relief(), ox, oy, S * px, S * px); g.globalAlpha = 1;
       if (!reveal() && G.fog) { const FN = G.FOG_N; if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
         const fg = WM.fogCv.getContext('2d'), im = fg.createImageData(FN, FN); for (let q = 0; q < FN * FN; q++) { im.data[q * 4] = 6; im.data[q * 4 + 1] = 7; im.data[q * 4 + 2] = 10; im.data[q * 4 + 3] = G.fog[q] ? 0 : 245; }
         fg.putImageData(im, 0, 0); g.drawImage(WM.fogCv, ox, oy, S * px, S * px); } }
@@ -155,7 +155,8 @@
     if (ta > 0.02) {
       const keys = ['vale'].concat(W.BIOMES);
       keys.forEach((k, i) => { const cen = i === 0 ? { x: 0, z: 260 } : D.centroids[i]; if (!cen || !seen(cen.x, cen.z)) return; const R = W.REGIONS[k];
-        let [x, y] = to(cen.x, cen.z); if (!onScreen(x, y, 200)) return; if (i > 0) y -= 52;
+        let [x, y] = to(cen.x, cen.z); if (!onScreen(x, y, 200)) return;
+        if (i > 0) { const hb = W.HUBS.find(q => q.id === k); if (hb) { const [, hy] = to(W.L[hb.at].x, W.L[hb.at].z); if (Math.abs(y - hy) < 56) y = hy + (y >= hy ? 56 : -50); } }
         g.globalAlpha = ta; g.font = `600 ${Math.round(GW.clamp(15 + WM.zoom * 4, 16, 30))}px ui-monospace, Menlo, monospace`;
         halo(g, spaced(R.name.replace(/^THE /, '')), x, y, R.col, 6);
         g.font = `italic ${Math.round(GW.clamp(10 + WM.zoom, 11, 14))}px Georgia, serif`; halo(g, '— ' + R.sub + ' —', x, y + 22, 'rgba(230,224,206,.75)', 4);
