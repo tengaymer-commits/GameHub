@@ -610,7 +610,15 @@
       return;
     }
     // status effects
-    const s = this.status; s.slow = Math.max(0, s.slow - dt); if (s.root > 0) s.root -= dt;
+    const s = this.status;
+    // elemental reactions: a status freshly applied while its partner is active
+    { const pv = this._pst || (this._pst = { burn: 0, slow: 0, poison: 0, shock: 0 }), nw = k => (s[k] || 0) > pv[k] + 0.01;
+      this.reactCd = (this.reactCd || 0) - dt;
+      if (this.reactCd <= 0 && this.alive) {
+        if ((nw('burn') && s.poison > 0) || (nw('poison') && s.burn > 0)) G.react(this, 'blight');
+        else if (nw('shock') && (s.slow > 0 || W.inWater(this.pos.x, this.pos.z))) G.react(this, 'conduct');
+      } }
+    s.slow = Math.max(0, s.slow - dt); if (s.root > 0) s.root -= dt; if (s.shock > 0) s.shock -= dt;
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.5;
@@ -618,6 +626,9 @@
       if (s.poison > 0 && this.alive) { G.hitEnemy(this, s.poisonD, { dot: 'poison' }); s.poison -= 0.5; G.parts.spark.burst(this.pos.x, this.pos.y + 1, this.pos.z, 2, 1, 0x7aff5a, 0.6, 0.8, 1, 0.5); }
       if (!this.alive) return;
     }
+    { const pv = this._pst; pv.burn = s.burn || 0; pv.slow = s.slow || 0; pv.poison = s.poison || 0; pv.shock = s.shock || 0; }
+    if (s.shock > 0 && Math.random() < 0.25) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.8, this.pos.y + 0.6 + Math.random() * 1.2, this.pos.z + (Math.random() - 0.5) * 0.8, 0, 0.5, 0, 0.2, 0.9, 0xc8a0ff, 0);
+    if (s.slow > 0 && Math.random() < 0.15) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.8, this.pos.y + 0.3 + Math.random(), this.pos.z + (Math.random() - 0.5) * 0.8, 0, -0.3, 0, 0.6, 0.8, 0x9fe0ff, 0);
     this.cool -= dt;
     const slow = s.slow > 0 ? 0.6 : 1;
     const dP = this.distTo(P.pos), dH = Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z);

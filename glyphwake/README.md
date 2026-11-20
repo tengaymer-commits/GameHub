@@ -101,6 +101,17 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Hero movesets**: each weapon has its own key poses (`js/moves.js`, two-bone IK on the rig): sword forehand / backhand / overhead chop, greatsword sweeps and a jumping slam, spear thrusts (mid, low, high) and a spinning sweep, dagger jabs from alternating hands and an X-cut, and a bow draw and loose. Snappy timing: hold the anticipation, snap in about 5 frames, hold the follow-through. Swings leave glyph arcs (`/ | \ -`) in the blade's colour that flicker and shed characters.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
+## Elemental reactions
+Statuses come from runes (Ember burn, Frost chill, Venom poison, Storm shock), abilities (Rime Nova, Rime Lance, Chain Spark, Blight Cloud, Skyfall) and the river (standing in water makes a foe wet). Two of them together react. Each foe can react once per second, and the reaction's name floats up in its colour.
+
+| Reaction | Recipe | Effect |
+|---|---|---|
+| **SHATTER** | heavy blow or finisher on a chilled foe | burst of 80% bonus damage, +40% break bar, the chill is spent |
+| **BLIGHT** | fire meets poison (either order) | burst damage, and the poison spreads to every foe within 5 m |
+| **CONDUCT** | shock on a chilled or wet foe | lightning leaps to up to 5 chilled or wet foes within 7 m |
+
+Chain lightning (the Storm rune's arcs and Chain Spark) now leaves foes **shocked** for 3 s (violet sparks). Chilled foes shed pale-blue flakes.
+
 ## Weapons (two carried, X swaps)
 Your forged metal and runes stay the same whichever weapon you hold. The weapon decides the moveset. You choose which two to carry at the top of the Book (B).
 

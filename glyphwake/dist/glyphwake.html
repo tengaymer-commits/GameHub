@@ -9456,7 +9456,15 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       return;
     }
     // status effects
-    const s = this.status; s.slow = Math.max(0, s.slow - dt); if (s.root > 0) s.root -= dt;
+    const s = this.status;
+    // elemental reactions: a status freshly applied while its partner is active
+    { const pv = this._pst || (this._pst = { burn: 0, slow: 0, poison: 0, shock: 0 }), nw = k => (s[k] || 0) > pv[k] + 0.01;
+      this.reactCd = (this.reactCd || 0) - dt;
+      if (this.reactCd <= 0 && this.alive) {
+        if ((nw('burn') && s.poison > 0) || (nw('poison') && s.burn > 0)) G.react(this, 'blight');
+        else if (nw('shock') && (s.slow > 0 || W.inWater(this.pos.x, this.pos.z))) G.react(this, 'conduct');
+      } }
+    s.slow = Math.max(0, s.slow - dt); if (s.root > 0) s.root -= dt; if (s.shock > 0) s.shock -= dt;
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.5;
@@ -9464,6 +9472,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (s.poison > 0 && this.alive) { G.hitEnemy(this, s.poisonD, { dot: 'poison' }); s.poison -= 0.5; G.parts.spark.burst(this.pos.x, this.pos.y + 1, this.pos.z, 2, 1, 0x7aff5a, 0.6, 0.8, 1, 0.5); }
       if (!this.alive) return;
     }
+    { const pv = this._pst; pv.burn = s.burn || 0; pv.slow = s.slow || 0; pv.poison = s.poison || 0; pv.shock = s.shock || 0; }
+    if (s.shock > 0 && Math.random() < 0.25) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.8, this.pos.y + 0.6 + Math.random() * 1.2, this.pos.z + (Math.random() - 0.5) * 0.8, 0, 0.5, 0, 0.2, 0.9, 0xc8a0ff, 0);
+    if (s.slow > 0 && Math.random() < 0.15) G.parts.spark.emit(this.pos.x + (Math.random() - 0.5) * 0.8, this.pos.y + 0.3 + Math.random(), this.pos.z + (Math.random() - 0.5) * 0.8, 0, -0.3, 0, 0.6, 0.8, 0x9fe0ff, 0);
     this.cool -= dt;
     const slow = s.slow > 0 ? 0.6 : 1;
     const dP = this.distTo(P.pos), dH = Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z);
@@ -11915,7 +11926,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (e.T.boss && (!G.bossActive || (G.curBoss && G.curBoss !== e && e.type !== 'warden'))) return;
     if (e.type === 'husk' && QUESTS[G.stage].id !== 'wake' && e.hp <= dmg) { /* husks keep standing after the tutorial */ }
     let crit = false;
-    if (!o.dot && !o.chain) {
+    if (!o.dot && !o.chain && !o.react) {
       if (Math.random() < ws.crit) { crit = true; dmg *= 1.8; }
       if (e.T.kind === 'undead') dmg *= 1 + ws.undead;
       // hollow guard
@@ -11931,12 +11942,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     if (G.buff && G.buff.kind === 'might' && G.t < G.buff.until) dmg *= 1.25;
     if (P.mightT > 0) dmg *= 1.25;
-    if (!o.dot && !o.chain && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
+    if (!o.dot && !o.chain && !o.react && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
     if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
     dmg = Math.max(1, Math.round(dmg));
     if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
+    if (o.chain) e.status.shock = 3;
+    if ((o.heavy || o.finisher) && !o.dot && !o.react && e.status.slow > 0 && !((e.reactCd || 0) > 0)) G.react(e, 'shatter', dmg);
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
-    const col = o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
+    const col = o.react ? o.reactCol : o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
     UI.float(String(dmg) + (crit ? '!' : ''), e.pos, { color: col, size: crit ? 18 : o.dot ? 11 : 14, y: e.T.radius * 2 + 0.8, life: crit ? 1.1 : 0.85 });
     if (!o.dot) {
       GWAudio.sfx(crit ? 'crit' : 'hit', o.heavy ? 1.3 : 1);
@@ -11967,6 +11980,49 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       }
     }
     if (e.hp <= 0) kill(e);
+  };
+  // ---------------- elemental reactions ----------------
+  //   SHATTER  heavy blow / finisher on a chilled foe: burst damage, a big bite of break, the chill is spent
+  //   BLIGHT   fire meets poison (either order): a burst, and the poison spreads to everything within 5 m
+  //   CONDUCT  shock on a chilled or wet foe (in the river): lightning leaps to every chilled / wet foe within 7 m
+  const REACT = { shatter: { name: 'SHATTER', col: '#9fe0ff', hex: 0x9fe0ff, ch: '*/\\◇<>' }, blight: { name: 'BLIGHT', col: '#c8ff50', hex: 0xa8ff40, ch: '~%&@:;' },
+    conduct: { name: 'CONDUCT', col: '#c8a0ff', hex: 0xc8a0ff, ch: 'ϟ/\\|!' } };
+  G.REACT = REACT;
+  const reactGlyphs = (x, y, z, n, R) => { for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 5;
+    G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 5, vz: Math.sin(a) * s, t: 0, life: 0.45 + Math.random() * 0.35, ch: R.ch[Math.floor(Math.random() * R.ch.length)], col: R.col }); } };
+  G.react = function (e, kind, dmg) {
+    const P = G.player, R = REACT[kind], s = e.status; if (!e.alive || !R) return;
+    e.reactCd = 1.0;
+    UI.float(R.name, e.pos, { color: R.col, size: 16, y: e.T.radius * 2 + 1.9, life: 1.1 });
+    reactGlyphs(e.pos.x, e.pos.y + 1.1, e.pos.z, 18, R);
+    G.parts.spark.burst(e.pos.x, e.pos.y + 1, e.pos.z, 24, 6, R.hex, 0.6, 1.1, -3, 1.5);
+    G.counters.reactions = (G.counters.reactions || 0) + 1;
+    if (!G.hintsShown['react_' + kind]) { G.hintsShown['react_' + kind] = true;
+      UI.hint({ shatter: '<b>SHATTER</b>: heavy blows break chilled foes.', blight: '<b>BLIGHT</b>: fire and poison together spread the sickness.', conduct: '<b>CONDUCT</b>: shock leaps between chilled or wet foes.' }[kind], 4); }
+    if (kind === 'shatter') {
+      GWAudio.sfx('zap'); GWAudio.sfx('crit'); G.shake(0.35); G.hitstop = Math.max(G.hitstop, 0.07);
+      s.slow = 0;
+      e.brk = (e.brk || 0) + G.brkMax(e) * 0.4; if (!(e.brokenT > 0) && e.brk >= G.brkMax(e)) G.breakEnemy(e);
+      G.hitEnemy(e, Math.max(10, (dmg || P.ws.dmg) * 0.8), { react: true, reactCol: R.col });
+    } else if (kind === 'blight') {
+      GWAudio.sfx('fire'); GWAudio.sfx('cast');
+      const pd = Math.max(s.poisonD || 0, P.ws.dmg * 0.25);
+      G.hitEnemy(e, Math.max(8, pd * 4 + (s.burnD || 0) * 2), { react: true, reactCol: R.col });
+      for (const o of G.enemies) if (o !== e && o.alive && o.distTo(e.pos) < 5) {
+        o.status.poison = Math.max(o.status.poison, 4); o.status.poisonD = Math.max(o.status.poisonD || 0, pd); o.aggro = true; o.reactCd = 0.6;
+        for (let k = 0; k <= 8; k++) { const t = k / 8; G.parts.spark.emit(GW.lerp(e.pos.x, o.pos.x, t), GW.lerp(e.pos.y, o.pos.y, t) + 1 + Math.sin(t * Math.PI), GW.lerp(e.pos.z, o.pos.z, t), 0, 0.5, 0, 0.6, 1.1, R.hex, 0); }
+      }
+    } else if (kind === 'conduct') {
+      GWAudio.sfx('zap'); G.shake(0.25);
+      const W = GW.World, wetOrCold = o => o.status.slow > 0 || W.inWater(o.pos.x, o.pos.z);
+      const base = Math.max(10, P.ws.dmg * 1.1);
+      G.hitEnemy(e, base, { react: true, reactCol: R.col });
+      const near = G.enemies.filter(o => o !== e && o.alive && o.distTo(e.pos) < 7 && wetOrCold(o)).slice(0, 5);
+      for (const o of near) {
+        for (let k = 0; k <= 10; k++) { const t = k / 10; G.parts.spark.emit(GW.lerp(e.pos.x, o.pos.x, t) + (Math.random() - 0.5) * 0.5, GW.lerp(e.pos.y, o.pos.y, t) + 1.2 + (Math.random() - 0.5) * 0.6, GW.lerp(e.pos.z, o.pos.z, t) + (Math.random() - 0.5) * 0.5, 0, 0, 0, 0.25, 1.1, R.hex, 0); }
+        o.reactCd = 1.0; G.hitEnemy(o, base * 0.8, { react: true, reactCol: R.col }); reactGlyphs(o.pos.x, o.pos.y + 1.1, o.pos.z, 8, R);
+      }
+    }
   };
   function chain(src, dmg) {
     const near = G.enemies.filter(o => o !== src && o.alive && o.distTo(src.pos) < 7).sort((a, b) => a.distTo(src.pos) - b.distTo(src.pos)).slice(0, 2);
