@@ -34,6 +34,36 @@
     return (x, z) => !!G.fog[Math.floor((z + S / 2) / G.FOG_CELL) * G.FOG_N + Math.floor((x + S / 2) / G.FOG_CELL)];
   }
 
+  // ---------- relief: a coloured terrain picture like a touring map (region tints, elevation, hillshade, contours) ----------
+  const TINT = [[62, 104, 56], [142, 164, 186], [108, 112, 82], [128, 74, 46], [178, 160, 116], [80, 88, 48], [40, 82, 86]];
+  let RELIEF = null;
+  function relief() {
+    if (RELIEF) return RELIEF;
+    const W = GW.World, D = W.mapData(), N = D.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
+    const g = cv.getContext('2d'), img = g.createImageData(N, N), half = W.SIZE / 2;
+    const at = (i, j) => D.H[GW.clamp(j, 0, N - 1) * N + GW.clamp(i, 0, N - 1)];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const k = j * N + i, h = D.H[k], x = (i + 0.5) * D.cell - half, z = (j + 0.5) * D.cell - half, edge = Math.max(Math.abs(x), Math.abs(z));
+      let c;
+      if (D.Lk[k] || D.R[k] < W.RIVER_W * 1.4) c = [44, 84, 140];
+      else {
+        const t = TINT[D.B[k]], v = TINT[0], m = D.B[k] ? GW.clamp((D.BW[k] - 0.5) * 2.2, 0, 1) : 1;
+        c = [GW.lerp(v[0], t[0], m), GW.lerp(v[1], t[1], m), GW.lerp(v[2], t[2], m)];
+        const hn = GW.clamp(h / 45, 0, 1); c = c.map((q, n) => GW.lerp(q, [196, 186, 160][n], hn * 0.45));      // lowlands to uplands
+        if (h > 14 || edge > 3720) { const r = GW.clamp((Math.max(h, (edge - 3720) / 6) - 14) / 30, 0, 1); c = c.map((q, n) => GW.lerp(GW.lerp(q, [122, 116, 106][n], 0.7), [228, 232, 238][n], r * r)); }   // rock, then snow
+        if (D.R[k] < W.RIVER_W * 4) c = c.map((q, n) => GW.lerp(q, [70, 110, 120][n], 0.25));   // wet banks
+        if (D.Pd[k] < 6) c = c.map((q, n) => GW.lerp(q, [150, 120, 80][n], 0.35));
+      }
+      // hillshade (light from the north-west) and contour lines every 6 m (every 30 m a bolder one)
+      const dhx = at(i + 1, j) - at(i - 1, j), dhz = at(i, j + 1) - at(i, j - 1);
+      const sh = GW.clamp(1 - (dhx + dhz) * 0.045, 0.5, 1.5);
+      const q0 = Math.floor(h / 6), cont = q0 !== Math.floor(at(i + 1, j) / 6) || q0 !== Math.floor(at(i, j + 1) / 6);
+      const ck = cont ? (q0 % 5 === 0 ? 0.62 : 0.8) : 1;
+      const fade = edge > 3950 ? 0.35 : 1, o = k * 4;
+      img.data[o] = Math.min(255, c[0] * sh * ck * fade); img.data[o + 1] = Math.min(255, c[1] * sh * ck * fade); img.data[o + 2] = Math.min(255, c[2] * sh * ck * fade); img.data[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0); RELIEF = cv; return cv;
+  }
   // ---------- the terrain layer (cached; only redrawn when the view changes) ----------
   function terrainLayer(G, w, h, dpr) {
     const W = GW.World, D = W.mapData(), S = W.SIZE, half = S / 2, px = pxPerM(w, h);
@@ -44,6 +74,11 @@
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
+    { const [ox, oy] = [w / 2 + (-half - WM.cx) * px, h / 2 + (-half - WM.cz) * px];   // the coloured relief underneath
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = 0.92; g.drawImage(relief(), ox, oy, S * px, S * px); g.globalAlpha = 1;
+      if (!reveal() && G.fog) { const FN = G.FOG_N; if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
+        const fg = WM.fogCv.getContext('2d'), im = fg.createImageData(FN, FN); for (let q = 0; q < FN * FN; q++) { im.data[q * 4] = 6; im.data[q * 4 + 1] = 7; im.data[q * 4 + 2] = 10; im.data[q * 4 + 3] = G.fog[q] ? 0 : 245; }
+        fg.putImageData(im, 0, 0); g.drawImage(WM.fogCv, ox, oy, S * px, S * px); } }
     const CS = 11, cw = CS / px;                                   // screen cell (px) and its size in metres
     const x0 = Math.floor((WM.cx - w / 2 / px) / cw), z0 = Math.floor((WM.cz - h / 2 / px) / cw);
     const nx = Math.ceil(w / CS) + 2, nz = Math.ceil(h / CS) + 2;
@@ -73,8 +108,10 @@
         else ch = set.ch[Math.floor(hash(cj, ci) * set.ch.length)];
         c = set.col; if (D.BW[k] < 0.75) { const v = SETS[0].col, t = 1 - D.BW[k]; c = [GW.lerp(c[0], v[0], t * 0.5), GW.lerp(c[1], v[1], t * 0.5), GW.lerp(c[2], v[2], t * 0.5)]; }
       }
-      const b = shade * (0.9 + 0.2 * r0);
+      const b = shade * (1.05 + 0.25 * r0);
+      g.globalAlpha = 0.78;
       g.fillStyle = rgb(Math.min(255, c[0] * b) | 0, Math.min(255, c[1] * b) | 0, Math.min(255, c[2] * b) | 0); g.fillText(ch, sx, sy);
+      g.globalAlpha = 1;
       // region borders: a faint dotted seam where the dominant land changes
       const kr = idx(x + cw, z), kd = idx(x, z + cw);
       if (((kr >= 0 && D.B[kr] !== bi) || (kd >= 0 && D.B[kd] !== bi)) && (ci + cj) % 2 === 0) { g.fillStyle = 'rgba(230,220,190,.35)'; g.fillText('·', sx + CS / 2, sy + CS / 2); }
