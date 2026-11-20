@@ -106,9 +106,8 @@
         if (!seen(x, z)) { if (hash(ci, cj) < 0.12) { g.fillStyle = '#1a1e26'; g.fillText('·', sx, sy); } continue; }
         const o = k * 4, r = RP[o], gg = RP[o + 1], bb = RP[o + 2], L = (0.3 * r + 0.59 * gg + 0.11 * bb) / 255, wet = D.Lk[k] || D.R[k] < W.RIVER_W * 1.4;
         if (ST === 'ascii') {
-          const ch = wet ? '≈~'[(ci + cj) & 1] : RAMP[Math.min(9, Math.floor(Math.pow(L, 0.75) * 12))];
-          if (ch === ' ') continue;
-          const k2 = 1.45; g.fillStyle = rgb(Math.min(255, r * k2) | 0, Math.min(255, gg * k2) | 0, Math.min(255, bb * k2) | 0); g.fillText(ch, sx, sy);
+          const Ln = GW.clamp((L - 0.1) / 0.42, 0, 1), ch = wet ? '≈~'[(ci + cj) & 1] : RAMP[Math.min(9, 1 + Math.floor(Ln * 9))];
+          const k2 = 1.55 + 0.9 * Ln; g.fillStyle = rgb(Math.min(255, r * k2) | 0, Math.min(255, gg * k2) | 0, Math.min(255, bb * k2) | 0); g.fillText(ch, sx, sy);
         } else {
           const q = v => Math.min(255, (v * 1.05) & 0xe0) | 0;
           g.fillStyle = rgb(q(r), q(gg), q(bb)); g.fillRect(sx - CS / 2, sy - CS / 2, CS + 0.5, CS + 0.5);
