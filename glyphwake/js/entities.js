@@ -268,7 +268,10 @@
     if (input.roll) this.queued = 'roll';
     for (const k of ['a1', 'a2', 'a3', 'a4']) if (input[k]) this.queued = k;
     if (input.swap && (this.state === 'move' || this.state === 'block')) this.swapArms(G);
-    if (this.wardT > 0) this.wardT -= dt; if (this.mightT > 0) this.mightT -= dt;
+    if (this.wardT > 0) this.wardT -= dt;
+    if (this.wardT > 0) for (let k = 0; k < 6; k++) { const a = G.t * 2.6 + k / 6 * Math.PI * 2;   // the ward's sigils circle you
+      G.hitGlyphs.push({ x: this.pos.x + Math.cos(a) * 1.1, y: this.pos.y + 1.0 + Math.sin(G.t * 3 + k) * 0.25, z: this.pos.z + Math.sin(a) * 1.1, still: true, t: 0, life: 0.05, ch: k % 2 ? '◇' : '⛨', col: '#8ab8ff', size: 15 }); }
+    if (this.state !== 'skill' && !this.model.visible && this.state !== 'dead') this.model.visible = true; if (this.mightT > 0) this.mightT -= dt;
     if (input.potion) this.queued = 'potion';
 
     const faceTarget = () => {

@@ -323,6 +323,22 @@
   G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
+  // a ring of characters flying outward (or inward with a negative speed), no gravity
+  G.glyphRing = function (x, y, z, r, n, chars, col, speed, life, size) {
+    for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + Math.random() * 0.2, sp = speed === undefined ? 6 : speed;
+      G.hitGlyphs.push({ x: x + Math.cos(a) * r, y: y + (Math.random() - 0.5) * 0.3, z: z + Math.sin(a) * r, vx: Math.cos(a) * sp, vy: 0.4, vz: Math.sin(a) * sp, ng: true, t: 0, life: (life || 0.45) * (0.8 + Math.random() * 0.4),
+        ch: chars[Math.floor(Math.random() * chars.length)], col, size }); }
+    if (G.hitGlyphs.length > 320) G.hitGlyphs.splice(0, G.hitGlyphs.length - 320);
+  };
+  // a chain of links between two points this frame: 'o' rings with a stroke between, the stroke angled to the screen
+  const _la = new V3(), _lb = new V3();
+  G.glyphChain = function (a, b, col, linkCol) {
+    _la.set(a.x, a.y, a.z).project(G.camera); _lb.set(b.x, b.y, b.z).project(G.camera);
+    const ang = Math.atan2(-(_lb.y - _la.y) * innerHeight, (_lb.x - _la.x) * innerWidth), st = slashCh(ang);
+    const L = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), n = Math.max(2, Math.round(L / 0.42));
+    for (let k = 0; k <= n; k++) { const t = k / n;
+      G.hitGlyphs.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, still: true, t: 0, life: 0.05, ch: k % 2 ? st : 'o', col: k % 2 ? (linkCol || col) : col, size: k % 2 ? 15 : 17 }); }
+  };
   // glyph lightning: a jagged run of bright characters between two points, flickering for a moment, with a light flash
   G.bolt = function (a, b, col, o) {
     o = o || {}; col = col || '#d8c0ff';
@@ -394,7 +410,7 @@
     G.hitGlyphs = G.hitGlyphs.filter(g => {
       g.t += dt; if (g.t > g.life) return false;
       if (g.follow) { g.x = g.follow.x; g.y = g.follow.y; g.z = g.follow.z; }
-      else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt; }
+      else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; if (!g.ng) g.vy -= 12 * dt; else { g.vx *= 1 - 2.5 * dt; g.vz *= 1 - 2.5 * dt; g.vy *= 1 - 2.5 * dt; } }
       _hg.set(g.x, g.y, g.z).project(G.camera); if (_hg.z > 1) return true;
       if (g.t < 0) return true;
       const k = g.t / g.life;

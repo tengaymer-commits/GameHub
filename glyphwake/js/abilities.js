@@ -5,7 +5,10 @@
   'use strict';
   const GW = window.GW, V3 = THREE.Vector3, TAU = Math.PI * 2;
   const near = (G, x, z, r) => G.enemies.filter(e => e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < r + e.radius);
-  const ring = (G, x, y, z, r, n, col) => { for (let k = 0; k < n; k++) { const a = k / n * TAU; G.parts.spark.emit(x + Math.cos(a) * r, y + 0.3, z + Math.sin(a) * r, Math.cos(a) * 3, 1.5, Math.sin(a) * 3, 0.6, 1.1, col, -2); } };
+  const ring = (G, x, y, z, r, n, col, chars, speed) => {
+    for (let k = 0; k < n; k++) { const a = k / n * TAU; G.parts.spark.emit(x + Math.cos(a) * r, y + 0.3, z + Math.sin(a) * r, Math.cos(a) * 3, 1.5, Math.sin(a) * 3, 0.6, 1.1, col, -2); }
+    G.glyphRing(x, y + 0.6, z, r * 0.6, Math.round(n * 0.6), chars || '*+·', '#' + new THREE.Color(col).getHexString(), speed === undefined ? 7 : speed, 0.5, 16);
+  };
   const line = (G, a, b, col) => { for (let k = 0; k <= 10; k++) { const t = k / 10; G.parts.spark.emit(GW.lerp(a.x, b.x, t) + (Math.random() - 0.5) * 0.5, GW.lerp(a.y, b.y, t) + 1.2 + (Math.random() - 0.5) * 0.6, GW.lerp(a.z, b.z, t) + (Math.random() - 0.5) * 0.5, 0, 0, 0, 0.25, 1.1, col, 0); } };
   const slash = (R, fresh, sp, at) => { if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, at: at || 0, speed: sp || 1.2 }); };
   const cast = (R, fresh, P) => { if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / P.cur.dur * 0.8 }); };
@@ -51,14 +54,14 @@
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
     ward: { name: 'Ward Sigil', g: '⛨', col: '#7aa8ff', cd: 16, fo: 24, dur: 0.4, src: 'craft', recipe: { runes: { ward: 2 }, ingots: { steel: 1 }, shards: 40 },
       desc: 'A sigil of the wall: for 5 seconds you take 60% less damage and cannot be staggered.',
-      start(P, G) { P.wardT = 5; GWAudio.sfx('socket'); ring(G, P.pos.x, P.pos.y + 0.6, P.pos.z, 1.4, 30, 0x7aa8ff); },
+      start(P, G) { P.wardT = 5; GWAudio.sfx('socket'); ring(G, P.pos.x, P.pos.y + 0.6, P.pos.z, 1.4, 30, 0x7aa8ff, '◇⛨', 4); },
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
     nova: { name: 'Rime Nova', g: '❄', col: '#8ae0ff', cd: 9, fo: 30, dur: 0.45, src: 'craft', region: 'frost', recipe: { runes: { frost: 2 }, ingots: { silver: 1 }, shards: 50 },
       desc: 'Frost bursts out around you: damage, and foes within 5 m are chilled (slowed) for 4 s.',
       start(P) { P.fired = false; GWAudio.sfx('cast'); },
       tick(P, G) {
         if (P.t > 0.2 && !P.fired) { P.fired = true; GWAudio.sfx('zap'); G.shake(0.25);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, 2.5, 40, 0x8ae0ff); ring(G, P.pos.x, P.pos.y, P.pos.z, 4.5, 50, 0xd8f4ff);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, 2.5, 40, 0x8ae0ff, '*❄·', 9); ring(G, P.pos.x, P.pos.y, P.pos.z, 4.5, 50, 0xd8f4ff, '*·+', 11);
           for (const e of near(G, P.pos.x, P.pos.z, 5)) { e.status.slow = 4; hit(G, P, e, 1.2, { brk: 1.2 }); } }
       },
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
@@ -91,7 +94,7 @@
       tick(P, G, dt, c) {
         if (P.t > 0.5 && !P.fired) { P.fired = true; GWAudio.sfx('slam'); G.shake(0.6); G.hitstop = 0.08;
           G.parts.dust.burst(P.pos.x, P.pos.y + 0.2, P.pos.z, 30, 6, 0x8a8070, 0.8, 1.4, 0);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, 3.5, 40, 0xe0c090);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, 3.5, 40, 0xe0c090, '#/\\%', 8);
           for (const e of near(G, P.pos.x, P.pos.z, 4)) hit(G, P, e, 2.4, { heavy: true, brk: 4 }); }
         return P.t < 0.5 ? { vx: Math.sin(P.yaw) * 11, vz: Math.cos(P.yaw) * 11 } : { vx: 0, vz: 0 };
       },
@@ -110,23 +113,38 @@
       start(P, G) {
         const W = GW.World; let d = 0;
         while (d < 9) { const p = fwdPos(P, d + 0.5); if (W.blocked(p.x, p.z, 0.4)) break; d += 0.5; }
-        G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 24, 3, 0x9a8aff, 0.6, 1, 0);
-        const p = fwdPos(P, d); P.pos.x = p.x; P.pos.z = p.z; P.iframe = 0.3; P.critNext = true;
-        G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 24, 3, 0x9a8aff, 0.6, 1, 0); GWAudio.sfx('roll');
+        const to = fwdPos(P, d); P.blink = { fx: P.pos.x, fz: P.pos.z, tx: to.x, tz: to.z, arrived: false };
+        P.iframe = 0.36; P.critNext = true; GWAudio.sfx('roll'); GWAudio.sfx('cast');
+        // the body comes apart: ink characters lift off where you stood
+        for (let k = 0; k < 34; k++) { const a = Math.random() * TAU, r = Math.random() * 0.5;
+          G.hitGlyphs.push({ x: P.pos.x + Math.cos(a) * r, y: P.pos.y + 0.2 + Math.random() * 1.8, z: P.pos.z + Math.sin(a) * r, vx: Math.cos(a) * 1.5, vy: 1.5 + Math.random() * 2.5, vz: Math.sin(a) * 1.5, ng: true, t: 0, life: 0.5 + Math.random() * 0.3,
+            ch: '▓▒░%#&'[k % 6], col: k % 3 ? '#9a8aff' : '#3a2a6a', size: 16 }); }
+        // the streak along the way
+        for (let k = 1; k < 18; k++) { const t = k / 18;
+          G.hitGlyphs.push({ x: GW.lerp(P.pos.x, to.x, t), y: P.pos.y + 0.6 + Math.sin(t * Math.PI) * 0.4, z: GW.lerp(P.pos.z, to.z, t), still: true, t: -t * 0.1, life: 0.35, ch: k % 2 ? '≈' : '~', col: '#b8a8ff', size: 15 }); }
       },
-      anim(P, R, b) { b.position.y = -0.4 * (1 - Math.min(1, P.t / 0.2)); } },
+      tick(P, G) {
+        const B = P.blink; if (!B) return;
+        const k = Math.min(1, P.t / 0.12); P.pos.x = GW.lerp(B.fx, B.tx, k); P.pos.z = GW.lerp(B.fz, B.tz, k);
+        if (k >= 1 && !B.arrived) { B.arrived = true;   // ink gathers back into a body
+          G.glyphRing(P.pos.x, P.pos.y + 1.0, P.pos.z, 1.6, 22, '▓▒░%#', '#9a8aff', -11, 0.15, 16);
+          G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 16, 2, 0x9a8aff, 0.5, 1, 0); }
+        return { vx: 0, vz: 0 };
+      },
+      anim(P, R, b) { P.model.visible = P.t > 0.12 || P.state !== 'skill'; b.position.y = -0.3 * (1 - Math.min(1, Math.max(0, P.t - 0.12) / 0.1)); } },
     leech: { name: 'Bloodglyph', g: '♁', col: '#ff5a6a', cd: 9, fo: 30, dur: 0.5, melee: true, src: 'craft', recipe: { runes: { thirst: 2 }, ingots: { gold: 1 }, shards: 60 },
       desc: 'A wide red cut. You heal for 40% of the damage it deals.',
       start() { GWAudio.sfx('swing', 1.2); },
       tick(P, G) {
         if (P.t > 0.16 && P.t < 0.3) coneHits(G, P, 3.4, 1.3, e => { const h0 = e.hp; hit(G, P, e, 1.7, { brk: 1 }); P.hp = Math.min(P.maxHp, P.hp + Math.max(0, h0 - e.hp) * 0.4);
+          for (let q = 0; q < 8; q++) G.hitGlyphs.push({ x: e.pos.x, y: e.pos.y + 1.1, z: e.pos.z, vx: (P.pos.x - e.pos.x) * 3 + (Math.random() - 0.5) * 2, vy: 1 + Math.random(), vz: (P.pos.z - e.pos.z) * 3 + (Math.random() - 0.5) * 2, ng: true, t: -q * 0.03, life: 0.4, ch: '♥+*'[q % 3], col: '#ff5a6a', size: 15 });
           G.parts.blood.burst(e.pos.x, e.pos.y + 1, e.pos.z, 8, 3, 0xd02040, 0.6, 1, -6); });
       },
       anim(P, R, b, fresh) { slash(R, fresh, 1.3); } },
     cry: { name: 'War Cry', g: '‼', col: '#ffcf6a', cd: 20, fo: 20, dur: 0.6, src: 'shop', region: 'high',
       desc: '8 s of +25% damage, +50 stamina, and nearby foes reel.',
       start(P, G) { P.mightT = 8; P.st = Math.min(100, P.st + 50); GWAudio.sfx('roar'); G.shake(0.3);
-        ring(G, P.pos.x, P.pos.y + 0.5, P.pos.z, 2, 36, 0xffcf6a);
+        ring(G, P.pos.x, P.pos.y + 0.5, P.pos.z, 2, 36, 0xffcf6a, '!)(', 10); ring(G, P.pos.x, P.pos.y + 1.2, P.pos.z, 1.2, 24, 0xffe8a0, '!', 6);
         for (const e of near(G, P.pos.x, P.pos.z, 6)) if (!e.T.boss) { e.setState('stagger'); e.aggro = true; } },
       anim(P, R, b, fresh) { if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.05 }); b.rotation.x = -0.25; } },
     hook: { name: 'Ink Chain', g: '⌐', col: '#a0a8c0', cd: 7, fo: 16, dur: 0.4, src: 'find',
@@ -136,12 +154,33 @@
         for (const e of G.enemies) { if (!e.alive) continue; const dx = e.pos.x - P.pos.x, dz = e.pos.z - P.pos.z, d = Math.hypot(dx, dz);
           if (d < bd && Math.abs(GW.angDiff(P.yaw, Math.atan2(dx, dz))) < 0.5) { bd = d; best = e; } }
         GWAudio.sfx('swing', 0.8);
-        if (!best) return;
-        line(G, P.pos, best.pos, 0xa0a8c0);
-        if (!best.T.boss) { const p = fwdPos(P, 1.8 + best.radius); best.pos.x = p.x; best.pos.z = p.z; best.setState('stagger'); }
-        hit(G, P, best, 0.8, { brk: 1.5 });
+        const miss = fwdPos(P, 12);
+        P.hook = { e: best, latched: false, mx: miss.x, mz: miss.z, sx: best ? best.pos.x : 0, sz: best ? best.pos.z : 0 };
       },
-      anim(P, R, b, fresh) { cast(R, fresh, P); } },
+      tick(P, G) {
+        const H = P.hook; if (!H) return;
+        const hand = new THREE.Vector3(); (P.sword || P.model).getWorldPosition(hand);
+        const e = H.e && H.e.alive ? H.e : null, T_OUT = 0.13, T_PULL = 0.36;
+        let tip;
+        if (P.t < T_OUT) {   // the chain flies out
+          const k = P.t / T_OUT, tx = e ? e.pos.x : H.mx, tz = e ? e.pos.z : H.mz, ty = e ? e.pos.y + 1.0 : P.pos.y + 1.0;
+          tip = { x: GW.lerp(hand.x, tx, k), y: GW.lerp(hand.y, ty, k), z: GW.lerp(hand.z, tz, k) };
+        } else if (e) {
+          if (!H.latched) { H.latched = true; GWAudio.sfx('block'); hit(G, P, e, 0.8, { brk: 1.5 }); if (!e.T.boss) { e.setState('stagger'); H.sx = e.pos.x; H.sz = e.pos.z; } G.addHitGlyphs(e.pos.x, e.pos.y + 1, e.pos.z, 8, '#c8ccd8'); }
+          if (!e.T.boss && P.t < T_PULL) {   // reel it in
+            const k = (P.t - T_OUT) / (T_PULL - T_OUT), q = 1 - Math.pow(1 - k, 3), dest = fwdPos(P, 1.8 + e.radius);
+            e.pos.x = GW.lerp(H.sx, dest.x, q); e.pos.z = GW.lerp(H.sz, dest.z, q);
+            if (Math.random() < 0.6) G.parts.dust.emit(e.pos.x, e.pos.y + 0.1, e.pos.z, 0, 0.5, 0, 0.4, 0.9, 0x8a8070, 0);
+          }
+          tip = { x: e.pos.x, y: e.pos.y + 1.0, z: e.pos.z };
+        } else {   // missed: it snaps back
+          const k = Math.min(1, (P.t - T_OUT) / 0.15);
+          tip = { x: GW.lerp(H.mx, hand.x, k), y: P.pos.y + 1.0, z: GW.lerp(H.mz, hand.z, k) };
+        }
+        if (P.t < T_PULL + 0.02 && Math.hypot(tip.x - hand.x, tip.z - hand.z) > 0.4) G.glyphChain(hand, tip, '#d8dce8', '#8a7aff');
+        return { vx: 0, vz: 0 };
+      },
+      anim(P, R, b, fresh) { cast(R, fresh, P); b.rotation.x = P.t > 0.13 ? -0.18 : 0.1; } },
     snare: { name: 'Web Snare', g: '⌗', col: '#e0e8ff', cd: 12, fo: 26, dur: 0.4, src: 'boss', boss: 'widow',
       desc: 'Torn from the Dusk Widow. Sticky silk roots every foe within 6 m for 3 s.',
       start(P, G) { G.webBurst && G.webBurst(P.pos.x, P.pos.z); GWAudio.sfx('cast');
@@ -153,7 +192,7 @@
       tick(P, G) {
         const want = P.t > 0.55 ? 3 : P.t > 0.4 ? 2 : P.t > 0.25 ? 1 : 0;
         while (P.fired < want) { P.fired++; const r = 2.6 * P.fired; GWAudio.sfx('slam'); G.shake(0.35);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, r, 30 + P.fired * 12, 0xd8a060);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, r, 30 + P.fired * 12, 0xd8a060, '≈~#', 6);
           for (const e of near(G, P.pos.x, P.pos.z, r)) if (Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z) > r - 2.8 - e.radius) hit(G, P, e, 1.5, { heavy: true, brk: 2.5 }); }
       },
       anim(P, R, b, fresh) { slash(R, fresh, 0.8); b.rotation.x = 0.35; } },
@@ -175,7 +214,7 @@
       tick(P, G) {
         if (P.t > 0.72 && !P.fired) { P.fired = true; GWAudio.sfx('boom'); GWAudio.sfx('slam'); G.shake(0.9); G.hitstop = 0.12;
           G.parts.spark.burst(P.pos.x, P.pos.y + 0.4, P.pos.z, 50, 9, 0xff9050, 0.9, 1.4, -4, 2);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, 5, 60, 0xff6a2a);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, 5, 60, 0xff6a2a, '*#^%', 10);
           for (const e of near(G, P.pos.x, P.pos.z, 6)) { hit(G, P, e, 3.2, { heavy: true, brk: 4 }); if (e.alive) { e.status.burn = 3; e.status.burnD = Math.max(1, P.ws.dmg * 0.3); } } }
         return P.t < 0.72 ? { vx: Math.sin(P.yaw) * 8, vz: Math.cos(P.yaw) * 8 } : { vx: 0, vz: 0 };
       },
@@ -222,7 +261,8 @@
     A.zones = A.zones.filter(z => {
       z.t -= dt; z.tick -= dt;
       if (Math.random() < 0.9) { const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * z.r, y = GW.World.heightAt(z.x, z.z);
-        G.parts.spark.emit(z.x + Math.cos(a) * r, y + 0.3 + Math.random(), z.z + Math.sin(a) * r, 0, 0.6, 0, 1.2, 1.4, 0x7aff5a, 0); }
+        G.parts.spark.emit(z.x + Math.cos(a) * r, y + 0.3 + Math.random(), z.z + Math.sin(a) * r, 0, 0.6, 0, 1.2, 1.4, 0x7aff5a, 0);
+        if (Math.random() < 0.6) G.hitGlyphs.push({ x: z.x + Math.cos(a) * r, y: y + 0.3 + Math.random() * 1.2, z: z.z + Math.sin(a) * r, vx: (Math.random() - 0.5) * 0.6, vy: 0.5, vz: (Math.random() - 0.5) * 0.6, ng: true, t: 0, life: 0.9, ch: '~%;:'[Math.floor(Math.random() * 4)], col: Math.random() < 0.5 ? '#8aff6a' : '#5ab84a', size: 15 }); }
       if (z.tick <= 0) { z.tick = 0.5;
         for (const e of near(G, z.x, z.z, z.r)) { e.status.poison = Math.max(e.status.poison, 2); e.status.poisonD = Math.max(e.status.poisonD || 0, z.dmg); e.aggro = true; } }
       return z.t > 0;
