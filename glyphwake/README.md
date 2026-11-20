@@ -101,6 +101,24 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Hero movesets**: each weapon has its own key poses (`js/moves.js`, two-bone IK on the rig): sword forehand / backhand / overhead chop, greatsword sweeps and a jumping slam, spear thrusts (mid, low, high) and a spinning sweep, dagger jabs from alternating hands and an X-cut, and a bow draw and loose. Snappy timing: hold the anticipation, snap in about 5 frames, hold the follow-through. Swings leave glyph arcs (`/ | \ -`) in the blade's colour that flicker and shed characters.
 - **Warnings** above enemies: yellow `◇` means you can block or parry it; red `!` means it's unblockable, so dodge.
 
+## Ore, mining and smelting
+- **Veins** (a boulder studded with glowing crystals in the ore's colour) appear across the world, about one every 100 m. Press **E** to swing three times and take 1–3 ore. Veins grow back after 20 minutes.
+- **Each region is where you go for something:**
+
+| Region | Ores |
+|---|---|
+| Vale | iron, copper, coal |
+| Highlands | iron, copper, silver, coal |
+| Frostmere | rimesteel, silver |
+| Ashen Barrens | coal, emberite |
+| Salt Wastes | salt crystal, gold |
+| Mire | bog-iron |
+| Duskwood | duskglass shards |
+
+  Rare **starfall** veins appear beyond 2.4 km.
+- **Smelt at any anvil** (the Forge's new section): 2 ore + coal → 1 ingot. Steel needs 2 iron ore + 2 coal, rimesteel adds an iron ore, and saltglass and duskglass need no fuel. Traders sell coal (3 for 10 shards).
+- **New metals with built-in traits:** **Emberite** (hits burn), **Rimesteel** (hits chill), **Saltglass** (+12% crit, +4% speed), **Bog-iron** (hits poison).
+
 ## Skill tree (Book → Skills)
 One point per level; reset is free while testing. Deeper rows need 2, 4 or 6 points already spent in that branch.
 - **Blade:** Honed Edge (+6% damage per rank), Flow (cheaper light attacks), Quick Draw (faster charge), Momentum (deeper combo hits hit harder), Sunder (+break), Keen Eye (+crit), Executioner (finishers +50% and heal more), Shatterpoint (reactions +40%).

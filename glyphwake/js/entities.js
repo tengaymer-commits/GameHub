@@ -410,6 +410,11 @@
         if (!input.block) { this.state = 'move'; this.t = 0; }
         break;
       }
+      case 'mine': {   // a swing at the vein in front of you
+        if (this.t > 0.3 && !this.fired) { this.fired = true; if (this.mineIt) G.mineHit(this.mineIt); }
+        if (this.t > 0.6) { this.state = 'move'; this.t = 0; }
+        break;
+      }
       case 'finisher': {
         const e = this.finTarget;
         if (e && e.alive) { const d = e.distTo(this.pos); if (d > 1.6) { vx = Math.sin(this.yaw) * 9; vz = Math.cos(this.yaw) * 9; } }
@@ -508,6 +513,7 @@
         break;
       }
       case 'block': R.play('Idle_Sword', { fade: 0.1 }); pose = GW.Moves.mix(null, GW.Moves.K[GW.Moves.BLOCK[GW.Arms.curKey(this)]], Math.min(1, this.t / 0.07)); break;
+      case 'mine': R.play('Idle_Sword', { fade: 0.06 }); pose = GW.Moves.attackPose('sw_chop_a', 'sw_chop_s', this.t, 0.3, 0.6); break;
       case 'finisher': { R.play('Idle_Sword', { fade: 0.05 }); const hv = GW.Moves.HEAVY[GW.Arms.curKey(this)]; pose = GW.Moves.attackPose(hv[0], hv[1], this.t, 0.42, 0.8); b.position.y += Math.sin(GW.clamp(this.t / 0.42, 0, 1) * Math.PI) * 0.5; break; }
       case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
       case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;

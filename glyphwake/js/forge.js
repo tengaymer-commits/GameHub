@@ -11,7 +11,43 @@
     gold: { name: 'Gold', glyph: '0o', color: 0xffd060, glow: 0xffc040, dmg: 15, xp: 0.3, desc: '+30% experience and drop chance.' },
     duskglass: { name: 'Duskglass', glyph: 'N/', color: 0x6a4aff, glow: 0x8a6aff, dmg: 21, focus: 0.7, desc: '+70% focus regeneration.' },
     starfall: { name: 'Starfall', glyph: '*+', color: 0x9ae8ff, glow: 0x6ae0ff, dmg: 27, crit: 0.08, speed: 0.05, desc: 'Metal from a fallen star. +8% crit, +5% speed.' },
+    // region metals: smelted from ores found only in their own lands
+    emberite: { name: 'Emberite', glyph: '^%', color: 0xff7a3a, glow: 0xff5a1a, dmg: 20, burn: 0.15, desc: 'Ashen Barrens ore. Hits burn (15% of the hit over 3s).' },
+    rimesteel: { name: 'Rimesteel', glyph: '*%', color: 0xa8e0ff, glow: 0x8ad8ff, dmg: 19, slow: 1, desc: 'Frostmere ore. Hits chill: foes slow for 2s.' },
+    saltglass: { name: 'Saltglass', glyph: '<>', color: 0xf4ecd8, glow: 0xfff4d0, dmg: 17, crit: 0.12, speed: 0.04, desc: 'Salt Wastes crystal. +12% crit, +4% speed.' },
+    bogiron: { name: 'Bog-iron', glyph: '~#', color: 0x7a8a4a, glow: 0x9aff6a, dmg: 18, poison: 0.05, desc: 'Mire ore. Hits poison (stacks).' },
   };
+  // ores: mined from veins (each region has its own mix), smelted at an anvil
+  const ORES = {
+    iron_ore: { name: 'Iron ore', g: '■', color: 0x9aa0a8 },
+    copper: { name: 'Copper ore', g: '■', color: 0xd88a4a },
+    coal: { name: 'Coal', g: '●', color: 0x4a4a52, fuel: true },
+    silver_ore: { name: 'Silver ore', g: '■', color: 0xe8ecff },
+    gold_ore: { name: 'Gold ore', g: '■', color: 0xffd060 },
+    ember: { name: 'Emberite ore', g: '◆', color: 0xff7a3a },
+    rime: { name: 'Rimesteel ore', g: '◆', color: 0xa8e0ff },
+    saltc: { name: 'Salt crystal', g: '◇', color: 0xf4ecd8 },
+    bog: { name: 'Bog-iron', g: '◆', color: 0x9aaa5a },
+    dusk: { name: 'Duskglass shard', g: '◇', color: 0x8a6aff },
+    star: { name: 'Starfall fragment', g: '✦', color: 0x9ae8ff },
+  };
+  // what each region's veins hold (weights) — every region is "the place you go for" something
+  const VEINS = {
+    vale: { iron_ore: 0.55, copper: 0.3, coal: 0.15 },
+    high: { iron_ore: 0.35, copper: 0.3, silver_ore: 0.12, coal: 0.23 },
+    frost: { rime: 0.45, silver_ore: 0.35, iron_ore: 0.2 },
+    ash: { coal: 0.45, ember: 0.35, iron_ore: 0.2 },
+    salt: { saltc: 0.45, gold_ore: 0.35, copper: 0.2 },
+    mire: { bog: 0.5, coal: 0.2, iron_ore: 0.3 },
+    dusk: { dusk: 0.5, silver_ore: 0.2, iron_ore: 0.3 },
+  };
+  // smelting: ore (+ coal as fuel) -> ingot
+  const SMELT = [
+    { out: 'iron', ore: { iron_ore: 2, coal: 1 } }, { out: 'bronze', ore: { copper: 2, coal: 1 } }, { out: 'steel', ore: { iron_ore: 2, coal: 2 } },
+    { out: 'silver', ore: { silver_ore: 2, coal: 1 } }, { out: 'gold', ore: { gold_ore: 2, coal: 1 } },
+    { out: 'emberite', ore: { ember: 2, coal: 1 } }, { out: 'rimesteel', ore: { rime: 2, iron_ore: 1, coal: 1 } }, { out: 'saltglass', ore: { saltc: 3 } },
+    { out: 'bogiron', ore: { bog: 2, coal: 1 } }, { out: 'duskglass', ore: { dusk: 3 } }, { out: 'starfall', ore: { star: 2, coal: 1 } },
+  ];
   const RUNES = {
     ember: { name: 'Ember', g: '^', color: 0xff7a2a, adj: 'Searing', of: 'of Cinders', desc: 'Hits set foes burning (25% of hit over 3s).' },
     frost: { name: 'Frost', g: '*', color: 0x8ae0ff, adj: 'Rimed', of: 'of Ice', desc: 'Hits chill: foes move 40% slower for 2s.' },
@@ -23,12 +59,14 @@
     vigor: { name: 'Vigor', g: '+', color: 0xff6a6a, adj: 'Hale', of: 'of the Heart', desc: '+20 maximum health.' },
     thirst: { name: 'Thirst', g: '&', color: 0xd02040, adj: 'Thirsting', of: 'of the Leech', desc: 'Heal 3% of damage dealt.' },
   };
-  const F = GW.Forge = { METALS, RUNES };
+  const F = GW.Forge = { METALS, RUNES, ORES, VEINS, SMELT };
+  F.canSmelt = (P, r) => Object.entries(r.ore).every(([k, n]) => ((P.inv.ores || {})[k] || 0) >= n);
+  F.smelt = (P, r) => { if (!F.canSmelt(P, r)) return false; for (const [k, n] of Object.entries(r.ore)) P.inv.ores[k] -= n; P.inv.ingots[r.out] = (P.inv.ingots[r.out] || 0) + 1; return true; };
 
   F.weaponStats = function (w, level) {
     const m = METALS[w.metal];
     const s = { dmg: m.dmg * (1 + 0.08 * (level - 1)), crit: 0.05 + (m.crit || 0), speed: 1 + (m.speed || 0), undead: m.undead || 0, xp: m.xp || 0,
-      focusRegen: 1 + (m.focus || 0), burn: 0, slow: 0, chain: 0, poison: 0, ward: 0, vigor: 0, steal: 0 };
+      focusRegen: 1 + (m.focus || 0), burn: m.burn || 0, slow: m.slow || 0, chain: 0, poison: m.poison || 0, ward: 0, vigor: 0, steal: 0 };
     const cols = [];
     for (const r of w.runes) {
       if (!r) continue; cols.push(RUNES[r].color);
@@ -203,6 +241,19 @@
     tb.disabled = !can;
     tb.textContent = sel === w.metal ? 'Blade is tempered' : can ? 'Reforge in ' + METALS[sel].name + (sel === 'iron' ? '' : ' (1 ingot)') : 'Need a ' + METALS[sel].name + ' ingot';
     view.set(sel, w.runes);
+    // smelting
+    const sm = document.getElementById('f-smelt'); if (sm) { sm.innerHTML = '';
+      const ores = P.inv.ores || {}, hex = c => '#' + c.toString(16).padStart(6, '0');
+      for (const r of SMELT) {
+        const M = METALS[r.out], ok = F.canSmelt(P, r);
+        const need = Object.entries(r.ore).map(([k, n]) => `<span style="color:${hex(ORES[k].color)}">${ORES[k].g}</span>${(ores[k] || 0)}/${n}`).join(' ');
+        const b = document.createElement('button'); b.className = 'chip smelt' + (ok ? '' : ' off');
+        b.innerHTML = `${need} → <span style="color:${hex(M.color)}">${M.glyph}</span> ${M.name}`;
+        b.onclick = () => { if (!F.smelt(P, r)) { G.ui.toast('Not enough ore: ' + Object.entries(r.ore).map(([k, n]) => n + ' ' + ORES[k].name).join(', '), 1.8); return; }
+          GWAudio.sfx('anvil'); G.ui.toast(`<span style="color:${hex(M.color)}">${M.glyph}</span> ${M.name} ingot smelted`, 1.6); G.save(); F.render(); };
+        tip(b, M.name + ' ingot\n' + M.desc + '\nneeds ' + Object.entries(r.ore).map(([k, n]) => n + ' ' + ORES[k].name).join(' + '));
+        sm.appendChild(b);
+      } }
   };
   function tip(el, text) {
     const t = document.getElementById('f-tip');

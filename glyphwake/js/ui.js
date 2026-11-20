@@ -243,6 +243,8 @@
     const runes = Object.entries(inv.runes).filter(([, n]) => n > 0);
     h += '<div class="sec">RUNES</div>' + (runes.length ? runes.map(([k, n]) => row(`<span style="color:${hex(F.RUNES[k].color)}">${F.RUNES[k].g}</span> ${F.RUNES[k].name}`, '×' + n)).join('') : row('·', ''));
     const ing = Object.entries(inv.ingots).filter(([, n]) => n > 0);
+    const ore = Object.entries(inv.ores || {}).filter(([, n]) => n > 0);
+    h += '<div class="sec">ORE & FUEL (smelt at an anvil)</div>' + (ore.length ? ore.map(([k, n]) => row(`<span style="color:${hex(F.ORES[k].color)}">${F.ORES[k].g}</span> ${F.ORES[k].name}`, '×' + n)).join('') : row('·', ''));
     h += '<div class="sec">INGOTS</div>' + (ing.length ? ing.map(([k, n]) => row(`<span style="color:${hex(F.METALS[k].color)}">${F.METALS[k].glyph}</span> ${F.METALS[k].name}`, '×' + n)).join('') : row('·', ''));
     const arm = Object.keys(inv.armor || {}).map(k => { const sl = K.SLOTS.find(s => K.GEAR[s][k]); return sl ? K.GEAR[sl][k] : null; }).filter(Boolean);
     h += '<div class="sec">ARMOUR (wear it in Gear · C)</div>' + arm.map(it => row(`<span style="color:${hex(it.color)}">${K.pattern(it.set)}</span> ${it.name}`, '')).join('');

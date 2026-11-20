@@ -265,6 +265,8 @@ body.touch #hotbar { display: none; }
 /* fusion ready: ability slots glow in the element's colour */
 .hs.fuse { box-shadow: 0 0 0 2px var(--fz, #ffd860), 0 0 14px var(--fz, #ffd860); animation: fusepulse .45s ease-in-out infinite alternate; }
 @keyframes fusepulse { from { filter: brightness(1); } to { filter: brightness(1.6); } }
+#f-side { max-height: calc(100vh - 150px); overflow-y: auto; }
+#f-smelt .chip.smelt { font-size: 11px; padding: 4px 7px; margin: 2px 0; width: 100%; text-align: left; }
 
 </style>
 </head>
@@ -334,6 +336,8 @@ body.touch #hotbar { display: none; }
     <div id="f-slots"></div>
     <div id="f-stats"></div>
     <button id="f-temper" class="btn">Temper blade</button>
+    <div class="f-sec">Smelt ore into ingots</div>
+    <div id="f-smelt" class="f-row"></div>
   </div>
   <div class="f-foot">drag: turn · wheel / pinch: zoom · tap a slot to remove a rune</div>
   <div id="f-tip" class="hidden"></div>
@@ -7909,6 +7913,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       default: break;   // ambush: nothing to see until it is too late
     }
   }
+  const CRYSTAL_G = new THREE.OctahedronGeometry(0.22, 0), crystalMats = {};
+  const crystalMat = c => crystalMats[c] || (crystalMats[c] = GW.mat({ id: ID.RUNE, color: 0, emissive: c, unlit: true }));
   function genChunk(ci, cj, scene) {
     const rnd = GW.rand(((ci * 7919 + cj * 104729) >>> 0) % 2147483646 + 1);
     const batch = new Batch(), cols = [];
@@ -7927,6 +7933,22 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const x0 = ci * CHK, z0 = cj * CHK, inter = [];
     // points of interest whose centre lies in this chunk
     for (const p of W.poisNear(x0 + CHK / 2, z0 + CHK / 2, CHK)) if (p.x >= x0 && p.x < x0 + CHK && p.z >= z0 && p.z < z0 + CHK) buildPOI(p, (n, x, z, s, col, bio, tint) => kit(n, x, z, s, col, bio, tint), cols, inter);
+    // ore veins: a boulder studded with glowing crystals in the ore's colour (own RNG, so the scatter below is unchanged)
+    const veinGroups = [];
+    { const vr = GW.rand(((ci * 3571 + cj * 92821) >>> 0) % 2147483646 + 7), F = GW.Forge;
+      for (let k = 0; k < 2; k++) {
+        const x = x0 + 8 + vr() * (CHK - 16), z = z0 + 8 + vr() * (CHK - 16), bio = W.regionAt(x, z), roll = vr(), pick = vr();
+        if (roll > (bio === 'high' || bio === 'ash' ? 0.6 : 0.42) || !chunkFree(x, z, 2.6)) continue;
+        let ore = 'iron_ore', acc = 0; for (const [o, wgt] of Object.entries(F.VEINS[bio] || F.VEINS.vale)) { acc += wgt; if (pick < acc) { ore = o; break; } }
+        if (Math.hypot(x, z) > 2400 && vr() < 0.05) ore = 'star';
+        const id = 'v:' + ci + ',' + cj + ',' + k, col = F.ORES[ore].color;
+        kit('kit_rock_b', x, z, 0.85, 1.1, bio, new THREE.Color(0.8, 0.8, 0.82));
+        const g = new THREE.Group(), y = W.heightAt(x, z), cm = crystalMat(col);
+        for (let q = 0; q < 6; q++) { const a = q / 6 * Math.PI * 2 + vr(), r = 0.5 + vr() * 0.9, m = new THREE.Mesh(CRYSTAL_G, cm);
+          m.position.set(x + Math.cos(a) * r, y + 0.6 + vr() * 0.9, z + Math.sin(a) * r); m.rotation.set(vr() * 3, vr() * 3, vr() * 3); m.scale.set(0.8 + vr() * 0.6, 1.3 + vr() * 1.2, 0.8 + vr() * 0.6); g.add(m); }
+        g.visible = !(W.isMined && W.isMined(id)); scene.add(g); veinGroups.push(g);
+        inter.push({ type: 'vein', id, ore, x, z, r: 2.8, label: 'Mine the ' + F.ORES[ore].name.toLowerCase(), crystals: g, lvl: 1 + Math.floor(Math.hypot(x, z) / 280) });
+      } }
     inter.forEach(it => W.interact.push(it));
     for (let k = 0; k < 90; k++) {
       const x = x0 + rnd() * CHK, z = z0 + rnd() * CHK;
@@ -7954,7 +7976,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         else if (roll > 0.955) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.45 + rnd() * 0.6, 0.85, 'vale'); }
       }
     }
-    const meshes = []; batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
+    const meshes = veinGroups.slice(); batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
     return { meshes, cols, inter };
   }
   W.stream = function (px, pz, scene, budget) {
@@ -7971,7 +7993,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     for (const [key, c] of chunks) {
       const [ci, cj] = key.split(',').map(Number), cx = (ci + 0.5) * CHK, cz = (cj + 0.5) * CHK;
       if (Math.hypot(cx - px, cz - pz) < DROP_R) continue;
-      if (c) { c.meshes.forEach(m => { scene.remove(m); m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider);
+      if (c) { c.meshes.forEach(m => { scene.remove(m); if (m.dispose) m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider);
         if (c.inter && c.inter.length) W.interact = W.interact.filter(it => !c.inter.includes(it)); }
       chunks.delete(key);
     }
@@ -9321,6 +9343,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         if (!input.block) { this.state = 'move'; this.t = 0; }
         break;
       }
+      case 'mine': {   // a swing at the vein in front of you
+        if (this.t > 0.3 && !this.fired) { this.fired = true; if (this.mineIt) G.mineHit(this.mineIt); }
+        if (this.t > 0.6) { this.state = 'move'; this.t = 0; }
+        break;
+      }
       case 'finisher': {
         const e = this.finTarget;
         if (e && e.alive) { const d = e.distTo(this.pos); if (d > 1.6) { vx = Math.sin(this.yaw) * 9; vz = Math.cos(this.yaw) * 9; } }
@@ -9419,6 +9446,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         break;
       }
       case 'block': R.play('Idle_Sword', { fade: 0.1 }); pose = GW.Moves.mix(null, GW.Moves.K[GW.Moves.BLOCK[GW.Arms.curKey(this)]], Math.min(1, this.t / 0.07)); break;
+      case 'mine': R.play('Idle_Sword', { fade: 0.06 }); pose = GW.Moves.attackPose('sw_chop_a', 'sw_chop_s', this.t, 0.3, 0.6); break;
       case 'finisher': { R.play('Idle_Sword', { fade: 0.05 }); const hv = GW.Moves.HEAVY[GW.Arms.curKey(this)]; pose = GW.Moves.attackPose(hv[0], hv[1], this.t, 0.42, 0.8); b.position.y += Math.sin(GW.clamp(this.t / 0.42, 0, 1) * Math.PI) * 0.5; break; }
       case 'potion': if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.1, speed: R.dur('Interact') / this.cur.dur * 0.9 }); break;
       case 'hurt': if (fresh) R.play(Math.random() < 0.5 ? 'HitRecieve' : 'HitRecieve_2', { loop: false, restart: true, fade: 0.05, speed: 1.7 }); break;
@@ -10716,7 +10744,43 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     gold: { name: 'Gold', glyph: '0o', color: 0xffd060, glow: 0xffc040, dmg: 15, xp: 0.3, desc: '+30% experience and drop chance.' },
     duskglass: { name: 'Duskglass', glyph: 'N/', color: 0x6a4aff, glow: 0x8a6aff, dmg: 21, focus: 0.7, desc: '+70% focus regeneration.' },
     starfall: { name: 'Starfall', glyph: '*+', color: 0x9ae8ff, glow: 0x6ae0ff, dmg: 27, crit: 0.08, speed: 0.05, desc: 'Metal from a fallen star. +8% crit, +5% speed.' },
+    // region metals: smelted from ores found only in their own lands
+    emberite: { name: 'Emberite', glyph: '^%', color: 0xff7a3a, glow: 0xff5a1a, dmg: 20, burn: 0.15, desc: 'Ashen Barrens ore. Hits burn (15% of the hit over 3s).' },
+    rimesteel: { name: 'Rimesteel', glyph: '*%', color: 0xa8e0ff, glow: 0x8ad8ff, dmg: 19, slow: 1, desc: 'Frostmere ore. Hits chill: foes slow for 2s.' },
+    saltglass: { name: 'Saltglass', glyph: '<>', color: 0xf4ecd8, glow: 0xfff4d0, dmg: 17, crit: 0.12, speed: 0.04, desc: 'Salt Wastes crystal. +12% crit, +4% speed.' },
+    bogiron: { name: 'Bog-iron', glyph: '~#', color: 0x7a8a4a, glow: 0x9aff6a, dmg: 18, poison: 0.05, desc: 'Mire ore. Hits poison (stacks).' },
   };
+  // ores: mined from veins (each region has its own mix), smelted at an anvil
+  const ORES = {
+    iron_ore: { name: 'Iron ore', g: '■', color: 0x9aa0a8 },
+    copper: { name: 'Copper ore', g: '■', color: 0xd88a4a },
+    coal: { name: 'Coal', g: '●', color: 0x4a4a52, fuel: true },
+    silver_ore: { name: 'Silver ore', g: '■', color: 0xe8ecff },
+    gold_ore: { name: 'Gold ore', g: '■', color: 0xffd060 },
+    ember: { name: 'Emberite ore', g: '◆', color: 0xff7a3a },
+    rime: { name: 'Rimesteel ore', g: '◆', color: 0xa8e0ff },
+    saltc: { name: 'Salt crystal', g: '◇', color: 0xf4ecd8 },
+    bog: { name: 'Bog-iron', g: '◆', color: 0x9aaa5a },
+    dusk: { name: 'Duskglass shard', g: '◇', color: 0x8a6aff },
+    star: { name: 'Starfall fragment', g: '✦', color: 0x9ae8ff },
+  };
+  // what each region's veins hold (weights) — every region is "the place you go for" something
+  const VEINS = {
+    vale: { iron_ore: 0.55, copper: 0.3, coal: 0.15 },
+    high: { iron_ore: 0.35, copper: 0.3, silver_ore: 0.12, coal: 0.23 },
+    frost: { rime: 0.45, silver_ore: 0.35, iron_ore: 0.2 },
+    ash: { coal: 0.45, ember: 0.35, iron_ore: 0.2 },
+    salt: { saltc: 0.45, gold_ore: 0.35, copper: 0.2 },
+    mire: { bog: 0.5, coal: 0.2, iron_ore: 0.3 },
+    dusk: { dusk: 0.5, silver_ore: 0.2, iron_ore: 0.3 },
+  };
+  // smelting: ore (+ coal as fuel) -> ingot
+  const SMELT = [
+    { out: 'iron', ore: { iron_ore: 2, coal: 1 } }, { out: 'bronze', ore: { copper: 2, coal: 1 } }, { out: 'steel', ore: { iron_ore: 2, coal: 2 } },
+    { out: 'silver', ore: { silver_ore: 2, coal: 1 } }, { out: 'gold', ore: { gold_ore: 2, coal: 1 } },
+    { out: 'emberite', ore: { ember: 2, coal: 1 } }, { out: 'rimesteel', ore: { rime: 2, iron_ore: 1, coal: 1 } }, { out: 'saltglass', ore: { saltc: 3 } },
+    { out: 'bogiron', ore: { bog: 2, coal: 1 } }, { out: 'duskglass', ore: { dusk: 3 } }, { out: 'starfall', ore: { star: 2, coal: 1 } },
+  ];
   const RUNES = {
     ember: { name: 'Ember', g: '^', color: 0xff7a2a, adj: 'Searing', of: 'of Cinders', desc: 'Hits set foes burning (25% of hit over 3s).' },
     frost: { name: 'Frost', g: '*', color: 0x8ae0ff, adj: 'Rimed', of: 'of Ice', desc: 'Hits chill: foes move 40% slower for 2s.' },
@@ -10728,12 +10792,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     vigor: { name: 'Vigor', g: '+', color: 0xff6a6a, adj: 'Hale', of: 'of the Heart', desc: '+20 maximum health.' },
     thirst: { name: 'Thirst', g: '&', color: 0xd02040, adj: 'Thirsting', of: 'of the Leech', desc: 'Heal 3% of damage dealt.' },
   };
-  const F = GW.Forge = { METALS, RUNES };
+  const F = GW.Forge = { METALS, RUNES, ORES, VEINS, SMELT };
+  F.canSmelt = (P, r) => Object.entries(r.ore).every(([k, n]) => ((P.inv.ores || {})[k] || 0) >= n);
+  F.smelt = (P, r) => { if (!F.canSmelt(P, r)) return false; for (const [k, n] of Object.entries(r.ore)) P.inv.ores[k] -= n; P.inv.ingots[r.out] = (P.inv.ingots[r.out] || 0) + 1; return true; };
 
   F.weaponStats = function (w, level) {
     const m = METALS[w.metal];
     const s = { dmg: m.dmg * (1 + 0.08 * (level - 1)), crit: 0.05 + (m.crit || 0), speed: 1 + (m.speed || 0), undead: m.undead || 0, xp: m.xp || 0,
-      focusRegen: 1 + (m.focus || 0), burn: 0, slow: 0, chain: 0, poison: 0, ward: 0, vigor: 0, steal: 0 };
+      focusRegen: 1 + (m.focus || 0), burn: m.burn || 0, slow: m.slow || 0, chain: 0, poison: m.poison || 0, ward: 0, vigor: 0, steal: 0 };
     const cols = [];
     for (const r of w.runes) {
       if (!r) continue; cols.push(RUNES[r].color);
@@ -10908,6 +10974,19 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     tb.disabled = !can;
     tb.textContent = sel === w.metal ? 'Blade is tempered' : can ? 'Reforge in ' + METALS[sel].name + (sel === 'iron' ? '' : ' (1 ingot)') : 'Need a ' + METALS[sel].name + ' ingot';
     view.set(sel, w.runes);
+    // smelting
+    const sm = document.getElementById('f-smelt'); if (sm) { sm.innerHTML = '';
+      const ores = P.inv.ores || {}, hex = c => '#' + c.toString(16).padStart(6, '0');
+      for (const r of SMELT) {
+        const M = METALS[r.out], ok = F.canSmelt(P, r);
+        const need = Object.entries(r.ore).map(([k, n]) => `<span style="color:${hex(ORES[k].color)}">${ORES[k].g}</span>${(ores[k] || 0)}/${n}`).join(' ');
+        const b = document.createElement('button'); b.className = 'chip smelt' + (ok ? '' : ' off');
+        b.innerHTML = `${need} → <span style="color:${hex(M.color)}">${M.glyph}</span> ${M.name}`;
+        b.onclick = () => { if (!F.smelt(P, r)) { G.ui.toast('Not enough ore: ' + Object.entries(r.ore).map(([k, n]) => n + ' ' + ORES[k].name).join(', '), 1.8); return; }
+          GWAudio.sfx('anvil'); G.ui.toast(`<span style="color:${hex(M.color)}">${M.glyph}</span> ${M.name} ingot smelted`, 1.6); G.save(); F.render(); };
+        tip(b, M.name + ' ingot\n' + M.desc + '\nneeds ' + Object.entries(r.ore).map(([k, n]) => n + ' ' + ORES[k].name).join(' + '));
+        sm.appendChild(b);
+      } }
   };
   function tip(el, text) {
     const t = document.getElementById('f-tip');
@@ -11184,6 +11263,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const runes = Object.entries(inv.runes).filter(([, n]) => n > 0);
     h += '<div class="sec">RUNES</div>' + (runes.length ? runes.map(([k, n]) => row(`<span style="color:${hex(F.RUNES[k].color)}">${F.RUNES[k].g}</span> ${F.RUNES[k].name}`, '×' + n)).join('') : row('·', ''));
     const ing = Object.entries(inv.ingots).filter(([, n]) => n > 0);
+    const ore = Object.entries(inv.ores || {}).filter(([, n]) => n > 0);
+    h += '<div class="sec">ORE & FUEL (smelt at an anvil)</div>' + (ore.length ? ore.map(([k, n]) => row(`<span style="color:${hex(F.ORES[k].color)}">${F.ORES[k].g}</span> ${F.ORES[k].name}`, '×' + n)).join('') : row('·', ''));
     h += '<div class="sec">INGOTS</div>' + (ing.length ? ing.map(([k, n]) => row(`<span style="color:${hex(F.METALS[k].color)}">${F.METALS[k].glyph}</span> ${F.METALS[k].name}`, '×' + n)).join('') : row('·', ''));
     const arm = Object.keys(inv.armor || {}).map(k => { const sl = K.SLOTS.find(s => K.GEAR[s][k]); return sl ? K.GEAR[sl][k] : null; }).filter(Boolean);
     h += '<div class="sec">ARMOUR (wear it in Gear · C)</div>' + arm.map(it => row(`<span style="color:${hex(it.color)}">${K.pattern(it.set)}</span> ${it.name}`, '')).join('');
@@ -11841,7 +11922,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const G = GW.G = {
     state: 'title', t: 0, enemies: [], npcs: [], projectiles: [], pickups: [], telegraphs: [], boulders: [],
     stage: 0, counters: {}, hitstop: 0, shakeAmt: 0, hurtFx: 0, flashWhite: 0, bossActive: false, arenaLock: false,
-    respawn: null, zone: null, zoneSeen: {}, ui: UI, hintsShown: {}, saveT: 0,
+    respawn: null, zone: null, zoneSeen: {}, ui: UI, hintsShown: {}, saveT: 0, mined: {},
   };
 
   // ---------------- quests ----------------
@@ -11885,6 +11966,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const c = GW.Arms.CLS[key]; if (!GW.Arms.learn(P, key)) { give('shards', 80); return; }
       UI.toast(`<span style="color:${c.col}">${c.g}</span> New weapon: <b>${c.name}</b> · <span style="color:#ffcf6a">B to carry it · X swaps</span>`, 5);
       GWAudio.sfx('quest'); UI.refreshArms && UI.refreshArms(); save(); return;
+    }
+    else if (kind === 'ore') {
+      const O = GW.Forge.ORES[key]; P.inv.ores = P.inv.ores || {}; P.inv.ores[key] = (P.inv.ores[key] || 0) + n;
+      UI.toast(`<span style="color:#${O.color.toString(16).padStart(6, '0')}">${O.g}</span> ${O.name}${n > 1 ? ' ×' + n : ''}`, 2.2);
+      if (!G.hintsShown.smelt) { G.hintsShown.smelt = true; setTimeout(() => UI.hint('Smelt ore into ingots at any <b>anvil</b> (π on the map).', 4), 1500); }
+      GWAudio.sfx('pickup'); return;
     }
     else if (kind === 'abil') {
       const A = GW.Abil, a = A.LIST[key], isNew = A.learn(P, key);
@@ -12137,6 +12224,18 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     UI.float('FUSED ' + sk.name.toUpperCase(), P.pos, { color: F.col, size: 16, y: 3.1, life: 1.2 }); GWAudio.sfx('crit'); GWAudio.sfx('cast'); G.shake(0.25);
     G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 5, F.hex, 0.6, 1.2, -2, 1.5);
   };
+  // ---------------- mining: three strikes and the vein gives up its ore; it grows back after 20 minutes ----------------
+  GW.World.isMined = id => !!(G.mined[id] && Date.now() - G.mined[id] < 20 * 60 * 1000);
+  G.mineHit = function (it) {
+    const P = G.player, O = GW.Forge.ORES[it.ore], col = '#' + O.color.toString(16).padStart(6, '0');
+    it.hits = (it.hits || 0) + 1; GWAudio.sfx('anvil'); G.shake(0.12); G.hitstop = 0.04;
+    G.parts.spark.burst(it.x, P.pos.y + 0.9, it.z, 12, 4, O.color, 0.4, 1, -6);
+    G.addHitGlyphs(it.x, P.pos.y + 1, it.z, 6, col);
+    if (it.hits < 3) { UI.float(it.hits + '/3', new V3(it.x, P.pos.y, it.z), { color: col, size: 12, y: 2.2, life: 0.6 }); return; }
+    const n = 1 + (Math.random() < 0.5 ? 1 : 0) + ((it.lvl || 1) >= 6 ? 1 : 0) + (Math.random() < (P.ws.xp || 0) ? 1 : 0);
+    give('ore', it.ore, n); it.hits = 0; G.mined[it.id] = Date.now(); if (it.crystals) it.crystals.visible = false;
+    G.glyphRing(it.x, P.pos.y + 1, it.z, 0.6, 14, O.g + '*·', col, 5, 0.6, 15); save();
+  };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
@@ -12339,7 +12438,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         const d = loadData();
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
-          G.opened = d.opened || {}; G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
+          G.opened = d.opened || {}; G.mined = d.mined || {}; for (const it of GW.World.interact) if (it.type === 'vein' && it.crystals) it.crystals.visible = !GW.World.isMined(it.id); G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
           if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
@@ -12771,7 +12870,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------------- interaction ----------------
   function nearestInteract() {
     const P = G.player; let best = null, bd = 1e9;
-    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id])) continue; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
+    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
     return best;
   }
   function doInteract(it) {
@@ -12780,6 +12879,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     else if (it.type === 'npc') talk(it.npc);
     else if (it.type === 'hatch') { const T = GW.World.tower; fade(() => { G.player.place(T.door.x, T.door.z + 0.8); G.player.yaw = 0; G.snapCam = true; }); }
     else if (it.type === 'chest') openChest(it);
+    else if (it.type === 'vein') { if (P.state === 'move') { P.state = 'mine'; P.t = 0; P.fired = false; P.mineIt = it; P.yaw = Math.atan2(it.x - P.pos.x, it.z - P.pos.z); } }
     else if (it.type === 'shrine') { const kinds = [['might', 'Shrine of Might: +25% damage'], ['ward', 'Shrine of Warding: -25% damage taken'], ['swift', 'Shrine of the Wind: +15% speed']], k = kinds[it.poi.seed % 3];
       G.buff = { kind: k[0], until: G.t + 300 }; GWAudio.sfx('socket'); UI.banner('for five minutes', k[1].toUpperCase(), 2.6); G.parts.spark.burst(it.x, G.player.pos.y + 1, it.z, 30, 4, 0x9fd8ff, 0.8, 1.2, -2, 2); }
     else if (it.type === 'waystone') { const p = it.poi, nm = GW.World.REGIONS[p.region].name.replace('THE ', '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' waystone ' + p.id;
@@ -12858,6 +12958,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const armorLeft = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
     const items = [
       { label: '♨ Kindling', cost: 8, buy: () => give('kindling', 'kindling') },
+      { label: '● Coal ×3 (smelting fuel)', cost: 10, buy: () => give('ore', 'coal', 3) },
       { label: '♥ Refill flasks', cost: 12, ok: () => P.flasks < P.maxFlasks, buy: () => { P.flasks = P.maxFlasks; } },
       { label: '♥ Extra flask (+1 max)', cost: 60 + 40 * (P.extraFlasks || 0), ok: () => (P.extraFlasks || 0) < 3, buy: () => { P.extraFlasks = (P.extraFlasks || 0) + 1; P.maxFlasks++; P.flasks++; } },
       { label: '✶ A rune (random)', cost: 45, buy: () => give('rune', runeKeys[Math.floor(Math.random() * runeKeys.length)]) },
@@ -12959,7 +13060,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, mined: G.mined, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }

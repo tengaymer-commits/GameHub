@@ -254,3 +254,5 @@ body.touch #hotbar { display: none; }
 /* fusion ready: ability slots glow in the element's colour */
 .hs.fuse { box-shadow: 0 0 0 2px var(--fz, #ffd860), 0 0 14px var(--fz, #ffd860); animation: fusepulse .45s ease-in-out infinite alternate; }
 @keyframes fusepulse { from { filter: brightness(1); } to { filter: brightness(1.6); } }
+#f-side { max-height: calc(100vh - 150px); overflow-y: auto; }
+#f-smelt .chip.smelt { font-size: 11px; padding: 4px 7px; margin: 2px 0; width: 100%; text-align: left; }

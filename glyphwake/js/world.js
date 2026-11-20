@@ -1069,6 +1069,8 @@
       default: break;   // ambush: nothing to see until it is too late
     }
   }
+  const CRYSTAL_G = new THREE.OctahedronGeometry(0.22, 0), crystalMats = {};
+  const crystalMat = c => crystalMats[c] || (crystalMats[c] = GW.mat({ id: ID.RUNE, color: 0, emissive: c, unlit: true }));
   function genChunk(ci, cj, scene) {
     const rnd = GW.rand(((ci * 7919 + cj * 104729) >>> 0) % 2147483646 + 1);
     const batch = new Batch(), cols = [];
@@ -1087,6 +1089,22 @@
     const x0 = ci * CHK, z0 = cj * CHK, inter = [];
     // points of interest whose centre lies in this chunk
     for (const p of W.poisNear(x0 + CHK / 2, z0 + CHK / 2, CHK)) if (p.x >= x0 && p.x < x0 + CHK && p.z >= z0 && p.z < z0 + CHK) buildPOI(p, (n, x, z, s, col, bio, tint) => kit(n, x, z, s, col, bio, tint), cols, inter);
+    // ore veins: a boulder studded with glowing crystals in the ore's colour (own RNG, so the scatter below is unchanged)
+    const veinGroups = [];
+    { const vr = GW.rand(((ci * 3571 + cj * 92821) >>> 0) % 2147483646 + 7), F = GW.Forge;
+      for (let k = 0; k < 2; k++) {
+        const x = x0 + 8 + vr() * (CHK - 16), z = z0 + 8 + vr() * (CHK - 16), bio = W.regionAt(x, z), roll = vr(), pick = vr();
+        if (roll > (bio === 'high' || bio === 'ash' ? 0.6 : 0.42) || !chunkFree(x, z, 2.6)) continue;
+        let ore = 'iron_ore', acc = 0; for (const [o, wgt] of Object.entries(F.VEINS[bio] || F.VEINS.vale)) { acc += wgt; if (pick < acc) { ore = o; break; } }
+        if (Math.hypot(x, z) > 2400 && vr() < 0.05) ore = 'star';
+        const id = 'v:' + ci + ',' + cj + ',' + k, col = F.ORES[ore].color;
+        kit('kit_rock_b', x, z, 0.85, 1.1, bio, new THREE.Color(0.8, 0.8, 0.82));
+        const g = new THREE.Group(), y = W.heightAt(x, z), cm = crystalMat(col);
+        for (let q = 0; q < 6; q++) { const a = q / 6 * Math.PI * 2 + vr(), r = 0.5 + vr() * 0.9, m = new THREE.Mesh(CRYSTAL_G, cm);
+          m.position.set(x + Math.cos(a) * r, y + 0.6 + vr() * 0.9, z + Math.sin(a) * r); m.rotation.set(vr() * 3, vr() * 3, vr() * 3); m.scale.set(0.8 + vr() * 0.6, 1.3 + vr() * 1.2, 0.8 + vr() * 0.6); g.add(m); }
+        g.visible = !(W.isMined && W.isMined(id)); scene.add(g); veinGroups.push(g);
+        inter.push({ type: 'vein', id, ore, x, z, r: 2.8, label: 'Mine the ' + F.ORES[ore].name.toLowerCase(), crystals: g, lvl: 1 + Math.floor(Math.hypot(x, z) / 280) });
+      } }
     inter.forEach(it => W.interact.push(it));
     for (let k = 0; k < 90; k++) {
       const x = x0 + rnd() * CHK, z = z0 + rnd() * CHK;
@@ -1114,7 +1132,7 @@
         else if (roll > 0.955) { if (chunkFree(x, z, 1.2)) kit(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, 0.45 + rnd() * 0.6, 0.85, 'vale'); }
       }
     }
-    const meshes = []; batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
+    const meshes = veinGroups.slice(); batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
     return { meshes, cols, inter };
   }
   W.stream = function (px, pz, scene, budget) {
@@ -1131,7 +1149,7 @@
     for (const [key, c] of chunks) {
       const [ci, cj] = key.split(',').map(Number), cx = (ci + 0.5) * CHK, cz = (cj + 0.5) * CHK;
       if (Math.hypot(cx - px, cz - pz) < DROP_R) continue;
-      if (c) { c.meshes.forEach(m => { scene.remove(m); m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider);
+      if (c) { c.meshes.forEach(m => { scene.remove(m); if (m.dispose) m.dispose(); const k = W.occluders.indexOf(m); if (k >= 0) W.occluders.splice(k, 1); }); c.cols.forEach(W.removeCollider);
         if (c.inter && c.inter.length) W.interact = W.interact.filter(it => !c.inter.includes(it)); }
       chunks.delete(key);
     }

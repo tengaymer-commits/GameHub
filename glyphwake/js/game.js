@@ -9,7 +9,7 @@
   const G = GW.G = {
     state: 'title', t: 0, enemies: [], npcs: [], projectiles: [], pickups: [], telegraphs: [], boulders: [],
     stage: 0, counters: {}, hitstop: 0, shakeAmt: 0, hurtFx: 0, flashWhite: 0, bossActive: false, arenaLock: false,
-    respawn: null, zone: null, zoneSeen: {}, ui: UI, hintsShown: {}, saveT: 0,
+    respawn: null, zone: null, zoneSeen: {}, ui: UI, hintsShown: {}, saveT: 0, mined: {},
   };
 
   // ---------------- quests ----------------
@@ -53,6 +53,12 @@
       const c = GW.Arms.CLS[key]; if (!GW.Arms.learn(P, key)) { give('shards', 80); return; }
       UI.toast(`<span style="color:${c.col}">${c.g}</span> New weapon: <b>${c.name}</b> · <span style="color:#ffcf6a">B to carry it · X swaps</span>`, 5);
       GWAudio.sfx('quest'); UI.refreshArms && UI.refreshArms(); save(); return;
+    }
+    else if (kind === 'ore') {
+      const O = GW.Forge.ORES[key]; P.inv.ores = P.inv.ores || {}; P.inv.ores[key] = (P.inv.ores[key] || 0) + n;
+      UI.toast(`<span style="color:#${O.color.toString(16).padStart(6, '0')}">${O.g}</span> ${O.name}${n > 1 ? ' ×' + n : ''}`, 2.2);
+      if (!G.hintsShown.smelt) { G.hintsShown.smelt = true; setTimeout(() => UI.hint('Smelt ore into ingots at any <b>anvil</b> (π on the map).', 4), 1500); }
+      GWAudio.sfx('pickup'); return;
     }
     else if (kind === 'abil') {
       const A = GW.Abil, a = A.LIST[key], isNew = A.learn(P, key);
@@ -305,6 +311,18 @@
     UI.float('FUSED ' + sk.name.toUpperCase(), P.pos, { color: F.col, size: 16, y: 3.1, life: 1.2 }); GWAudio.sfx('crit'); GWAudio.sfx('cast'); G.shake(0.25);
     G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 5, F.hex, 0.6, 1.2, -2, 1.5);
   };
+  // ---------------- mining: three strikes and the vein gives up its ore; it grows back after 20 minutes ----------------
+  GW.World.isMined = id => !!(G.mined[id] && Date.now() - G.mined[id] < 20 * 60 * 1000);
+  G.mineHit = function (it) {
+    const P = G.player, O = GW.Forge.ORES[it.ore], col = '#' + O.color.toString(16).padStart(6, '0');
+    it.hits = (it.hits || 0) + 1; GWAudio.sfx('anvil'); G.shake(0.12); G.hitstop = 0.04;
+    G.parts.spark.burst(it.x, P.pos.y + 0.9, it.z, 12, 4, O.color, 0.4, 1, -6);
+    G.addHitGlyphs(it.x, P.pos.y + 1, it.z, 6, col);
+    if (it.hits < 3) { UI.float(it.hits + '/3', new V3(it.x, P.pos.y, it.z), { color: col, size: 12, y: 2.2, life: 0.6 }); return; }
+    const n = 1 + (Math.random() < 0.5 ? 1 : 0) + ((it.lvl || 1) >= 6 ? 1 : 0) + (Math.random() < (P.ws.xp || 0) ? 1 : 0);
+    give('ore', it.ore, n); it.hits = 0; G.mined[it.id] = Date.now(); if (it.crystals) it.crystals.visible = false;
+    G.glyphRing(it.x, P.pos.y + 1, it.z, 0.6, 14, O.g + '*·', col, 5, 0.6, 15); save();
+  };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
@@ -507,7 +525,7 @@
         const d = loadData();
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
-          G.opened = d.opened || {}; G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
+          G.opened = d.opened || {}; G.mined = d.mined || {}; for (const it of GW.World.interact) if (it.type === 'vein' && it.crystals) it.crystals.visible = !GW.World.isMined(it.id); G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
           if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
@@ -939,7 +957,7 @@
   // ---------------- interaction ----------------
   function nearestInteract() {
     const P = G.player; let best = null, bd = 1e9;
-    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id])) continue; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
+    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
     return best;
   }
   function doInteract(it) {
@@ -948,6 +966,7 @@
     else if (it.type === 'npc') talk(it.npc);
     else if (it.type === 'hatch') { const T = GW.World.tower; fade(() => { G.player.place(T.door.x, T.door.z + 0.8); G.player.yaw = 0; G.snapCam = true; }); }
     else if (it.type === 'chest') openChest(it);
+    else if (it.type === 'vein') { if (P.state === 'move') { P.state = 'mine'; P.t = 0; P.fired = false; P.mineIt = it; P.yaw = Math.atan2(it.x - P.pos.x, it.z - P.pos.z); } }
     else if (it.type === 'shrine') { const kinds = [['might', 'Shrine of Might: +25% damage'], ['ward', 'Shrine of Warding: -25% damage taken'], ['swift', 'Shrine of the Wind: +15% speed']], k = kinds[it.poi.seed % 3];
       G.buff = { kind: k[0], until: G.t + 300 }; GWAudio.sfx('socket'); UI.banner('for five minutes', k[1].toUpperCase(), 2.6); G.parts.spark.burst(it.x, G.player.pos.y + 1, it.z, 30, 4, 0x9fd8ff, 0.8, 1.2, -2, 2); }
     else if (it.type === 'waystone') { const p = it.poi, nm = GW.World.REGIONS[p.region].name.replace('THE ', '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' waystone ' + p.id;
@@ -1026,6 +1045,7 @@
     const armorLeft = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
     const items = [
       { label: '♨ Kindling', cost: 8, buy: () => give('kindling', 'kindling') },
+      { label: '● Coal ×3 (smelting fuel)', cost: 10, buy: () => give('ore', 'coal', 3) },
       { label: '♥ Refill flasks', cost: 12, ok: () => P.flasks < P.maxFlasks, buy: () => { P.flasks = P.maxFlasks; } },
       { label: '♥ Extra flask (+1 max)', cost: 60 + 40 * (P.extraFlasks || 0), ok: () => (P.extraFlasks || 0) < 3, buy: () => { P.extraFlasks = (P.extraFlasks || 0) + 1; P.maxFlasks++; P.flasks++; } },
       { label: '✶ A rune (random)', cost: 45, buy: () => give('rune', runeKeys[Math.floor(Math.random() * runeKeys.length)]) },
@@ -1127,7 +1147,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, mined: G.mined, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
