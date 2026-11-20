@@ -457,6 +457,7 @@
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
     const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
+    const ms = $('o-mapstyle'); if (ms) { ms.value = S.mapStyle || 'tour'; ms.onchange = () => { S.mapStyle = ms.value; UI.saveSettings(); }; }
     const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };

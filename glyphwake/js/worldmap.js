@@ -26,6 +26,12 @@
     vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'] };
 
   const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1 };
+  // ---------- map styles: V cycles them on the map ----------
+  const STYLES = ['tour', 'ascii', 'ink', 'mosaic'];
+  const STYLE_NAME = { tour: 'Touring map', ascii: 'ASCII relief', ink: "Explorer's ink", mosaic: 'Glyph mosaic' };
+  const RAMP = ' .:-=+*#%@';
+  const style = () => STYLES.includes(UI.settings.mapStyle) ? UI.settings.mapStyle : 'tour';
+  UI.MAP_STYLES = STYLES; UI.MAP_STYLE_NAME = STYLE_NAME;
   const pxPerM = (w, h) => Math.min(w, h) * 0.9 / GW.World.SIZE * WM.zoom;
   const reveal = () => UI.settings.revealMap !== false;
   function seenFn(G) {
@@ -62,24 +68,28 @@
       const fade = edge > 3950 ? 0.35 : 1, o = k * 4;
       img.data[o] = Math.min(255, c[0] * sh * ck * fade); img.data[o + 1] = Math.min(255, c[1] * sh * ck * fade); img.data[o + 2] = Math.min(255, c[2] * sh * ck * fade); img.data[o + 3] = 255;
     }
-    g.putImageData(img, 0, 0); RELIEF = cv; return cv;
+    g.putImageData(img, 0, 0); RELIEF = cv; RELIEF.px = img.data; return cv;
   }
   // ---------- the terrain layer (cached; only redrawn when the view changes) ----------
   function terrainLayer(G, w, h, dpr) {
     const W = GW.World, D = W.mapData(), S = W.SIZE, half = S / 2, px = pxPerM(w, h);
-    const key = [WM.cx | 0, WM.cz | 0, WM.zoom.toFixed(3), w, h, dpr, reveal(), G.fogVer || 0].join(':');
+    const ST = style(), key = [ST, WM.cx | 0, WM.cz | 0, WM.zoom.toFixed(3), w, h, dpr, reveal(), G.fogVer || 0].join(':');
     if (WM.layer && WM.key === key) return WM.layer;
     WM.key = key;
     const cv = WM.layer || (WM.layer = document.createElement('canvas'));
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = ST === 'ink' ? '#cdbb90' : ST === 'ascii' ? '#030405' : '#05070a'; g.fillRect(0, 0, w, h);
+    const RL = relief(), RP = RL.px;
     { const [ox, oy] = [w / 2 + (-half - WM.cx) * px, h / 2 + (-half - WM.cz) * px];   // the coloured relief underneath
-      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = GW.clamp(0.95 - (WM.zoom - 4) * 0.025, 0.5, 0.92); g.drawImage(relief(), ox, oy, S * px, S * px); g.globalAlpha = 1;
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      if (ST === 'tour') { g.globalAlpha = GW.clamp(0.95 - (WM.zoom - 4) * 0.025, 0.5, 0.92); g.drawImage(RL, ox, oy, S * px, S * px); }
+      if (ST === 'ink') { g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.3; g.drawImage(RL, ox, oy, S * px, S * px); g.globalCompositeOperation = 'source-over'; }
+      g.globalAlpha = 1;
       if (!reveal() && G.fog) { const FN = G.FOG_N; if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
         const fg = WM.fogCv.getContext('2d'), im = fg.createImageData(FN, FN); for (let q = 0; q < FN * FN; q++) { im.data[q * 4] = 6; im.data[q * 4 + 1] = 7; im.data[q * 4 + 2] = 10; im.data[q * 4 + 3] = G.fog[q] ? 0 : 245; }
         fg.putImageData(im, 0, 0); g.drawImage(WM.fogCv, ox, oy, S * px, S * px); } }
-    const CS = 11, cw = CS / px;                                   // screen cell (px) and its size in metres
+    const CS = ST === 'ascii' ? 10 : 11, cw = CS / px;                                   // screen cell (px) and its size in metres
     const x0 = Math.floor((WM.cx - w / 2 / px) / cw), z0 = Math.floor((WM.cz - h / 2 / px) / cw);
     const nx = Math.ceil(w / CS) + 2, nz = Math.ceil(h / CS) + 2;
     const N = D.N, idx = (x, z) => { const i = Math.floor((x + half) / D.cell), j = Math.floor((z + half) / D.cell); return i < 0 || j < 0 || i >= N || j >= N ? -1 : j * N + i; };
@@ -91,7 +101,27 @@
       const ci = x0 + ix, cj = z0 + jz, x = (ci + 0.5) * cw, z = (cj + 0.5) * cw;
       const sx = w / 2 + (x - WM.cx) * px, sy = h / 2 + (z - WM.cz) * px;
       const k = idx(x, z);
-      if (k < 0) { if (hash(ci, cj) < 0.35) { g.fillStyle = '#121820'; g.fillText(EDGE, sx, sy); } continue; }
+      if (k < 0) { if (ST !== 'ink' && hash(ci, cj) < 0.35) { g.fillStyle = '#121820'; g.fillText(EDGE, sx, sy); } continue; }
+      if (ST === 'ascii' || ST === 'mosaic') {   // the glyph-heavy styles read the relief colour straight
+        if (!seen(x, z)) { if (hash(ci, cj) < 0.12) { g.fillStyle = '#1a1e26'; g.fillText('·', sx, sy); } continue; }
+        const o = k * 4, r = RP[o], gg = RP[o + 1], bb = RP[o + 2], L = (0.3 * r + 0.59 * gg + 0.11 * bb) / 255, wet = D.Lk[k] || D.R[k] < W.RIVER_W * 1.4;
+        if (ST === 'ascii') {
+          const ch = wet ? '≈~'[(ci + cj) & 1] : RAMP[Math.min(9, Math.floor(Math.pow(L, 0.75) * 12))];
+          if (ch === ' ') continue;
+          const k2 = 1.45; g.fillStyle = rgb(Math.min(255, r * k2) | 0, Math.min(255, gg * k2) | 0, Math.min(255, bb * k2) | 0); g.fillText(ch, sx, sy);
+        } else {
+          const q = v => Math.min(255, (v * 1.05) & 0xe0) | 0;
+          g.fillStyle = rgb(q(r), q(gg), q(bb)); g.fillRect(sx - CS / 2, sy - CS / 2, CS + 0.5, CS + 0.5);
+          const hgt = D.H[k], bi = D.B[k], r0 = hash(ci, cj);
+          let ch = null, col = 'rgba(0,0,0,.35)';
+          if (wet) { ch = '≈'; col = 'rgba(190,220,255,.55)'; }
+          else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3720) { ch = hgt > 30 ? '▲' : '^'; col = 'rgba(255,255,255,.55)'; }
+          else if (r0 < 0.3) { ch = SETS[bi].ch[Math.floor(hash(cj, ci) * SETS[bi].ch.length)]; col = 'rgba(0,0,0,.35)'; }
+          else if (r0 < 0.42) { ch = L > 0.45 ? '░' : L > 0.3 ? '▒' : '▓'; col = 'rgba(0,0,0,.22)'; }
+          if (ch) { g.fillStyle = col; g.fillText(ch, sx, sy); }
+        }
+        continue;
+      }
       if (!seen(x, z)) { if (hash(ci, cj) < 0.12) { g.fillStyle = '#1a1e26'; g.fillText('·', sx, sy); } continue; }
       const hgt = D.H[k], rd = D.R[k], bi = D.B[k], r0 = hash(ci, cj);
       // hillshade from the height grid (light from the north-west)
@@ -108,31 +138,46 @@
         else ch = set.ch[Math.floor(hash(cj, ci) * set.ch.length)];
         c = set.col; if (D.BW[k] < 0.75) { const v = SETS[0].col, t = 1 - D.BW[k]; c = [GW.lerp(c[0], v[0], t * 0.5), GW.lerp(c[1], v[1], t * 0.5), GW.lerp(c[2], v[2], t * 0.5)]; }
       }
-      const b = shade * (1.05 + 0.25 * r0);
-      g.globalAlpha = 0.78;
-      g.fillStyle = rgb(Math.min(255, c[0] * b) | 0, Math.min(255, c[1] * b) | 0, Math.min(255, c[2] * b) | 0); g.fillText(ch, sx, sy);
-      g.globalAlpha = 1;
+      if (ST === 'ink') {   // dark ink on parchment; shaded slopes get a hatch stroke
+        const mount = MOUNT.includes(ch), water = WATER.includes(ch);
+        g.globalAlpha = water ? 0.7 : mount ? 0.85 : 0.5; g.fillStyle = water ? '#2a4e72' : mount ? '#2a1c10' : '#3e3020'; g.fillText(ch, sx, sy);
+        if (shade < 0.75 && !water) { g.globalAlpha = 0.35; g.fillStyle = '#2a1c10'; g.fillText('/', sx + CS * 0.45, sy); }
+        g.globalAlpha = 1;
+      } else {
+        const b = shade * (1.05 + 0.25 * r0);
+        g.globalAlpha = 0.78;
+        g.fillStyle = rgb(Math.min(255, c[0] * b) | 0, Math.min(255, c[1] * b) | 0, Math.min(255, c[2] * b) | 0); g.fillText(ch, sx, sy);
+        g.globalAlpha = 1;
+      }
       // region borders: a faint dotted seam where the dominant land changes
       const kr = idx(x + cw, z), kd = idx(x, z + cw);
-      if (((kr >= 0 && D.B[kr] !== bi) || (kd >= 0 && D.B[kd] !== bi)) && (ci + cj) % 2 === 0) { g.fillStyle = 'rgba(230,220,190,.35)'; g.fillText('·', sx + CS / 2, sy + CS / 2); }
+      if (((kr >= 0 && D.B[kr] !== bi) || (kd >= 0 && D.B[kd] !== bi)) && (ci + cj) % 2 === 0) { g.fillStyle = ST === 'ink' ? 'rgba(130,40,20,.55)' : 'rgba(230,220,190,.35)'; g.fillText(ST === 'ink' ? '-' : '·', sx + CS / 2, sy + CS / 2); }
     }
     // rivers and roads as ink lines
     const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
     const poly = (pts, style, width, dash) => { g.strokeStyle = style; g.lineWidth = width; g.setLineDash(dash || []); g.beginPath(); pts.forEach((p, i) => { const [a, b] = to(p[0], p[1]); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); };
     g.lineCap = 'round'; g.lineJoin = 'round';
-    for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), [5, 4]); }
-    poly(W.RIVER_LINE, 'rgba(10,24,48,.9)', Math.max(4, W.RIVER_W * 2.6 * px), []);
-    poly(W.RIVER_LINE, 'rgba(96,160,240,.95)', Math.max(2, W.RIVER_W * 1.7 * px), []);
-    poly(W.RIVER_LINE, 'rgba(200,228,255,.55)', 1, [2, 6]);
+    if (ST === 'ink') {
+      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(90,50,24,.8)', Math.max(1.2, 1.6 * px), [6, 3, 1, 3]); }
+      poly(W.RIVER_LINE, 'rgba(42,78,114,.85)', Math.max(2, W.RIVER_W * 1.6 * px), []); poly(W.RIVER_LINE, 'rgba(205,187,144,.9)', Math.max(0.6, W.RIVER_W * 0.5 * px), []);
+    } else {
+      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,200,120,.9)' : 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), ST === 'ascii' ? [1, 4] : [5, 4]); }
+      poly(W.RIVER_LINE, 'rgba(10,24,48,.9)', Math.max(4, W.RIVER_W * 2.6 * px), []);
+      poly(W.RIVER_LINE, 'rgba(96,160,240,.95)', Math.max(2, W.RIVER_W * 1.7 * px), []);
+      poly(W.RIVER_LINE, 'rgba(200,228,255,.55)', 1, [2, 6]);
+    }
     g.setLineDash([]);
     // the old-chart grid: 1 km squares, lettered and numbered at the frame
-    g.strokeStyle = 'rgba(220,210,180,.07)'; g.lineWidth = 1;
+    g.strokeStyle = ST === 'ink' ? 'rgba(60,40,20,.18)' : 'rgba(220,210,180,.07)'; g.lineWidth = 1;
     for (let k = -4; k <= 4; k++) { const [gx] = to(k * 1000, 0), [, gy] = to(0, k * 1000); g.beginPath(); g.moveTo(gx, 0); g.lineTo(gx, h); g.moveTo(0, gy); g.lineTo(w, gy); g.stroke(); }
     return cv;
   }
 
   // ---------- labels, icons, frame (redrawn every time) ----------
-  function halo(g, text, x, y, fill, lw) { g.lineWidth = lw || 4; g.strokeStyle = 'rgba(4,5,8,.85)'; g.strokeText(text, x, y); g.fillStyle = fill; g.fillText(text, x, y); }
+  function halo(g, text, x, y, fill, lw) {
+    const ink = style() === 'ink' && !halo.keep;
+    g.lineWidth = lw || 4; g.strokeStyle = ink ? 'rgba(222,206,166,.92)' : 'rgba(4,5,8,.85)'; g.strokeText(text, x, y); g.fillStyle = ink ? '#2a1a0e' : fill; g.fillText(text, x, y);
+  }
   function spaced(s, n) { return s.split('').join(' '.repeat(n || 1)); }
   UI.drawWorldMap = function (G) {
     if (!WM.open) return;
@@ -149,7 +194,7 @@
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
     // vignette
     const vg = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, style() === 'ink' ? 'rgba(70,44,20,.55)' : 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, w, h);
     // region titles (fade out as you zoom in)
     const ta = GW.clamp((7 - WM.zoom) / 4, 0, 1);
     if (ta > 0.02) {
@@ -234,7 +279,7 @@
     { const title = '══ ◈  ' + spaced('THE NINEFOLD', 1) + '  ◈ ══'; g.font = 'bold 15px ui-monospace, Menlo, monospace'; const tw = g.measureText(title).width + 24;
       g.fillStyle = 'rgba(6,6,8,.88)'; g.fillRect(w / 2 - tw / 2, M + 18, tw, 28); g.strokeStyle = ink; g.strokeRect(w / 2 - tw / 2 + 0.5, M + 18.5, tw - 1, 27);
       g.fillStyle = '#e8d8a8'; g.fillText(title, w / 2, M + 32);
-      const here = W.REGIONS[W.regionAt(WM.cx, WM.cz)]; if (here) { g.font = 'italic 12px Georgia, serif'; halo(g, here.name.toLowerCase(), w / 2, M + 58, here.col, 3); } }
+      const here = W.REGIONS[W.regionAt(WM.cx, WM.cz)]; if (here) { g.font = 'italic 12px Georgia, serif'; halo(g, here.name.toLowerCase() + '  ·  ' + STYLE_NAME[style()].toLowerCase() + ' (V)', w / 2, M + 58, here.col, 3); } }
     // compass rose
     { const cx = w - M - 58, cy = M + 64, col = 'rgba(232,216,170,.85)'; g.font = 'bold 13px ui-monospace, Menlo, monospace';
       g.fillStyle = 'rgba(6,6,8,.7)'; g.beginPath(); g.arc(cx, cy, 34, 0, Math.PI * 2); g.fill(); g.strokeStyle = 'rgba(214,196,150,.5)'; g.stroke();
@@ -310,6 +355,7 @@
     addEventListener('keydown', e => { if (!WM.open) return;
       if (e.code === 'Equal' || e.code === 'NumpadAdd') { WM.zoom = GW.clamp(WM.zoom * 1.25, 0.9, 48); redraw(); }
       if (e.code === 'Minus' || e.code === 'NumpadSubtract') { WM.zoom = GW.clamp(WM.zoom / 1.25, 0.9, 48); redraw(); }
+      if (e.code === 'KeyV') { const i = STYLES.indexOf(style()); UI.settings.mapStyle = STYLES[(i + 1) % STYLES.length]; UI.saveSettings && UI.saveSettings(); UI.toast(STYLE_NAME[UI.settings.mapStyle], 1.2); redraw(); }
       if (e.code === 'Space') { WM.cx = GW.G.player.pos.x; WM.cz = GW.G.player.pos.z; redraw(); e.preventDefault(); } });
   })();
 })();
