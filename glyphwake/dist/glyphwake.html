@@ -7365,7 +7365,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const t0 = RIVER[Math.max(0, i - 1)], t1 = RIVER[Math.min(RIVER.length - 1, i + 1)];
       const ang = Math.atan2(t1[1] - t0[1], t1[0] - t0[0]); // river direction
       W.bridge = { x: RIVER[i][0], z: RIVER[i][1], c: Math.cos(ang), s: Math.sin(ang), len: RIVER_W * 2 + 4 };
-      const wood = GW.mat({ id: ID.WOOD, color: 0x6a4a2c });
+      const wood = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.1 });
       const plank = new THREE.BoxGeometry(0.5, 0.12, 3.2);
       const grp = new THREE.Group();
       for (let k = -9; k <= 9; k++) {
@@ -7773,7 +7773,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const c = L[h.at]; campfire(scene, c.x, c.z, h.name);
       // a smith's anvil in every village
       const ax = c.x + 7, az = c.z + 6, ay = W.heightAt(ax, az), metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.WOOD, color: 0x3a2818 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a4a30 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
       const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
       W.addCollider(ax, az, 0.8, 'anvil'); W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
     }
@@ -8185,9 +8185,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function campfire(scene, x, z, label, own) {
     const y = W.heightAt(x, z);
     const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
-    const wood = GW.mat({ id: ID.WOOD, color: 0x4a3020 }), stone = GW.mat({ id: ID.STONE, color: 0x707480 });
+    const wood = GW.mat({ id: ID.BARK, tex: 3, color: 0x7a5636 }), stone = GW.mat({ id: ID.ROCK, tex: 6, color: 0x84868c });
     for (let k = 0; k < 4; k++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 5), wood); l.rotation.z = Math.PI / 2; l.rotation.y = k * Math.PI / 4; l.position.y = 0.12; g.add(l); }
-    for (let k = 0; k < 9; k++) { const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), stone); const a = k / 9 * 6.28; s.position.set(Math.cos(a) * 0.95, 0.08, Math.sin(a) * 0.95); g.add(s); }
+    for (let k = 0; k < 9; k++) { const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.27, 0), stone); const a = k / 9 * 6.28; s.position.set(Math.cos(a) * 0.95, 0.08, Math.sin(a) * 0.95); g.add(s); }
     const flames = [];
     const fm = GW.mat({ id: ID.FIRE, color: 0x000000, emissive: 0xff8a2a, unlit: true });
     const fm2 = GW.mat({ id: ID.FIRE, color: 0x000000, emissive: 0xffd070, unlit: true });
@@ -8208,7 +8208,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   function torch(scene, x, z, h) {
     const y = W.heightAt(x, z);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, h, 5), GW.mat({ id: ID.WOOD, color: 0x5a3e26 }));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, h, 6), GW.mat({ id: ID.BARK, tex: 3, color: 0x6e4e30 }));
     pole.position.set(x, y + h / 2, z); scene.add(pole);
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.55, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }));
     f.position.set(x, y + h + 0.25, z); scene.add(f);
@@ -8220,7 +8220,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function buildShrine(scene, x, z, s, glow) {
     const y = W.heightAt(x, z);
     const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
-    const st = new THREE.Mesh(new THREE.BoxGeometry(1.2 * s, 4.2 * s, 0.8 * s), GW.mat({ id: ID.STONE, color: 0x8890a4, rim: 0.25 }));
+    const st = new THREE.Mesh(new THREE.BoxGeometry(1.2 * s, 4.2 * s, 0.8 * s, 2, 6, 2), GW.mat({ id: ID.MASONRY, tex: 1, color: 0x8c94aa, rim: 0.25 }));
     st.position.y = 2.0 * s; st.rotation.y = Math.atan2(x, z); st.rotation.z = (Math.random() - 0.5) * 0.12; g.add(st);
     const band = new THREE.Mesh(new THREE.BoxGeometry(1.25 * s, 1.6 * s, 0.84 * s), GW.mat({ id: ID.RUNE, color: 0, emissive: glow ? 0x4fb8ff : 0x203040, unlit: true }));
     band.position.y = 2.5 * s; st.add(band); band.position.set(0, 0.5 * s, 0);
@@ -8232,44 +8232,38 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function buildVillage(scene, batch, place, rnd, boxG0, woodM) {
     const { x: vx, z: vz } = L.village;
     campfire(scene, L.fire.x, L.fire.z, 'Emberhold');
-    // fence ring with gaps N and S and E/W path gaps
-    const postG = new THREE.CylinderGeometry(0.09, 0.11, 1.5, 5); postG.translate(0, 0.75, 0);
-    for (let k = 0; k < 64; k++) {
-      const a = k / 64 * Math.PI * 2;
-      const gapAng = [Math.PI / 2, -Math.PI / 2, 0, Math.PI];
-      if (gapAng.some(g => Math.abs(GW.angDiff(a, g)) < 0.16)) continue;
+    // built from the same kit as every other village (glyph-textured masonry, thatch and planks)
+    const put = (name, x, z, s, ry, col) => { const y = W.heightAt(x, z) - 0.04;
+      kitParts(name).forEach((p, i) => batch.add('kit_' + name + i, p.geo, kitMat(p.mn), place(x, y, z, ry, s, s, s), new THREE.Color(1, 1, 1).multiplyScalar(0.88 + rnd() * 0.24)));
+      if (col) W.addCollider(x, z, col * s, 'kit'); };
+    // fence ring (gates N, S, E, W where the paths come in)
+    for (let k = 0; k < 30; k++) {
+      const a = (k + 0.5) / 30 * Math.PI * 2;
+      if ([Math.PI / 2, -Math.PI / 2, 0, Math.PI].some(g => Math.abs(GW.angDiff(a, g)) < 0.2)) continue;
       const x = vx + Math.cos(a) * 15.5, z = vz + Math.sin(a) * 15.5;
-      batch.add('post', postG, woodM, place(x, W.heightAt(x, z), z, 0, 1.6, 0.7 + rnd() * 0.5, 1.6), 0xb89a78);
-      W.addCollider(x, z, 0.35, 'fence');
+      put('kit_fence', x, z, 1, -a + Math.PI / 2, 0); W.addCollider(x, z, 0.6, 'fence');
     }
-    // tents
-    const tentG = new THREE.ConeGeometry(2.0, 2.6, 4); tentG.translate(0, 1.3, 0);
-    const tents = [[-10, 37, 0x9a8460], [-2, 42, 0x8a8a70]];
-    tents.forEach(([dx, dz, c]) => {
-      const m = new THREE.Mesh(tentG, GW.mat({ id: ID.WOOD, color: c, rim: 0.2 })); const x = vx + dx, z = vz + dz - 30 + 30;
-      m.position.set(dx, W.heightAt(dx, dz), dz); m.rotation.y = rnd() * 3; scene.add(m);
-      W.addCollider(dx, dz, 1.6, 'tent');
-    });
-    // crates & barrels
-    for (let k = 0; k < 8; k++) {
+    // two more houses where the old tents stood, facing the square
+    [[-10, 37], [-2, 42]].forEach(([x, z]) => put('kit_hut', x, z, 1.2, Math.atan2(vx - x, vz - z), 1.9));
+    // crates
+    for (let k = 0; k < 6; k++) {
       const a = rnd() * 6.28, r = 9 + rnd() * 4, x = vx + Math.cos(a) * r, z = vz + Math.sin(a) * r;
-      if (W.blocked(x, z, 0.8) || Math.abs(x) < 3) continue;
-      batch.add('crate', boxG0, woodM, place(x, W.heightAt(x, z), z, rnd() * 3, 0.8, 0.8, 0.8));
-      W.addCollider(x, z, 0.6, 'crate');
+      if (W.blocked(x, z, 0.9) || Math.abs(x) < 3) continue;
+      put('kit_crate', x, z, 1, rnd() * 3, 0.5);
     }
     // torches at gates
     [[-2.4, 14.2], [2.4, 14.2], [-2.4, 45.8], [2.4, 45.8], [14.4, 27.5], [-14.4, 27.5]].forEach(([x, z]) => torch(scene, x, z, 2.2));
     // anvil + brazier
     const ax = L.anvil.x, az = L.anvil.z, ay = W.heightAt(ax, az);
     const metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.WOOD, color: 0x3a2818 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a4a30 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
     const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
     const horn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 6), metal); horn.rotation.z = Math.PI / 2; horn.position.set(ax - 0.85, ay + 0.8, az); scene.add(horn);
     W.addCollider(ax, az, 0.8, 'anvil');
     W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
     // forge brazier
     const bx = ax + 2.4, bz = az - 1.2, by = W.heightAt(bx, bz);
-    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.6, 0.9, 8), GW.mat({ id: ID.STONE, color: 0x5a5a62 })); br.position.set(bx, by + 0.45, bz); scene.add(br);
+    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.6, 0.9, 8, 2), GW.mat({ id: ID.MASONRY, tex: 8, color: 0x7a7b80, fill: 0.08 })); br.position.set(bx, by + 0.45, bz); scene.add(br);
     const coals = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.1, 8), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xff5a1a, unlit: true })); coals.position.set(bx, by + 0.92, bz); scene.add(coals);
     W.flames.push({ m: coals, s: 3, base: 1, flat: true });
     W.lights.add(bx, by + 1.6, bz, new THREE.Color(1.0, 0.38, 0.1).multiplyScalar(1.3), 9, 0.5);
@@ -9185,7 +9179,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (input.roll) this.queued = 'roll';
     for (const k of ['a1', 'a2', 'a3', 'a4']) if (input[k]) this.queued = k;
     if (input.swap && (this.state === 'move' || this.state === 'block')) this.swapArms(G);
-    if (this.wardT > 0) this.wardT -= dt; if (this.mightT > 0) this.mightT -= dt;
+    if (this.wardT > 0) this.wardT -= dt;
+    if (this.wardT > 0) for (let k = 0; k < 6; k++) { const a = G.t * 2.6 + k / 6 * Math.PI * 2;   // the ward's sigils circle you
+      G.hitGlyphs.push({ x: this.pos.x + Math.cos(a) * 1.1, y: this.pos.y + 1.0 + Math.sin(G.t * 3 + k) * 0.25, z: this.pos.z + Math.sin(a) * 1.1, still: true, t: 0, life: 0.05, ch: k % 2 ? '◇' : '⛨', col: '#8ab8ff', size: 15 }); }
+    if (this.state !== 'skill' && !this.model.visible && this.state !== 'dead') this.model.visible = true; if (this.mightT > 0) this.mightT -= dt;
     if (input.potion) this.queued = 'potion';
 
     const faceTarget = () => {
@@ -10363,7 +10360,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   'use strict';
   const GW = window.GW, V3 = THREE.Vector3, TAU = Math.PI * 2;
   const near = (G, x, z, r) => G.enemies.filter(e => e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < r + e.radius);
-  const ring = (G, x, y, z, r, n, col) => { for (let k = 0; k < n; k++) { const a = k / n * TAU; G.parts.spark.emit(x + Math.cos(a) * r, y + 0.3, z + Math.sin(a) * r, Math.cos(a) * 3, 1.5, Math.sin(a) * 3, 0.6, 1.1, col, -2); } };
+  const ring = (G, x, y, z, r, n, col, chars, speed) => {
+    for (let k = 0; k < n; k++) { const a = k / n * TAU; G.parts.spark.emit(x + Math.cos(a) * r, y + 0.3, z + Math.sin(a) * r, Math.cos(a) * 3, 1.5, Math.sin(a) * 3, 0.6, 1.1, col, -2); }
+    G.glyphRing(x, y + 0.6, z, r * 0.6, Math.round(n * 0.6), chars || '*+·', '#' + new THREE.Color(col).getHexString(), speed === undefined ? 7 : speed, 0.5, 16);
+  };
   const line = (G, a, b, col) => { for (let k = 0; k <= 10; k++) { const t = k / 10; G.parts.spark.emit(GW.lerp(a.x, b.x, t) + (Math.random() - 0.5) * 0.5, GW.lerp(a.y, b.y, t) + 1.2 + (Math.random() - 0.5) * 0.6, GW.lerp(a.z, b.z, t) + (Math.random() - 0.5) * 0.5, 0, 0, 0, 0.25, 1.1, col, 0); } };
   const slash = (R, fresh, sp, at) => { if (fresh) R.play('Sword_Slash', { loop: false, restart: true, fade: 0.05, at: at || 0, speed: sp || 1.2 }); };
   const cast = (R, fresh, P) => { if (fresh) R.play('Punch_Right', { loop: false, restart: true, fade: 0.05, speed: R.dur('Punch_Right') / P.cur.dur * 0.8 }); };
@@ -10409,14 +10409,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
     ward: { name: 'Ward Sigil', g: '⛨', col: '#7aa8ff', cd: 16, fo: 24, dur: 0.4, src: 'craft', recipe: { runes: { ward: 2 }, ingots: { steel: 1 }, shards: 40 },
       desc: 'A sigil of the wall: for 5 seconds you take 60% less damage and cannot be staggered.',
-      start(P, G) { P.wardT = 5; GWAudio.sfx('socket'); ring(G, P.pos.x, P.pos.y + 0.6, P.pos.z, 1.4, 30, 0x7aa8ff); },
+      start(P, G) { P.wardT = 5; GWAudio.sfx('socket'); ring(G, P.pos.x, P.pos.y + 0.6, P.pos.z, 1.4, 30, 0x7aa8ff, '◇⛨', 4); },
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
     nova: { name: 'Rime Nova', g: '❄', col: '#8ae0ff', cd: 9, fo: 30, dur: 0.45, src: 'craft', region: 'frost', recipe: { runes: { frost: 2 }, ingots: { silver: 1 }, shards: 50 },
       desc: 'Frost bursts out around you: damage, and foes within 5 m are chilled (slowed) for 4 s.',
       start(P) { P.fired = false; GWAudio.sfx('cast'); },
       tick(P, G) {
         if (P.t > 0.2 && !P.fired) { P.fired = true; GWAudio.sfx('zap'); G.shake(0.25);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, 2.5, 40, 0x8ae0ff); ring(G, P.pos.x, P.pos.y, P.pos.z, 4.5, 50, 0xd8f4ff);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, 2.5, 40, 0x8ae0ff, '*❄·', 9); ring(G, P.pos.x, P.pos.y, P.pos.z, 4.5, 50, 0xd8f4ff, '*·+', 11);
           for (const e of near(G, P.pos.x, P.pos.z, 5)) { e.status.slow = 4; hit(G, P, e, 1.2, { brk: 1.2 }); } }
       },
       anim(P, R, b, fresh) { cast(R, fresh, P); } },
@@ -10449,7 +10449,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       tick(P, G, dt, c) {
         if (P.t > 0.5 && !P.fired) { P.fired = true; GWAudio.sfx('slam'); G.shake(0.6); G.hitstop = 0.08;
           G.parts.dust.burst(P.pos.x, P.pos.y + 0.2, P.pos.z, 30, 6, 0x8a8070, 0.8, 1.4, 0);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, 3.5, 40, 0xe0c090);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, 3.5, 40, 0xe0c090, '#/\\%', 8);
           for (const e of near(G, P.pos.x, P.pos.z, 4)) hit(G, P, e, 2.4, { heavy: true, brk: 4 }); }
         return P.t < 0.5 ? { vx: Math.sin(P.yaw) * 11, vz: Math.cos(P.yaw) * 11 } : { vx: 0, vz: 0 };
       },
@@ -10468,23 +10468,38 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       start(P, G) {
         const W = GW.World; let d = 0;
         while (d < 9) { const p = fwdPos(P, d + 0.5); if (W.blocked(p.x, p.z, 0.4)) break; d += 0.5; }
-        G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 24, 3, 0x9a8aff, 0.6, 1, 0);
-        const p = fwdPos(P, d); P.pos.x = p.x; P.pos.z = p.z; P.iframe = 0.3; P.critNext = true;
-        G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 24, 3, 0x9a8aff, 0.6, 1, 0); GWAudio.sfx('roll');
+        const to = fwdPos(P, d); P.blink = { fx: P.pos.x, fz: P.pos.z, tx: to.x, tz: to.z, arrived: false };
+        P.iframe = 0.36; P.critNext = true; GWAudio.sfx('roll'); GWAudio.sfx('cast');
+        // the body comes apart: ink characters lift off where you stood
+        for (let k = 0; k < 34; k++) { const a = Math.random() * TAU, r = Math.random() * 0.5;
+          G.hitGlyphs.push({ x: P.pos.x + Math.cos(a) * r, y: P.pos.y + 0.2 + Math.random() * 1.8, z: P.pos.z + Math.sin(a) * r, vx: Math.cos(a) * 1.5, vy: 1.5 + Math.random() * 2.5, vz: Math.sin(a) * 1.5, ng: true, t: 0, life: 0.5 + Math.random() * 0.3,
+            ch: '▓▒░%#&'[k % 6], col: k % 3 ? '#9a8aff' : '#3a2a6a', size: 16 }); }
+        // the streak along the way
+        for (let k = 1; k < 18; k++) { const t = k / 18;
+          G.hitGlyphs.push({ x: GW.lerp(P.pos.x, to.x, t), y: P.pos.y + 0.6 + Math.sin(t * Math.PI) * 0.4, z: GW.lerp(P.pos.z, to.z, t), still: true, t: -t * 0.1, life: 0.35, ch: k % 2 ? '≈' : '~', col: '#b8a8ff', size: 15 }); }
       },
-      anim(P, R, b) { b.position.y = -0.4 * (1 - Math.min(1, P.t / 0.2)); } },
+      tick(P, G) {
+        const B = P.blink; if (!B) return;
+        const k = Math.min(1, P.t / 0.12); P.pos.x = GW.lerp(B.fx, B.tx, k); P.pos.z = GW.lerp(B.fz, B.tz, k);
+        if (k >= 1 && !B.arrived) { B.arrived = true;   // ink gathers back into a body
+          G.glyphRing(P.pos.x, P.pos.y + 1.0, P.pos.z, 1.6, 22, '▓▒░%#', '#9a8aff', -11, 0.15, 16);
+          G.parts.spark.burst(P.pos.x, P.pos.y + 1, P.pos.z, 16, 2, 0x9a8aff, 0.5, 1, 0); }
+        return { vx: 0, vz: 0 };
+      },
+      anim(P, R, b) { P.model.visible = P.t > 0.12 || P.state !== 'skill'; b.position.y = -0.3 * (1 - Math.min(1, Math.max(0, P.t - 0.12) / 0.1)); } },
     leech: { name: 'Bloodglyph', g: '♁', col: '#ff5a6a', cd: 9, fo: 30, dur: 0.5, melee: true, src: 'craft', recipe: { runes: { thirst: 2 }, ingots: { gold: 1 }, shards: 60 },
       desc: 'A wide red cut. You heal for 40% of the damage it deals.',
       start() { GWAudio.sfx('swing', 1.2); },
       tick(P, G) {
         if (P.t > 0.16 && P.t < 0.3) coneHits(G, P, 3.4, 1.3, e => { const h0 = e.hp; hit(G, P, e, 1.7, { brk: 1 }); P.hp = Math.min(P.maxHp, P.hp + Math.max(0, h0 - e.hp) * 0.4);
+          for (let q = 0; q < 8; q++) G.hitGlyphs.push({ x: e.pos.x, y: e.pos.y + 1.1, z: e.pos.z, vx: (P.pos.x - e.pos.x) * 3 + (Math.random() - 0.5) * 2, vy: 1 + Math.random(), vz: (P.pos.z - e.pos.z) * 3 + (Math.random() - 0.5) * 2, ng: true, t: -q * 0.03, life: 0.4, ch: '♥+*'[q % 3], col: '#ff5a6a', size: 15 });
           G.parts.blood.burst(e.pos.x, e.pos.y + 1, e.pos.z, 8, 3, 0xd02040, 0.6, 1, -6); });
       },
       anim(P, R, b, fresh) { slash(R, fresh, 1.3); } },
     cry: { name: 'War Cry', g: '‼', col: '#ffcf6a', cd: 20, fo: 20, dur: 0.6, src: 'shop', region: 'high',
       desc: '8 s of +25% damage, +50 stamina, and nearby foes reel.',
       start(P, G) { P.mightT = 8; P.st = Math.min(100, P.st + 50); GWAudio.sfx('roar'); G.shake(0.3);
-        ring(G, P.pos.x, P.pos.y + 0.5, P.pos.z, 2, 36, 0xffcf6a);
+        ring(G, P.pos.x, P.pos.y + 0.5, P.pos.z, 2, 36, 0xffcf6a, '!)(', 10); ring(G, P.pos.x, P.pos.y + 1.2, P.pos.z, 1.2, 24, 0xffe8a0, '!', 6);
         for (const e of near(G, P.pos.x, P.pos.z, 6)) if (!e.T.boss) { e.setState('stagger'); e.aggro = true; } },
       anim(P, R, b, fresh) { if (fresh) R.play('Interact', { loop: false, restart: true, fade: 0.05 }); b.rotation.x = -0.25; } },
     hook: { name: 'Ink Chain', g: '⌐', col: '#a0a8c0', cd: 7, fo: 16, dur: 0.4, src: 'find',
@@ -10494,12 +10509,33 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         for (const e of G.enemies) { if (!e.alive) continue; const dx = e.pos.x - P.pos.x, dz = e.pos.z - P.pos.z, d = Math.hypot(dx, dz);
           if (d < bd && Math.abs(GW.angDiff(P.yaw, Math.atan2(dx, dz))) < 0.5) { bd = d; best = e; } }
         GWAudio.sfx('swing', 0.8);
-        if (!best) return;
-        line(G, P.pos, best.pos, 0xa0a8c0);
-        if (!best.T.boss) { const p = fwdPos(P, 1.8 + best.radius); best.pos.x = p.x; best.pos.z = p.z; best.setState('stagger'); }
-        hit(G, P, best, 0.8, { brk: 1.5 });
+        const miss = fwdPos(P, 12);
+        P.hook = { e: best, latched: false, mx: miss.x, mz: miss.z, sx: best ? best.pos.x : 0, sz: best ? best.pos.z : 0 };
       },
-      anim(P, R, b, fresh) { cast(R, fresh, P); } },
+      tick(P, G) {
+        const H = P.hook; if (!H) return;
+        const hand = new THREE.Vector3(); (P.sword || P.model).getWorldPosition(hand);
+        const e = H.e && H.e.alive ? H.e : null, T_OUT = 0.13, T_PULL = 0.36;
+        let tip;
+        if (P.t < T_OUT) {   // the chain flies out
+          const k = P.t / T_OUT, tx = e ? e.pos.x : H.mx, tz = e ? e.pos.z : H.mz, ty = e ? e.pos.y + 1.0 : P.pos.y + 1.0;
+          tip = { x: GW.lerp(hand.x, tx, k), y: GW.lerp(hand.y, ty, k), z: GW.lerp(hand.z, tz, k) };
+        } else if (e) {
+          if (!H.latched) { H.latched = true; GWAudio.sfx('block'); hit(G, P, e, 0.8, { brk: 1.5 }); if (!e.T.boss) { e.setState('stagger'); H.sx = e.pos.x; H.sz = e.pos.z; } G.addHitGlyphs(e.pos.x, e.pos.y + 1, e.pos.z, 8, '#c8ccd8'); }
+          if (!e.T.boss && P.t < T_PULL) {   // reel it in
+            const k = (P.t - T_OUT) / (T_PULL - T_OUT), q = 1 - Math.pow(1 - k, 3), dest = fwdPos(P, 1.8 + e.radius);
+            e.pos.x = GW.lerp(H.sx, dest.x, q); e.pos.z = GW.lerp(H.sz, dest.z, q);
+            if (Math.random() < 0.6) G.parts.dust.emit(e.pos.x, e.pos.y + 0.1, e.pos.z, 0, 0.5, 0, 0.4, 0.9, 0x8a8070, 0);
+          }
+          tip = { x: e.pos.x, y: e.pos.y + 1.0, z: e.pos.z };
+        } else {   // missed: it snaps back
+          const k = Math.min(1, (P.t - T_OUT) / 0.15);
+          tip = { x: GW.lerp(H.mx, hand.x, k), y: P.pos.y + 1.0, z: GW.lerp(H.mz, hand.z, k) };
+        }
+        if (P.t < T_PULL + 0.02 && Math.hypot(tip.x - hand.x, tip.z - hand.z) > 0.4) G.glyphChain(hand, tip, '#d8dce8', '#8a7aff');
+        return { vx: 0, vz: 0 };
+      },
+      anim(P, R, b, fresh) { cast(R, fresh, P); b.rotation.x = P.t > 0.13 ? -0.18 : 0.1; } },
     snare: { name: 'Web Snare', g: '⌗', col: '#e0e8ff', cd: 12, fo: 26, dur: 0.4, src: 'boss', boss: 'widow',
       desc: 'Torn from the Dusk Widow. Sticky silk roots every foe within 6 m for 3 s.',
       start(P, G) { G.webBurst && G.webBurst(P.pos.x, P.pos.z); GWAudio.sfx('cast');
@@ -10511,7 +10547,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       tick(P, G) {
         const want = P.t > 0.55 ? 3 : P.t > 0.4 ? 2 : P.t > 0.25 ? 1 : 0;
         while (P.fired < want) { P.fired++; const r = 2.6 * P.fired; GWAudio.sfx('slam'); G.shake(0.35);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, r, 30 + P.fired * 12, 0xd8a060);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, r, 30 + P.fired * 12, 0xd8a060, '≈~#', 6);
           for (const e of near(G, P.pos.x, P.pos.z, r)) if (Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z) > r - 2.8 - e.radius) hit(G, P, e, 1.5, { heavy: true, brk: 2.5 }); }
       },
       anim(P, R, b, fresh) { slash(R, fresh, 0.8); b.rotation.x = 0.35; } },
@@ -10533,7 +10569,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       tick(P, G) {
         if (P.t > 0.72 && !P.fired) { P.fired = true; GWAudio.sfx('boom'); GWAudio.sfx('slam'); G.shake(0.9); G.hitstop = 0.12;
           G.parts.spark.burst(P.pos.x, P.pos.y + 0.4, P.pos.z, 50, 9, 0xff9050, 0.9, 1.4, -4, 2);
-          ring(G, P.pos.x, P.pos.y, P.pos.z, 5, 60, 0xff6a2a);
+          ring(G, P.pos.x, P.pos.y, P.pos.z, 5, 60, 0xff6a2a, '*#^%', 10);
           for (const e of near(G, P.pos.x, P.pos.z, 6)) { hit(G, P, e, 3.2, { heavy: true, brk: 4 }); if (e.alive) { e.status.burn = 3; e.status.burnD = Math.max(1, P.ws.dmg * 0.3); } } }
         return P.t < 0.72 ? { vx: Math.sin(P.yaw) * 8, vz: Math.cos(P.yaw) * 8 } : { vx: 0, vz: 0 };
       },
@@ -10580,7 +10616,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     A.zones = A.zones.filter(z => {
       z.t -= dt; z.tick -= dt;
       if (Math.random() < 0.9) { const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * z.r, y = GW.World.heightAt(z.x, z.z);
-        G.parts.spark.emit(z.x + Math.cos(a) * r, y + 0.3 + Math.random(), z.z + Math.sin(a) * r, 0, 0.6, 0, 1.2, 1.4, 0x7aff5a, 0); }
+        G.parts.spark.emit(z.x + Math.cos(a) * r, y + 0.3 + Math.random(), z.z + Math.sin(a) * r, 0, 0.6, 0, 1.2, 1.4, 0x7aff5a, 0);
+        if (Math.random() < 0.6) G.hitGlyphs.push({ x: z.x + Math.cos(a) * r, y: y + 0.3 + Math.random() * 1.2, z: z.z + Math.sin(a) * r, vx: (Math.random() - 0.5) * 0.6, vy: 0.5, vz: (Math.random() - 0.5) * 0.6, ng: true, t: 0, life: 0.9, ch: '~%;:'[Math.floor(Math.random() * 4)], col: Math.random() < 0.5 ? '#8aff6a' : '#5ab84a', size: 15 }); }
       if (z.tick <= 0) { z.tick = 0.5;
         for (const e of near(G, z.x, z.z, z.r)) { e.status.poison = Math.max(e.status.poison, 2); e.status.poisonD = Math.max(e.status.poisonD || 0, z.dmg); e.aggro = true; } }
       return z.t > 0;
@@ -12118,6 +12155,22 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   G.addHitGlyphs = function (x, y, z, n, col) { const CH = '*+x#%&/\\|-'; for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
     G.hitGlyphs.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * 4, vz: Math.sin(a) * s, t: 0, life: 0.35 + Math.random() * 0.3, ch: CH[Math.floor(Math.random() * CH.length)], col }); } if (G.hitGlyphs.length > 160) G.hitGlyphs.splice(0, G.hitGlyphs.length - 160); };
   const _hg = new THREE.Vector3();
+  // a ring of characters flying outward (or inward with a negative speed), no gravity
+  G.glyphRing = function (x, y, z, r, n, chars, col, speed, life, size) {
+    for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + Math.random() * 0.2, sp = speed === undefined ? 6 : speed;
+      G.hitGlyphs.push({ x: x + Math.cos(a) * r, y: y + (Math.random() - 0.5) * 0.3, z: z + Math.sin(a) * r, vx: Math.cos(a) * sp, vy: 0.4, vz: Math.sin(a) * sp, ng: true, t: 0, life: (life || 0.45) * (0.8 + Math.random() * 0.4),
+        ch: chars[Math.floor(Math.random() * chars.length)], col, size }); }
+    if (G.hitGlyphs.length > 320) G.hitGlyphs.splice(0, G.hitGlyphs.length - 320);
+  };
+  // a chain of links between two points this frame: 'o' rings with a stroke between, the stroke angled to the screen
+  const _la = new V3(), _lb = new V3();
+  G.glyphChain = function (a, b, col, linkCol) {
+    _la.set(a.x, a.y, a.z).project(G.camera); _lb.set(b.x, b.y, b.z).project(G.camera);
+    const ang = Math.atan2(-(_lb.y - _la.y) * innerHeight, (_lb.x - _la.x) * innerWidth), st = slashCh(ang);
+    const L = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z), n = Math.max(2, Math.round(L / 0.42));
+    for (let k = 0; k <= n; k++) { const t = k / n;
+      G.hitGlyphs.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, still: true, t: 0, life: 0.05, ch: k % 2 ? st : 'o', col: k % 2 ? (linkCol || col) : col, size: k % 2 ? 15 : 17 }); }
+  };
   // glyph lightning: a jagged run of bright characters between two points, flickering for a moment, with a light flash
   G.bolt = function (a, b, col, o) {
     o = o || {}; col = col || '#d8c0ff';
@@ -12189,7 +12242,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.hitGlyphs = G.hitGlyphs.filter(g => {
       g.t += dt; if (g.t > g.life) return false;
       if (g.follow) { g.x = g.follow.x; g.y = g.follow.y; g.z = g.follow.z; }
-      else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 12 * dt; }
+      else if (!g.still) { g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; if (!g.ng) g.vy -= 12 * dt; else { g.vx *= 1 - 2.5 * dt; g.vz *= 1 - 2.5 * dt; g.vy *= 1 - 2.5 * dt; } }
       _hg.set(g.x, g.y, g.z).project(G.camera); if (_hg.z > 1) return true;
       if (g.t < 0) return true;
       const k = g.t / g.life;
