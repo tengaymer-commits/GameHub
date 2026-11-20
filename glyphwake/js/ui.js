@@ -395,85 +395,13 @@
     g.font = 'bold 10px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const it of GW.World.interact) { const [x, y] = to(it.x, it.z); if (x < 0 || y < 0 || x > 128 || y > 128) continue; g.fillStyle = it.type === 'rest' ? '#ff9a40' : '#ffcf6a'; g.fillText(it.type === 'rest' ? '▲' : it.type === 'forge' ? 'π' : '!', x, y); }
     for (const e of G.enemies) { if (!e.alive) continue; const [x, y] = to(e.pos.x, e.pos.z); if (x < 0 || y < 0 || x > 128 || y > 128) continue; g.fillStyle = e.T.boss ? '#ff4040' : '#d04040'; g.fillText(e.T.boss ? 'Ω' : '·', x, y); }
+    if (G.waypoint) { let [x, y] = to(G.waypoint.x, G.waypoint.z); const dx = x - 64, dy = y - 64, d = Math.hypot(dx, dy); if (d > 56) { x = 64 + dx / d * 56; y = 64 + dy / d * 56; } g.fillStyle = '#6ae8ff'; g.fillText('✚', x, y); }
     const obj = G.objective();
     if (obj) { let [x, y] = to(obj.x, obj.z); const dx = x - 64, dy = y - 64, d = Math.hypot(dx, dy); if (d > 56) { x = 64 + dx / d * 56; y = 64 + dy / d * 56; } g.fillStyle = '#ffd860'; g.fillText('◆', x, y); }
     g.save(); g.translate(64, 64); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.fillText('▲', 0, 0); g.restore();
   };
 
-  // ---------------- world map (M) ----------------
-  const WM = { open: false, zoom: 1, cx: 0, cz: 0, drag: null };
-  UI.mapOpen = () => WM.open;
-  UI.toggleMap = function (G, on) {
-    if (G.dungeon && on !== false) { UI.toast('No map down here.', 1.5); return; }
-    WM.open = on === undefined ? !WM.open : on;
-    $('worldmap').classList.toggle('hidden', !WM.open);
-    if (WM.open) { WM.cx = G.player.pos.x; WM.cz = G.player.pos.z; WM.zoom = 5; UI.drawWorldMap(G); }
-  };
-  UI.drawWorldMap = function (G) {
-    if (!WM.open) return;
-    if (!mapImg) mapImg = GW.World.mapCanvas();
-    const c = $('wm'), dpr = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
-    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
-    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#030408'; g.fillRect(0, 0, w, h);
-    const W = GW.World, S = W.SIZE, px = Math.min(w, h) * 0.9 / S * WM.zoom;   // screen px per metre
-    const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
-    const [ox, oy] = to(-S / 2, -S / 2);
-    g.imageSmoothingEnabled = true; g.globalAlpha = 0.85; g.drawImage(mapImg, ox, oy, S * px, S * px); g.globalAlpha = 1;
-    // fog of war: unexplored land stays dark
-    if (G.fog) { const FN = G.FOG_N;
-      if (!WM.fogCv || WM.fogCv.width !== FN) { WM.fogCv = document.createElement('canvas'); WM.fogCv.width = WM.fogCv.height = FN; }
-      const fg = WM.fogCv.getContext('2d'), img = fg.createImageData(FN, FN);
-      for (let k = 0; k < FN * FN; k++) { img.data[k * 4] = 3; img.data[k * 4 + 1] = 4; img.data[k * 4 + 2] = 8; img.data[k * 4 + 3] = G.fog[k] ? 0 : 255; }
-      fg.putImageData(img, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(WM.fogCv, ox, oy, S * px, S * px); }
-    const seen = (x, z) => !G.fog || G.fog[Math.floor((z + S / 2) / G.FOG_CELL) * G.FOG_N + Math.floor((x + S / 2) / G.FOG_CELL)];
-    g.fillStyle = 'rgba(0,0,0,.35)'; for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (const z of W.ZONES) {
-      if (!seen(z.x, z.z) || (WM.zoom < 4 && z.r < 60)) continue;
-      const [x, y] = to(z.x, z.z);
-      g.strokeStyle = 'rgba(200,200,210,.18)'; g.setLineDash([2, 4]); g.beginPath(); g.arc(x, y, z.r * px, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
-      g.font = `600 ${Math.round(GW.clamp(10 * WM.zoom, 10, 15))}px ui-monospace, Menlo, monospace`; g.fillStyle = '#c8ccd8';
-      g.fillText(z.name, x, y - z.r * px - 8);
-    }
-    // region names (zoomed out)
-    if (WM.zoom < 4) {
-      const HUB = { vale: [0, 300], frost: ['abbey'], high: ['high'], ash: ['cinder'], salt: ['salt'], mire: ['mire'], dusk: ['dusk'] };
-      g.font = `600 ${Math.round(GW.clamp(13 + WM.zoom * 3, 13, 22))}px ui-monospace, Menlo, monospace`;
-      for (const k in W.REGIONS) { const h = HUB[k], pos = typeof h[0] === 'string' ? W.L[h[0]] : { x: h[0], z: h[1] };
-        const [x, y] = to(pos.x, pos.z + (k === 'vale' ? 0 : 160)); g.fillStyle = W.REGIONS[k].col; g.globalAlpha = 0.85; g.fillText(W.REGIONS[k].name, x, y); }
-      g.globalAlpha = 1;
-    }
-    g.font = 'bold 14px ui-monospace, Menlo, monospace';
-    for (const f of W.fires) { if (!seen(f.x, f.z)) continue; const [x, y] = to(f.x, f.z); g.fillStyle = f.out ? '#5a4030' : '#ff9a40'; g.fillText(f.out ? '·' : '▲', x, y); }
-    for (const it of W.interact) { if (it.type === 'chest' && !(G.opened || {})[it.id]) { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffd860'; g.fillText('■', x, y); } if (it.type === 'forge') { const [x, y] = to(it.x, it.z); g.fillStyle = '#ffcf6a'; g.fillText('π', x, y); } }
-    for (const e of G.enemies) if (e.alive && e.T.boss && seen(e.pos.x, e.pos.z)) { const [x, y] = to(e.pos.x, e.pos.z); g.fillStyle = '#ff4040'; g.fillText('Ω', x, y); }
-    // points of interest you have seen
-    if (G.poiSeen && WM.zoom > 2.2) {
-      const ICON = { camp: ['x', '#d07060'], ruin: ['#', '#a8acb8'], chest: ['■', '#ffd860'], shrine: ['†', '#9fd8ff'], waystone: ['◊', '#9fd8ff'], vista: ['^', '#e8e0c8'], wanderer: ['@', '#e0c080'], elite: ['!', '#ffb040'] };
-      g.font = 'bold 12px ui-monospace, Menlo, monospace';
-      for (const id in G.poiSeen) {
-        const [i, j] = id.split(',').map(Number), p = W.poiAt(i, j); if (!p || !ICON[p.type]) continue;
-        const [x, y] = to(p.x, p.z); if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
-        const done = (G.cleared && G.cleared[id]) || (G.opened && G.opened['poi:' + id]);
-        g.globalAlpha = done ? 0.35 : 1; g.fillStyle = ICON[p.type][1]; g.fillText(ICON[p.type][0], x, y);
-      }
-      g.globalAlpha = 1;
-    }
-    const obj = G.objective(); if (obj) { const [x, y] = to(obj.x, obj.z); g.fillStyle = '#ffd860'; g.fillText('◆', x, y); }
-    const P = G.player, [x, y] = to(P.pos.x, P.pos.z);
-    g.save(); g.translate(x, y); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 8; g.fillText('▲', 0, 0); g.restore();
-    g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left'; g.fillStyle = '#8a90a0';
-    ['▲ fire / rest', '■ chest', 'Ω boss', '◆ objective', 'π forge', 'x camp', '# ruin', '† shrine', '◊ waystone', '^ vista', '@ wanderer', '! elite'].forEach((s, i) => g.fillText(s, 16, 20 + i * 16));
-  };
-  (function mapInput() {
-    const c = document.getElementById('wm'); if (!c) return;
-    c.addEventListener('wheel', e => { WM.zoom = GW.clamp(WM.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.9, 48); UI.drawWorldMap(GW.G); e.preventDefault(); }, { passive: false });
-    c.addEventListener('pointerdown', e => { WM.drag = { x: e.clientX, y: e.clientY, cx: WM.cx, cz: WM.cz }; c.setPointerCapture(e.pointerId); });
-    c.addEventListener('pointermove', e => { if (!WM.drag) return; const S = GW.World.SIZE, px = Math.min(innerWidth, innerHeight) * 0.9 / S * WM.zoom;
-      WM.cx = WM.drag.cx - (e.clientX - WM.drag.x) / px; WM.cz = WM.drag.cz - (e.clientY - WM.drag.y) / px; UI.drawWorldMap(GW.G); });
-    c.addEventListener('pointerup', () => { WM.drag = null; });
-  })();
+  // the world map (M) lives in worldmap.js
 
   // ---------------- title logo ----------------
   UI.makeLogo = function (word) {
@@ -529,6 +457,7 @@
     const wx = $('o-weather'); wx.checked = S.weather !== false; wx.onchange = () => { S.weather = wx.checked; UI.saveSettings(); };
     const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
+    const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };
     hun.checked = S.nightHunts !== false; hun.onchange = () => { S.nightHunts = hun.checked; UI.saveSettings(); };

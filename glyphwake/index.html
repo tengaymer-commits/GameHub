@@ -153,6 +153,7 @@
   <div class="s-sec">World</div>
   <label>Enemies respawn when you rest (souls-like) <input type="checkbox" id="o-respawn" /></label>
   <label>Night hunts (packs roam after dark) <input type="checkbox" id="o-hunts" /></label>
+  <label>Reveal the whole map (testing; off = fog of war) <input type="checkbox" id="o-reveal" /></label>
   <label>Time of day
     <select id="o-time"><option value="cycle">Day / night cycle</option><option value="day">Always day</option><option value="night">Always night</option></select>
   </label>
@@ -196,7 +197,7 @@
 <div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
 <div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
 <div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
-<div id="worldmap" class="hidden"><canvas id="wm"></canvas><div class="wm-foot">M / Esc to close · wheel to zoom · drag to pan</div></div>
+<div id="worldmap" class="hidden"><canvas id="wm"></canvas><div class="wm-foot">M / Esc close · wheel or + − zoom · drag to pan · click to set your mark · Space: back to you</div></div>
 
 <script src="../js/vendor/three.min.js"></script>
 <script src="js/vendor/GLTFLoader.js"></script>
@@ -213,6 +214,7 @@
 <script src="js/abilities.js"></script>
 <script src="js/forge.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/worldmap.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

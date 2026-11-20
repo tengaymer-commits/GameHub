@@ -474,7 +474,7 @@
         const d = loadData();
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
-          G.opened = d.opened || {}; G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {};
+          G.opened = d.opened || {}; G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
           if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
@@ -554,7 +554,7 @@
     const P = G.player, S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N, R = 70;
     const i0 = Math.floor((P.pos.x - R + S / 2) / FC), i1 = Math.floor((P.pos.x + R + S / 2) / FC), j0 = Math.floor((P.pos.z - R + S / 2) / FC), j1 = Math.floor((P.pos.z + R + S / 2) / FC);
     for (let j = Math.max(0, j0); j <= Math.min(FN - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(FN - 1, i1); i++)
-      if (Math.hypot((i + 0.5) * FC - S / 2 - P.pos.x, (j + 0.5) * FC - S / 2 - P.pos.z) < R) G.fog[j * FN + i] = 1;
+      if (Math.hypot((i + 0.5) * FC - S / 2 - P.pos.x, (j + 0.5) * FC - S / 2 - P.pos.z) < R) { if (!G.fog[j * FN + i]) G.fogVer = (G.fogVer || 0) + 1; G.fog[j * FN + i] = 1; }
     for (const f of GW.World.fires) if (!f.rest.own && !G.discovered[f.rest.name] && Math.hypot(f.x - P.pos.x, f.z - P.pos.z) < 16) { G.discovered[f.rest.name] = true; UI.toast(`<span style="color:#ff9a40">▲</span> Found a fire: ${f.rest.name}`, 3); }
     const r = GW.World.regionAt(P.pos.x, P.pos.z);
     if (r !== G.region) { const R0 = GW.World.REGIONS[r]; if (G.region) UI.banner(R0.sub, R0.name, 3.6, R0.col); G.region = r; }
@@ -565,6 +565,8 @@
     for (const f of W.fires) if (!f.out && (f.rest.own || G.discovered[f.rest.name])) out.push({ x: f.x, z: f.z, g: '▲', col: '#ff9a40', range: 700 });
     const o = G.objective(); if (o) out.push({ x: o.x, z: o.z, g: '◆', col: '#ffd860', range: 99999 });
     for (const e of G.enemies) if (e.alive && e.T.boss) out.push({ x: e.pos.x, z: e.pos.z, g: 'Ω', col: '#ff5040', range: 260 });
+    if (G.waypoint && Math.hypot(G.player.pos.x - G.waypoint.x, G.player.pos.z - G.waypoint.z) < 8) { G.waypoint = null; UI.toast('<span style="color:#6ae8ff">✚</span> You reached your mark', 2); }
+    if (G.waypoint) out.push({ x: G.waypoint.x, z: G.waypoint.z, g: '✚', col: '#6ae8ff', range: 99999 });
     return out;
   };
   const fogPack = () => { let s = ''; for (let k = 0; k < G.fog.length; k += 8) { let b = 0; for (let t = 0; t < 8; t++) if (G.fog[k + t]) b |= 1 << t; s += String.fromCharCode(b); } return btoa(s); };
@@ -963,7 +965,7 @@
     const S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N;
     for (let j = Math.max(0, Math.floor((z - R + S / 2) / FC)); j <= Math.min(FN - 1, Math.floor((z + R + S / 2) / FC)); j++)
       for (let i = Math.max(0, Math.floor((x - R + S / 2) / FC)); i <= Math.min(FN - 1, Math.floor((x + R + S / 2) / FC)); i++)
-        if (Math.hypot((i + 0.5) * FC - S / 2 - x, (j + 0.5) * FC - S / 2 - z) < R) G.fog[j * FN + i] = 1;
+        if (Math.hypot((i + 0.5) * FC - S / 2 - x, (j + 0.5) * FC - S / 2 - z) < R) { if (!G.fog[j * FN + i]) G.fogVer = (G.fogVer || 0) + 1; G.fog[j * FN + i] = 1; }
     // places inside become known
     for (const p of GW.World.poisNear(x, z, R)) if (p.type !== 'ambush') G.poiSeen[p.id] = p.type;
   }
@@ -1075,7 +1077,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }

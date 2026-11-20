@@ -1670,6 +1670,27 @@
     if (h > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3700) c = c.map(v => Math.min(255, v * 1.35 + 18));
     return c;
   }
+  // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
+  W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
+  let MAPD = null;
+  W.mapData = function () {
+    if (MAPD) return MAPD;
+    const N = 512, cell = SIZE / N, n = N * N, f = {};
+    const H = new Float32Array(n), R = new Float32Array(n), Pd = new Float32Array(n), Gr = new Float32Array(n), B = new Uint8Array(n), BW = new Float32Array(n), Lk = new Uint8Array(n);
+    const cen = BIOMES.map(() => [0, 0, 0]).concat([[0, 0, 0]]);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const x = (i + 0.5) * cell - HALF, z = (j + 0.5) * cell - HALF, k = j * N + i;
+      fieldsAt(x, z, segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), f);
+      H[k] = f.h; R[k] = f.rd; Pd[k] = f.pd; Gr[k] = f.g;
+      let bi = 0, bv = 0.5; for (let q = 0; q < 6; q++) if (f.bw[q] > bv) { bv = f.bw[q]; bi = q + 1; }
+      B[k] = bi; BW[k] = bi ? bv : 1 - Math.max(...f.bw);
+      Lk[k] = Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72 ? 1 : 0;
+      if (Math.max(Math.abs(x), Math.abs(z)) < 3800) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; }
+    }
+    const centroids = cen.map(c => c[2] ? { x: c[0] / c[2], z: c[1] / c[2] } : null);
+    MAPD = { N, cell, H, R, Pd, Gr, B, BW, Lk, centroids };
+    return MAPD;
+  };
   W.mapCanvas = function () {
     const S = 2048, c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d');
