@@ -1019,7 +1019,14 @@
     // steep ground: slide to the flattest spot within 40 m (props on a slope float on one side and sink on the other)
     const hh = (a, b) => rawHeight(a, b, biomeW(a, b)), slopeAt = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 10, b + Math.sin(t) * 10) - h0)); } return m; };
     let slope = slopeAt(x, z);
-    if (slope > 2.4) for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2 + hsh(i, j), cx = x + Math.cos(t) * 40, cz = z + Math.sin(t) * 40, s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
+    if (slope > 2.4) {
+      // neighbours' un-nudged spots: a slid point must not crowd them
+      const nb = []; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (di || dj) { const a2 = i + di, b2 = j + dj; nb.push([(a2 + 0.5) * POI_CELL + (hsh(a2 + 11.3, b2 - 4.1) - 0.5) * 70, (b2 + 0.5) * POI_CELL + (hsh(a2 - 7.7, b2 + 9.9) - 0.5) * 70]); }
+      const x1 = x, z1 = z;
+      for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2 + hsh(i, j), cx = x1 + Math.cos(t) * 40, cz = z1 + Math.sin(t) * 40;
+        if (nb.some(q => Math.hypot(q[0] - cx, q[1] - cz) < 85)) continue;
+        const s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
+    }
     const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
       && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
