@@ -366,7 +366,7 @@
       UI.toast({ runes: 'Sealed. Four rune stones stand around it.', lanterns: 'Sealed. Its lock waits for light.', plates: 'Sealed. The slabs before it are worn by old footsteps.', bells: 'Sealed. Four bells hang silent around it.' }[p.pz], 2.4); GWAudio.sfx('ui'); return;
     }
     if (it.role === 'dig') { if (P.state === 'move') { P.state = 'mine'; P.t = 0; P.fired = false; P.mineIt = it; P.yaw = Math.atan2(it.x - P.pos.x, it.z - P.pos.z); } return; }
-    if (p.pz === 'runes' && it.role === 'tablet') { UI.banner(s.order.map(k => RUNE_G[k]).join('  '), 'THE TABLET READS', 3.2); GWAudio.sfx('socket'); return; }
+    if (p.pz === 'runes' && it.role === 'tablet') { UI.banner('the tablet reads', s.order.map(k => RUNE_G[k]).join('  '), 3.6); GWAudio.sfx('socket'); return; }
     if (p.pz === 'runes' && it.role === 'stone') {
       if (s.order[s.prog] !== it.idx) return pzFail(s, 'The stones go dark. Start again.');
       s.prog++; GWAudio.tone(BELL_F[Math.min(3, s.prog - 1)] * 0.75, 0.7); G.glyphRing(it.x, GW.World.heightAt(it.x, it.z) + 1.3, it.z, 0.5, 10, RUNE_G[it.idx] + '·', '#9fd8ff', 3, 0.5, 14);
