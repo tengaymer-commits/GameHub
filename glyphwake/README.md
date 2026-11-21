@@ -156,6 +156,12 @@ The hand-made Vale is laid out at `VS` = 2.2× its original spacing (`js/world.j
 
 Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise and all scatter follow.
 
+## World scale and buildings
+- The **world** is 16 km across (`WS` = 2 in `js/world.js`). The six regions ring the Vale at about 5.2 km, and enemy levels rise one per 560 m, so each region keeps its difficulty.
+- **Enterable buildings** (Greymoss Keep, the Pale Chapel, the Ivy Watch, Rimeglass Abbey, Cinder Watch and Castle Dunmaer's gate) are drawn at `BS` = 1.6× with their colliders, doors, roofs and upper floors. Interiors come later.
+- **Hollow Ruins** is 1.7× wider, with five walls, 20 pillars, six arches and 12 Hollows. **Points of interest** are bigger too: camps have 4 huts and a cart with 4–6 enemies, ruins have wider rings, and caves sit in a big rock mound with a 1.45× arch.
+- **Three tombs** surround Hollow Ruins: *the Nameless*, *the Scribe's* (2 floors) and *the Sexton's*. Walk to the lanterns and press **E** to go underground. A new quest step, **Beneath the Scriptorium**, sends you to find **the Scribe's Seal** on the Scribe's Tomb's second floor, which introduces dungeons early.
+
 ## World map (M)
 A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.
 - **V** cycles four styles: *Touring map*, *ASCII relief* (the whole map in the game's brightness ramp), *Explorer's ink* (parchment and sepia) and *Glyph mosaic* (colour tiles with shade blocks).
