@@ -419,7 +419,7 @@
           let on = -1; s.Z.plates.forEach((pl, k) => { if (Math.abs(P.pos.x - pl.x) < 1.05 && Math.abs(P.pos.z - pl.z) < 1.05) on = k; });
           if (on !== s.on && on >= 0 && !s.down[on]) {
             if (s.safe.includes(on)) { s.down[on] = 1; GWAudio.sfx('anvil'); GWAudio.tone(392 + Object.keys(s.down).length * 60, 0.5); if (s.safe.every(k => s.down[k])) pzSolve(s); }
-            else { const pl = s.Z.plates[on], y = GW.World.heightAt(pl.x, pl.z); G.glyphRing(pl.x, y + 0.2, pl.z, 0.3, 10, '^Λ', '#ff6050', 4, 0.4, 16); G.hurtPlayer(12, null, { dot: true }); pzFail(s, 'Spikes! The plates reset.'); }
+            else { const pl = s.Z.plates[on], y = GW.World.heightAt(pl.x, pl.z); G.glyphRing(pl.x, y + 0.2, pl.z, 0.3, 10, '^Λ', '#ff6050', 4, 0.4, 16); G.hurtPlayer(12, new V3(pl.x, y, pl.z), { dot: true }); pzFail(s, 'Spikes! The plates reset.'); }
           }
           s.on = on;
           if (d < 14) s.Z.plates.forEach((pl, k) => { if (s.down[k]) UI.label(key + 'p' + k, '◆', gy(pl.x, pl.z, 0.35), 'name', '#ffd860'); });

@@ -1101,19 +1101,20 @@
         break;
       case 'puzzle': {
         const Z = W.puzzleLayout(p), tint = new THREE.Color(0.75, 0.82, 1.0);
+        const toward = v => { const dx = p.x - v.x, dz = p.z - v.z, L = Math.hypot(dx, dz) || 1, k = Math.min(2.2, L) / L; return { x: v.x + dx * k, z: v.z + dz * k }; };
         const push = (role, at, label, idx) => inter.push({ type: 'pz', role, idx, x: at.x, z: at.z, r: 2.4, label, poi: p });
         if (p.pz === 'runes') { kit('kit_crypt', Z.vault.x, Z.vault.z, 1.3, 1.6, bio); kit('kit_shrine', Z.tablet.x, Z.tablet.z, 0.8, 0.5, bio);
           Z.stones.forEach((st, k) => { kit('kit_pillar_a', st.x, st.z, 0.55, 0.45, bio, tint); push('stone', st, 'Touch the rune stone', k); });
-          push('tablet', Z.tablet, 'Read the tablet'); push('vault', Z.vault, 'A sealed vault'); }
+          push('tablet', Z.tablet, 'Read the tablet'); push('vault', toward(Z.vault), 'A sealed vault'); }
         if (p.pz === 'lanterns') { kit('kit_shrine', p.x, p.z, 1.0, 0.6, bio); kit('kit_crate', Z.vault.x, Z.vault.z, 1.0, 0.4, bio, new THREE.Color(0.9, 0.75, 0.45));
           Z.lanterns.forEach((l, k) => { kit('kit_lantern', l.x, l.z, 1.4, 0, bio); push('lantern', l, 'Turn the lantern', k); });
-          push('vault', Z.vault, 'A sealed chest'); }
+          push('vault', toward(Z.vault), 'A sealed chest'); }
         if (p.pz === 'plates') { kit('kit_crypt', Z.vault.x, Z.vault.z, 1.2, 1.5, bio); kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.1, 0.4, bio);
           Z.plates.forEach(pl => kit('kit_grave_slab', pl.x, pl.z, 0.95, 0, bio, new THREE.Color(0.8, 0.8, 0.85)));
-          push('tablet', Z.tablet, 'Study the worn mosaic'); push('vault', Z.vault, 'A sealed crypt'); }
+          push('tablet', Z.tablet, 'Study the worn mosaic'); push('vault', toward(Z.vault), 'A sealed crypt'); }
         if (p.pz === 'bells') { kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.2, 0.4, bio, tint); kit('kit_crate', Z.vault.x, Z.vault.z, 1.0, 0.4, bio, new THREE.Color(0.9, 0.75, 0.45));
           Z.bells.forEach((bl, k) => { kit('kit_pillar_b', bl.x, bl.z, 0.5, 0.45, bio); kit('kit_lantern', bl.x, bl.z, 0.9, 0, bio); push('bell', bl, 'Strike the bell', k); });
-          push('tablet', Z.tablet, 'Listen to the humming stone'); push('vault', Z.vault, 'A sealed chest'); }
+          push('tablet', Z.tablet, 'Listen to the humming stone'); push('vault', toward(Z.vault), 'A sealed chest'); }
         break;
       }
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
