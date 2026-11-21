@@ -5,27 +5,29 @@
   // 8 km world. Terrain data (2 m per texel) is computed per 128 m chunk on demand and cached;
   // the GPU gets a 1 km window around the hero. The old Vale is the centre.
   const SIZE = 8000, HALF = SIZE / 2, CELLM = 2, DCH = 128, DN = DCH / CELLM, WIN = 1024, WN = WIN / CELLM;
-  const CORE = 135;   // the hand-made Vale: |x|,|z| < CORE is scattered once at load, the rest streams in chunks
+  const CORE = 300;   // the hand-made Vale: |x|,|z| < CORE is scattered once at load, the rest streams in chunks
 
   // ---------- layout ----------
+  // the hand-made Vale is laid out at VS× its original spacing (structures keep their size): more room to learn the basics
+  const VS = 2.2;
   const L = {
-    start: { x: 0, z: 78 },
-    village: { x: 0, z: 30 },
-    fire: { x: 0, z: 30 },
-    anvil: { x: 8.5, z: 25 },
-    elder: { x: -5.5, z: 34 },
-    smith: { x: 10.5, z: 23.5 },
-    bridge: { x: -4, z: -13 },
-    meadow: { x: 12, z: -58 },
-    ruins: { x: -72, z: 42 },
-    grove: { x: 76, z: 36 },
-    arena: { x: 2, z: -108 },
-    ruinFire: { x: -48, z: 30 },
-    meadowFire: { x: -18, z: -42 },
-    castle: { x: 55, z: -65 },
-    chapel: { x: 18, z: 60 },
-    tower: { x: -10, z: -66 },
-    lair: { x: -55, z: -70 },
+    start: { x: 0, z: 171.6 },
+    village: { x: 0, z: 66 },
+    fire: { x: 0, z: 66.0 },
+    anvil: { x: 8.5, z: 61.0 },
+    elder: { x: -5.5, z: 70.0 },
+    smith: { x: 10.5, z: 59.5 },
+    bridge: { x: -8.8, z: -28.6 },
+    meadow: { x: 26.4, z: -127.6 },
+    ruins: { x: -158.4, z: 92.4 },
+    grove: { x: 167.2, z: 79.2 },
+    arena: { x: 4.4, z: -237.6 },
+    ruinFire: { x: -105.6, z: 66 },
+    meadowFire: { x: -39.6, z: -92.4 },
+    castle: { x: 121, z: -143 },
+    chapel: { x: 39.6, z: 132 },
+    tower: { x: -22, z: -145.2 },
+    lair: { x: -121, z: -154 },
     // ---- beyond the Vale ----
     hearth: { x: 380, z: -380 },      // Hearthwick: the village hub on the crossroads
     // six regions in a ring around the Vale (r ~ 1.4-3.9 km): hubs at r 2.6 km
@@ -53,40 +55,40 @@
     { id: 'mire', name: 'Bogwater', at: 'mire' },
     { id: 'dusk', name: 'Dimmering', at: 'dusk' },
   ];
-  const RIVER_CP = [[-3950, 260], [-3400, 120], [-2800, 220], [-2200, 60], [-1600, 120], [-1100, -20], [-700, 40], [-420, -50], [-260, -30], [-140, -2], [-95, -14], [-55, -3], [-22, -6], [-4, -13], [20, -26], [55, -20], [90, -30], [140, -44], [260, -110], [420, -150], [700, -190], [1100, -260], [1600, -180], [2100, -420], [2700, -380], [3300, -560], [3950, -500]];
+  const RIVER_CP = [[-3950.0, 260.0], [-3400.0, 120.0], [-2800.0, 220.0], [-2200.0, 60.0], [-1600.0, 120.0], [-1100.0, -20.0], [-700.0, 40.0], [-572.0, -66.0], [-308.0, -4.4], [-209.0, -30.8], [-121.0, -6.6], [-48.4, -13.2], [-8.8, -28.6], [44.0, -57.2], [121.0, -44.0], [198.0, -66.0], [308.0, -96.8], [572.0, -242.0], [700.0, -190.0], [1100.0, -260.0], [1600.0, -180.0], [2100.0, -420.0], [2700.0, -380.0], [3300.0, -560.0], [3950.0, -500.0]];
   const PATHS = [
-    [[0, 76], [1, 60], [-1, 46], [0, 38]],
-    [[0, 18], [-3, 4], [-4, -13], [2, -30], [8, -45], [12, -58], [8, -80], [3, -96], [2, -104]],
-    [[-12, 31], [-30, 34], [-48, 30], [-60, 38], [-70, 42]],
-    [[12, 31], [32, 27], [52, 33], [70, 36]],
-    [[14, -58], [30, -54], [44, -51], [55, -51], [55, -56]],
+    [[0, 167.2], [2.2, 132], [-2.2, 101.2], [0, 83.6]],
+    [[0, 49], [-6.6, 8.8], [-8.8, -28.6], [4.4, -66], [17.6, -99], [26.4, -127.6], [17.6, -176], [6.6, -211.2], [4.4, -228.8]],
+    [[-17, 66], [-66, 74.8], [-105.6, 66], [-132, 83.6], [-154, 92.4]],
+    [[17, 66], [70.4, 59.4], [114.4, 72.6], [154, 79.2]],
+    [[30.8, -127.6], [66, -118.8], [96.8, -112.2], [121, -112.2], [121, -123.2]],
     // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
-    [[55, -56], [110, -120], [190, -190], [280, -290], [380, -370]],
+    [[121, -123.2], [210, -210], [290, -300], [380, -370]],
     // Hearthwick to the Highlands, the Barrens and Frostmere
     [[380, -370], [700, -520], [1100, -700], [1500, -900], [1900, -1120], [2240, -1290]],
     [[380, -370], [700, -150], [1100, 150], [1500, 500], [1900, 900], [2240, 1285]],
     [[380, -390], [330, -700], [250, -1100], [120, -1500], [40, -1900], [-60, -2300], [-145, -2580]],
     // the Vale to the Mire and Duskwood (west) and the Salt Wastes (south)
-    [[-70, 42], [-300, 110], [-700, 300], [-1200, 600], [-1700, 950], [-2240, 1290]],
-    [[2, -104], [-300, -300], [-800, -560], [-1300, -820], [-1800, -1080], [-2240, -1295]],
-    [[0, 76], [40, 400], [-20, 900], [60, 1500], [-30, 2100], [0, 2585]],
+    [[-154, 92.4], [-360, 150], [-700, 300], [-1200, 600], [-1700, 950], [-2240, 1290]],
+    [[4.4, -228.8], [-340, -380], [-800, -560], [-1300, -820], [-1800, -1080], [-2240, -1295]],
+    [[0, 167.2], [40, 440], [-20, 900], [60, 1500], [-30, 2100], [0, 2585]],
     // the old ring road between the region hubs
     [[-145, -2580], [700, -2300], [1600, -1850], [2240, -1290], [2600, -300], [2600, 400], [2240, 1285], [1500, 1950], [700, 2400], [0, 2585],
      [-700, 2400], [-1500, 1950], [-2240, 1290], [-2600, 400], [-2600, -300], [-2240, -1295], [-1600, -1850], [-800, -2350], [-145, -2580]],
   ];
   const ZONES = [
-    { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 78, r: 14 },
-    { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0, z: 30, r: 17 },
-    { name: 'THE GLASS RIVER', sub: 'crossing', x: -4, z: -13, r: 9 },
-    { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 12, z: -58, r: 30 },
-    { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -72, z: 42, r: 26 },
-    { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 18, z: 62, r: 12 },
-    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -10, z: -66, r: 10 },
-    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -55, z: -70, r: 16 },
-    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 55, z: -65, r: 17 },
-    { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -36, z: 64, r: 13 },
-    { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 76, z: 36, r: 26 },
-    { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 2, z: -108, r: 22 },
+    { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 171.6, r: 14 },
+    { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0, z: 66, r: 17 },
+    { name: 'THE GLASS RIVER', sub: 'crossing', x: -8.8, z: -28.6, r: 9 },
+    { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 26.4, z: -127.6, r: 42 },
+    { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -158.4, z: 92.4, r: 30 },
+    { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 39.6, z: 136.4, r: 12 },
+    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -22, z: -145.2, r: 10 },
+    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -121, z: -154, r: 16 },
+    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 121, z: -143, r: 17 },
+    { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -79.2, z: 140.8, r: 13 },
+    { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 167.2, z: 79.2, r: 38 },
+    { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 4.4, z: -237.6, r: 22 },
     { name: 'HEARTHWICK', sub: 'the crossroads village', x: 380, z: -380, r: 30 },
     { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 2250, z: 1300, r: 24 },
     { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -2600, r: 24 },
@@ -187,8 +189,8 @@
     let h = 0.5 * Math.sin(x * 0.05) * Math.cos(z * 0.045) + 0.35 * Math.sin(x * 0.13 + 1.3) * Math.sin(z * 0.11 + 0.7)
       + 0.12 * Math.sin(x * 0.4 + z * 0.3);
     const r = Math.hypot(x, z);
-    h += ss(98, 128, r) * 2.2 * (1 - ss(150, 220, r));   // the old forest rise around the Vale, softened
-    const far = ss(150, 340, r);
+    h += ss(98 * VS, 128 * VS, r) * 2.2 * (1 - ss(150 * VS, 220 * VS, r));   // the old forest rise around the Vale, softened
+    const far = ss(150 * VS, 340 * VS, r);
     h += far * ((vnoise(x * 0.0032, z * 0.0032) - 0.5) * 16 + (vnoise(x * 0.011 + 7, z * 0.011 + 3) - 0.5) * 5);
     const b = bw || biomeW(x, z);
     if (b[1] > 0) { const rg = 1 - Math.abs(2 * vnoise(x * 0.0042 + 3, z * 0.0042 + 8) - 1); h += b[1] * (rg * rg * 38 + vnoise(x * 0.02, z * 0.02) * 6); }   // highlands: ridges
@@ -627,26 +629,26 @@
     };
 
     // forest ring
-    for (let k = 0; k < 520; k++) {
-      const a = rnd() * Math.PI * 2, r = 96 + rnd() * 30;
+    for (let k = 0; k < 950; k++) {
+      const a = rnd() * Math.PI * 2, r = (96 + rnd() * 30) * VS;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (free(x, z, 1)) kitTree(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][Math.floor(rnd() * 3)], x, z, 0.9 + rnd() * 0.5);
     }
     // scattered trees
-    for (let k = 0; k < 140; k++) {
-      const x = (rnd() - 0.5) * 190, z = (rnd() - 0.5) * 190;
-      if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 26) continue;
-      if (Math.hypot(x - L.ruins.x, z - L.ruins.z) < 20) continue;
+    for (let k = 0; k < 560; k++) {
+      const x = (rnd() - 0.5) * 190 * VS, z = (rnd() - 0.5) * 190 * VS;
+      if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 40) continue;
+      if (Math.hypot(x - L.ruins.x, z - L.ruins.z) < 24) continue;
       if (free(x, z, 1)) kitTree(rnd() < 0.5 ? 'kit_oak_a' : 'kit_pine_a', x, z, 0.75 + rnd() * 0.4);
     }
     // wispwood: dead trees + some pines
-    for (let k = 0; k < 70; k++) {
-      const a = rnd() * 6.28, r = 6 + rnd() * 24, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
+    for (let k = 0; k < 110; k++) {
+      const a = rnd() * 6.28, r = 6 + rnd() * 34, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
       if (free(x, z, 0.8)) { if (rnd() < 0.65) deadTree(x, z, 1 + rnd() * 0.6); else kitTree('kit_pine_c', x, z, 0.8 + rnd() * 0.3); }
     }
     // rocks
-    for (let k = 0; k < 160; k++) {
-      const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210, s = 0.5 + rnd() * rnd() * 2.2;
+    for (let k = 0; k < 600; k++) {
+      const x = (rnd() - 0.5) * 210 * VS, z = (rnd() - 0.5) * 210 * VS, s = 0.5 + rnd() * rnd() * 2.2;
       if (k % 2 || [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 30)) continue;   // fewer, and none around camps
       if (free(x, z, 1.5)) rock(x, z, s);
     }
@@ -669,13 +671,13 @@
       campfire(scene, L.ruinFire.x, L.ruinFire.z, 'Ruin-edge fire');
     }
     // meadow: flowers + moss
-    for (let k = 0; k < 420; k++) {
-      const a = rnd() * 6.28, r = Math.sqrt(rnd()) * 40, x = L.meadow.x + Math.cos(a) * r, z = L.meadow.z + Math.sin(a) * r;
+    for (let k = 0; k < 800; k++) {
+      const a = rnd() * 6.28, r = Math.sqrt(rnd()) * 60, x = L.meadow.x + Math.cos(a) * r, z = L.meadow.z + Math.sin(a) * r;
       if (W.riverAt(x, z) > RIVER_W + 1) flower(x, z);
     }
-    for (let k = 0; k < 900; k++) {
-      const x = (rnd() - 0.5) * 220, z = (rnd() - 0.5) * 220;
-      if (Math.hypot(x, z) < 105 && W.riverAt(x, z) > RIVER_W + 0.5) { flower(x, z); }
+    for (let k = 0; k < 2600; k++) {
+      const x = (rnd() - 0.5) * 220 * VS, z = (rnd() - 0.5) * 220 * VS;
+      if (Math.hypot(x, z) < 105 * VS && W.riverAt(x, z) > RIVER_W + 0.5) { flower(x, z); }
     }
     campfire(scene, L.meadowFire.x, L.meadowFire.z, 'Meadow watchfire');
 
@@ -736,29 +738,29 @@
       if (opts.col) W.addCollider(x, z, opts.col, opts.tag || 'tree');
     };
     // conifers thicken the forest ring
-    for (let k = 0; k < 260; k++) {
-      const a = rnd() * Math.PI * 2, r = 92 + rnd() * 30, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 3.2 + rnd() * 2.2;
+    for (let k = 0; k < 480; k++) {
+      const a = rnd() * Math.PI * 2, r = (92 + rnd() * 30) * VS, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 3.2 + rnd() * 2.2;
       if (free(x, z, 1)) kitTree(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][Math.floor(rnd() * 3)], x, z, 0.85 + rnd() * 0.45);
     }
     // broadleaf trees: oaks in the open, birches with autumn leaves around the village and the ruins
-    for (let k = 0; k < 120; k++) {
-      const x = (rnd() - 0.5) * 190, z = (rnd() - 0.5) * 190, s = 3 + rnd() * 2;
-      if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 24) continue;
+    for (let k = 0; k < 460; k++) {
+      const x = (rnd() - 0.5) * 190 * VS, z = (rnd() - 0.5) * 190 * VS, s = 3 + rnd() * 2;
+      if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 40) continue;
       const nearVillage = Math.hypot(x - L.village.x, z - L.village.z) < 45 || Math.hypot(x - L.ruins.x, z - L.ruins.z) < 40;
       if (free(x, z, 1.2)) kitTree(rnd() < 0.55 ? ['kit_oak_a', 'kit_oak_b'][Math.floor(rnd() * 2)] : ['kit_pine_a', 'kit_pine_c'][Math.floor(rnd() * 2)], x, z, 0.8 + rnd() * 0.4);
     }
     // Wispwood: dark trees and faintly glowing mushrooms
-    for (let k = 0; k < 40; k++) {
-      const a = rnd() * 6.28, r = 5 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
+    for (let k = 0; k < 70; k++) {
+      const a = rnd() * 6.28, r = 5 + rnd() * 36, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
       if (free(x, z, 1)) kitTree('kit_pine_c', x, z, 0.8 + rnd() * 0.4);
     }
-    for (let k = 0; k < 90; k++) {
-      const a = rnd() * 6.28, r = rnd() * 30, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
+    for (let k = 0; k < 140; k++) {
+      const a = rnd() * 6.28, r = rnd() * 40, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r;
       if (free(x, z, 0.2)) for (let m = 0; m < 3; m++) put('mushroom_red', x + (rnd() - 0.5) * 0.8, z + (rnd() - 0.5) * 0.8, 2 + rnd() * 2, { glow: true });
     }
     // logs, stumps, boulders, bushes
-    for (let k = 0; k < 70; k++) {
-      const x = (rnd() - 0.5) * 200, z = (rnd() - 0.5) * 200;
+    for (let k = 0; k < 260; k++) {
+      const x = (rnd() - 0.5) * 200 * VS, z = (rnd() - 0.5) * 200 * VS;
       if (!free(x, z, 1.5)) continue;
       const r = rnd();
       if (r < 0.3) put('log', x, z, 2.6 + rnd(), { col: 0.9, tag: 'log' });
@@ -767,9 +769,9 @@
       else if (r < 0.8) put('rock_tall', x, z, 1.4 + rnd() * 1.4, { col: 0.8, tag: 'rock' });
       else put('rock_large', x, z, 1.8 + rnd() * 1.6, { col: 1.0, tag: 'rock' });
     }
-    for (let k = 0; k < 60; k++) {
-      const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210;
-      if (Math.hypot(x, z) < 108 && Math.hypot(x, z) > 70 && free(x, z, 0.4)) put('bush_large', x, z, 2 + rnd() * 2);
+    for (let k = 0; k < 220; k++) {
+      const x = (rnd() - 0.5) * 210 * VS, z = (rnd() - 0.5) * 210 * VS;
+      if (Math.hypot(x, z) < 108 * VS && Math.hypot(x, z) > 70 * VS && free(x, z, 0.4)) put('bush_large', x, z, 2 + rnd() * 2);
     }
   }
 
@@ -816,7 +818,7 @@
     [[-6, -11, 0.2], [9, -4, 1.8], [-12, 7, 1.2], [4, 13, 2.9]].forEach(([dx, dz, a]) => put('kit_arch', R.x + dx, R.z + dz, 1.15, a, 1.6));
     for (let k = 0; k < 10; k++) { const a = rnd() * 6.28, r = 5 + rnd() * 13, x = R.x + Math.cos(a) * r, z = R.z + Math.sin(a) * r; if (!W.blocked(x, z, 0.8)) put(rnd() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b', x, z, 0.9 + rnd() * 0.3, rnd() * 6.28, 0.6); }
     // the quiet graves: crypt, rows of graves, shrine, dead trees, lanterns, fence
-    const GX = -36, GZ = 64;
+    const GX = -36 * VS, GZ = 64 * VS;
     put('kit_crypt', GX, GZ - 6, 1.1, 0, 2.0);
     put('kit_shrine', GX + 6, GZ - 4, 1, 0.3, 0.7);
     const graves = ['kit_grave_round', 'kit_grave_cross', 'kit_grave_slab', 'kit_grave_obelisk'];
@@ -838,7 +840,7 @@
     // dead trees in Wispwood and across the vale, rocks everywhere
     const trees = ['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'];
     for (let k = 0; k < 18; k++) { const a = rnd() * 6.28, r = 4 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r; if (free(x, z, 1)) put(trees[k % 3], x, z, 0.9 + rnd() * 0.4, rnd() * 6.28, 0.4); }
-    for (let k = 0; k < 22; k++) { const x = (rnd() - 0.5) * 200, z = (rnd() - 0.5) * 200; if (Math.hypot(x, z) < 100 && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
+    for (let k = 0; k < 80; k++) { const x = (rnd() - 0.5) * 200 * VS, z = (rnd() - 0.5) * 200 * VS; if (Math.hypot(x, z) < 100 * VS && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
     // the Widow's hollow: a ring of dead trees strung with glowing webs
     { const C = L.lair, anchors = [];
       for (let k = 0; k < 9; k++) {
@@ -868,7 +870,7 @@
     // ---- Rimeglass Abbey: lanterns along the frozen approach ----
     { const A = L.abbey; [[-4, 14, 0], [4, 14, 3.1], [-4, 22, 0], [4, 22, 3.1]].forEach(([dx, dz, a]) => lantern(A.x + dx, A.z + dz, a)); }
     const nearCamp = (x, z) => [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 26);
-    for (let k = 0; k < 40; k++) { const x = (rnd() - 0.5) * 210, z = (rnd() - 0.5) * 210, s = 0.4 + rnd() * 0.45; if (Math.hypot(x, z) < 104 && !nearCamp(x, z) && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, s, rnd() * 6.28, 0.85); }
+    for (let k = 0; k < 150; k++) { const x = (rnd() - 0.5) * 210 * VS, z = (rnd() - 0.5) * 210 * VS, s = 0.4 + rnd() * 0.45; if (Math.hypot(x, z) < 104 * VS && !nearCamp(x, z) && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, s, rnd() * 6.28, 0.85); }
   }
 
   // glowing dotted spider webs (thin ribbons drawn with the twinkling star glyphs)
@@ -1027,7 +1029,7 @@
         if (nb.some(q => Math.hypot(q[0] - cx, q[1] - cz) < 85)) continue;
         const s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
     }
-    const ok = r0 < 0.84 && !(Math.abs(x) < 210 && Math.abs(z) < 210) && Math.max(Math.abs(x), Math.abs(z)) < 3650
+    const ok = r0 < 0.84 && !(Math.abs(x) < CORE + 80 && Math.abs(z) < CORE + 80) && Math.max(Math.abs(x), Math.abs(z)) < 3650
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
       && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
       && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 16;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
@@ -1422,7 +1424,7 @@
       put('kit_fence', x, z, 1, -a + Math.PI / 2, 0); W.addCollider(x, z, 0.6, 'fence');
     }
     // two more houses where the old tents stood, facing the square
-    [[-10, 37], [-2, 42]].forEach(([x, z]) => put('kit_hut', x, z, 1.2, Math.atan2(vx - x, vz - z), 1.9));
+    [[-10, 7], [-2, 12]].forEach(([dx, dz]) => { const x = vx + dx, z = vz + dz; put('kit_hut', x, z, 1.2, Math.atan2(vx - x, vz - z), 1.9); });
     // crates
     for (let k = 0; k < 6; k++) {
       const a = rnd() * 6.28, r = 9 + rnd() * 4, x = vx + Math.cos(a) * r, z = vz + Math.sin(a) * r;
@@ -1430,7 +1432,7 @@
       put('kit_crate', x, z, 1, rnd() * 3, 0.5);
     }
     // torches at gates
-    [[-2.4, 14.2], [2.4, 14.2], [-2.4, 45.8], [2.4, 45.8], [14.4, 27.5], [-14.4, 27.5]].forEach(([x, z]) => torch(scene, x, z, 2.2));
+    [[-2.4, -15.8], [2.4, -15.8], [-2.4, 15.8], [2.4, 15.8], [14.4, -2.5], [-14.4, -2.5]].forEach(([dx, dz]) => torch(scene, vx + dx, vz + dz, 2.2));
     // anvil + brazier
     const ax = L.anvil.x, az = L.anvil.z, ay = W.heightAt(ax, az);
     const metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
@@ -1705,7 +1707,7 @@
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
-  W.ARENAS = ARENAS;
+  W.ARENAS = ARENAS; W.VS = VS;
   W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {

@@ -142,6 +142,20 @@ One point per level; reset is free while testing. Deeper rows need 2, 4 or 6 poi
 
 **Fusion:** a parry, a perfect dodge or a finisher charges a fusion for 1.8 s (`⊕ FUSE`, and the ability slots glow). The next ability you cast costs no focus, hits 50% harder and carries an element: **parry → fire** (burn), **perfect dodge → frost** (chill), **finisher → storm** (shock). These feed the reactions. For example, a perfect dodge into Whirl chills the foe, and Whirl's own heavy second spin then Shatters it.
 
+## The starting Vale
+The hand-made Vale is laid out at `VS` = 2.2× its original spacing (`js/world.js`). Structures keep their size; the land between them grows, so the tutorial has room to breathe. From Emberhold:
+
+| Site | Distance |
+|---|---|
+| Waking Stone | ~106 m |
+| Hollow Ruins | ~161 m |
+| Wispwood | ~168 m |
+| Thornwolf Meadow (across the river) | ~195 m |
+| Greymoss Keep | ~241 m |
+| Warden Circle | ~304 m |
+
+Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise and all scatter follow.
+
 ## World map (M)
 A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.
 - **V** cycles four styles: *Touring map*, *ASCII relief* (the whole map in the game's brightness ramp), *Explorer's ink* (parchment and sepia) and *Glyph mosaic* (colour tiles with shade blocks).

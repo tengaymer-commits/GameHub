@@ -15,7 +15,7 @@
   // ---------------- quests ----------------
   const L = () => GW.World.L;
   const QUESTS = [
-    { id: 'wake', title: 'THE WAKING', text: c => `Strike down the straw husks (${c.husk || 0}/3)`, target: () => ({ x: 0, z: 60 }), need: { husk: 3 } },
+    { id: 'wake', title: 'THE WAKING', text: c => `Strike down the straw husks (${c.husk || 0}/3)`, target: () => ({ x: 0, z: 60 * GW.World.VS }), need: { husk: 3 } },
     { id: 'meet', title: 'A LIGHT IN THE VALE', text: () => 'Find Mara the Lamplighter at Emberhold', target: () => L().elder },
     { id: 'smith', title: 'GLYPH AND STEEL', text: () => 'Socket a rune into your blade at Hesk\'s anvil', target: () => L().anvil },
     { id: 'wolves', title: 'THORNS ACROSS THE WATER', text: c => `Cull the Thornwolves north of the river (${c.wolf || 0}/6)`, target: () => L().meadow, need: { wolf: 6 } },
@@ -189,8 +189,9 @@
 
   function spawnAll() {
     const Lw = GW.World.L;
-    [[-3, 62], [3, 61], [0, 56]].forEach(([x, z]) => G.spawnEnemy('husk', x, z));
-    const packs = [[4, -48], [22, -60], [-2, -70], [28, -44], [14, -78]];
+    const VS = GW.World.VS;
+    [[-3, 62], [3, 61], [0, 56]].forEach(([x, z]) => G.spawnEnemy('husk', x, (z - 60) + 60 * VS));
+    const packs = [[4, -48], [22, -60], [-2, -70], [28, -44], [14, -78]].map(([x, z]) => [Lw.meadow.x + (x - 12) * 1.5, Lw.meadow.z + (z + 58) * 1.5]);
     packs.forEach(([px, pz]) => { for (let k = 0; k < 3; k++) { const a = k * 2.1; G.spawnEnemy('wolf', px + Math.cos(a) * 2.5, pz + Math.sin(a) * 2.5, { x: px, z: pz }); } });
     for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, r = 4 + (k % 3) * 2.5; G.spawnEnemy('hollow', Lw.ruins.x + Math.cos(a) * r, Lw.ruins.z + Math.sin(a) * r); }
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, r = 6 + (k % 2) * 6; G.spawnEnemy('wisp', Lw.grove.x + Math.cos(a) * r, Lw.grove.z + Math.sin(a) * r); }
