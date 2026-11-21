@@ -1,0 +1,758 @@
+// Glyphwake: renderer + ASCII post-processing pipeline.
+// The 3D scene renders into an offscreen target whose alpha channel carries a
+// "glyph set" id per material. A full-screen pass splits the screen into
+// character cells, picks a glyph from that set's brightness ramp, then adds bloom.
+(function () {
+  'use strict';
+  const E = window.GW = window.GW || {};
+  const MAXL = 12;
+
+  // ---- glyph sets (index = id written by materials) ----
+  // mode: 0 ascii, 1 raw (pass the rendered pixels), 2 void
+  // gain: brightness multiplier before choosing glyph; under: raw colour underlay
+  // edge: draw outline glyphs where the set borders another; bright/white: glyph colour shaping
+  const SETS = [
+    /* 0 void   */ { ramp: ' ', mode: 2, gain: 1, under: 0.0, edge: 0, bright: 1, white: 0, flick: 0 },
+    /* 1 ground */ { ramp: " .", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 2 grass  */ { ramp: " .,'`:;~^\"*+", mode: 1, gain: 1.0, under: 0.0, edge: 0, bright: 1.0, white: 0.0, flick: 0 },
+    /* 3 stone  */ { ramp: " .:;coO0Q8B@", mode: 0, gain: 2.5, under: 0.07, edge: 0, bright: 1.1, white: 0.4, flick: 0 },
+    /* 4 water  */ { ramp: "   .:;+*o0@", mode: 0, gain: 1.5, under: 0.35, edge: 0, bright: 1.25, white: 0.4, flick: 0 },
+    /* 5 leaf   */ { ramp: " .,:;~'*(){}&%$@", mode: 0, gain: 2.4, under: 0.06, edge: 0, bright: 1.1, white: 0.05, flick: 0, letters: 1 },
+    /* 6 body   */ { ramp: " .:-=+*#%@", mode: 0, gain: 2.0, under: 0.35, edge: 1, bright: 1.15, white: 0.35, flick: 0 },
+    /* 7 metal  */ { ramp: " .:/|=#$%@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.3, white: 0.45, flick: 0 },
+    /* 8 fire   */ { ramp: " .'*+%&$@#&%@$&@", mode: 0, gain: 0.9, under: 0.3, edge: 0, bright: 1.6, white: 0.25, flick: 7, letters: 1 },
+    /* 9 flower */ { ramp: " .o*o*O@", mode: 0, gain: 1.6, under: 0.4, edge: 0, bright: 1.4, white: 0.6, flick: 0 },
+    /* 10 wood  */ { ramp: " .-=|[]#HXN%&@$M", mode: 0, gain: 2.4, under: 0.05, edge: 0, bright: 1.05, white: 0.1, flick: 0, letters: 1 },
+    /* 11 cloth */ { ramp: " .:;ox%#&", mode: 0, gain: 2.1, under: 0.4, edge: 1, bright: 1.15, white: 0.0, flick: 0 },
+    /* 12 bone  */ { ramp: " .,:;xX$&@", mode: 0, gain: 1.9, under: 0.35, edge: 1, bright: 1.2, white: 0.45, flick: 0 },
+    /* 13 ruin  */ { ramp: " -\\|)co0Oo8%@WMD", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.45, flick: 0, letters: 1 },
+    /* 14 moss  */ { ramp: " .,;~(){}?&%$S@#", mode: 0, gain: 2.4, under: 0.08, edge: 0, bright: 1.15, white: 0.05, flick: 0, letters: 1 },
+    /* 15 rune  */ { ramp: " .*+xzk#@", mode: 0, gain: 0.9, under: 0.4, edge: 0, bright: 1.6, white: 0.35, flick: 6 },
+    // ---- armour glyph patterns (actors) ----
+    /* 16 mail    */ { ramp: " .:oo0O8@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.4, flick: 0, actor: 1, jit: 0.3, pat: 1 },
+    /* 17 plate   */ { ramp: " .-=:=#H#@", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.35, white: 0.5, flick: 0, actor: 1, jit: 0.06, pat: 2 },
+    /* 18 leather */ { ramp: " .,:;x%&%", mode: 0, gain: 2.2, under: 0.15, edge: 0, bright: 1.15, white: 0.15, flick: 0, actor: 1, jit: 0.18, pat: 0 },
+    /* 19 scale   */ { ramp: " .vvVwWWM", mode: 0, gain: 2.1, under: 0.12, edge: 0, bright: 1.2, white: 0.3, flick: 0, actor: 1, jit: 0.08, pat: 3 },
+    /* 20 silk    */ { ramp: " .'~^*\"&", mode: 0, gain: 2.2, under: 0.18, edge: 0, bright: 1.2, white: 0.1, flick: 0, actor: 1, jit: 0.12, pat: 0 },
+    /* 21 boneplt */ { ramp: " .,!|IXX$", mode: 0, gain: 2.0, under: 0.12, edge: 0, bright: 1.25, white: 0.45, flick: 0, actor: 1, jit: 0.1, pat: 2 },
+    /* 22 tabard  */ { ramp: " .:;=+x#%", mode: 0, gain: 2.3, under: 0.2, edge: 0, bright: 1.25, white: 0.05, flick: 0, actor: 1, jit: 0.1, pat: 0 },
+  ];
+  SETS.push(
+    /* 23 sky     */ { ramp: "    ..'`", mode: 0, gain: 2.6, under: 0.9, edge: 0, bright: 0.6, white: 0.2, flick: 0 },
+    /* 24 star    */ { ramp: " .+*", mode: 0, gain: 1.3, under: 0.25, edge: 0, bright: 1.7, white: 0.85, flick: 1.3 },
+    /* 25 moon    */ { ramp: " .:-=+*#%@", mode: 0, gain: 1.15, under: 0.35, edge: 0, bright: 1.35, white: 0.6, flick: 0 },
+    /* 26 flower (dandelion glyphs, always drawn as rendered) */ { ramp: " ", mode: 1, gain: 1.0, under: 0, edge: 0, bright: 1, white: 0, flick: 0 },
+    /* 27 masonry */ { ramp: " ;=+/(zxwbdpq$Q&", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.2, white: 0.35, flick: 0, letters: 1 },
+    /* 28 bark    */ { ramp: " .:;!|lI[]1HN#M@", mode: 0, gain: 2.5, under: 0.05, edge: 0, bright: 1.1, white: 0.08, flick: 0, letters: 1 },
+    /* 29 thatch  */ { ramp: " .'`^/\\vwVWXM#%@", mode: 0, gain: 2.5, under: 0.05, edge: 0, bright: 1.15, white: 0.1, flick: 0, letters: 1 },
+    /* 30 planks  */ { ramp: " .-=~+[]#H%$&@NM", mode: 0, gain: 2.4, under: 0.05, edge: 0, bright: 1.1, white: 0.1, flick: 0, letters: 1 },
+    /* 31 rock    */ { ramp: " -;:ocu0OQ8&$%@W", mode: 0, gain: 2.3, under: 0.05, edge: 0, bright: 1.15, white: 0.45, flick: 0, letters: 1 },
+  );
+  // body-type sets are "actors": solid glyph fill, bright silhouette edge, grass pushed back
+  [6, 7, 11, 12].forEach(i => { SETS[i].actor = 1; SETS[i].edge = 0; SETS[i].under = 0.3; });
+  [3, 5, 10, 13, 14, 27, 28, 29, 30, 31].forEach(i => { SETS[i].scen = 1; });   // scenery: soft dark outline against the ground
+  while (SETS.length < 32) SETS.push({ ramp: ' ', mode: 2, gain: 1, under: 0, edge: 0, bright: 1, white: 0, flick: 0 });
+  const ID = E.ID = { MASONRY: 27, BARK: 28, THATCH: 29, PLANKS: 30, ROCK: 31, SKY: 23, STAR: 24, MOON: 25, MAIL: 16, PLATE: 17, LEATHER: 18, SCALE: 19, SILK: 20, BONEPLATE: 21, TABARD: 22, VOID: 0, GROUND: 1, GRASS: 2, STONE: 3, WATER: 4, LEAF: 5, BODY: 6, METAL: 7, FIRE: 8, FLOWER: 9, WOOD: 10, CLOTH: 11, BONE: 12, RUIN: 13, MOSS: 14, RUNE: 15 };
+  E.SETS = SETS;
+  const COLS = 16, ROWS = 33; // row 32: edge glyphs
+
+  function buildAtlas() {
+    const cw = 32, ch = 48;
+    const c = document.createElement('canvas');
+    c.width = cw * COLS; c.height = ch * ROWS;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 38px ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
+    const draw = (chr, col, row) => {
+      if (chr === ' ') return;
+      g.save(); g.translate(col * cw + cw / 2, row * ch + ch / 2); g.scale(1.0, 1.32); g.fillText(chr, 0, 1); g.restore();
+    };
+    SETS.forEach((s, row) => {
+      const r = s.ramp;
+      for (let i = 0; i < COLS; i++) {
+        const k = i === 0 ? 0 : 1 + Math.floor((i - 1) * (r.length - 1) / (COLS - 1));
+        draw(r[Math.min(k, r.length - 1)], i, row);
+      }
+    });
+    '|\\-/+'.split('').forEach((chr, i) => draw(chr, i, 32));
+    const t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    return t;
+  }
+
+  // ---------- shared lighting uniforms ----------
+  const LU = E.LU = {
+    uAmb: { value: new THREE.Color(0.17, 0.2, 0.26) },
+    uMoonDir: { value: new THREE.Vector3(-0.55, 0.72, 0.42).normalize() },
+    uMoonCol: { value: new THREE.Color(0.48, 0.55, 0.72) },
+    uLP: { value: Array.from({ length: MAXL }, () => new THREE.Vector4(0, -999, 0, 1)) },
+    uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color(0, 0, 0)) },
+    uLN: { value: 0 },
+    uTime: { value: 0 },
+    uCam: { value: new THREE.Vector3() },
+    uFog: { value: 0.012 },
+    uFogStart: { value: 18 },
+    uFogCol: { value: new THREE.Color(0.022, 0.032, 0.058) },
+    uDayLight: { value: 1.0 },
+    uDetail: { value: 1.0 },
+    uShadowSoft: { value: 1.25 }, uShadowStr: { value: 1.0 }, uPlayerW: { value: new THREE.Vector3(0, -999, 0) },
+    uHeightMap: { value: null }, uWorldSize: { value: 260 }, uGroundO: { value: 0.5 }, uSwirl: { value: 0.0 }, uXray: { value: 0.0 }, uSeeMode: { value: 2 }, uBiomeMap: { value: null }, uBiomeMap2: { value: null }, uMapC: { value: new THREE.Vector2() }, uMapSpan: { value: 1024 },
+    uShadowMap: { value: null },
+    uShadowMat: { value: new THREE.Matrix4() },
+    uShadowOn: { value: 0 },
+    uDepthPass: { value: 0 },
+    uAtlas: { value: null },
+    uRefl: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 },
+    uShadowTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
+  };
+
+  const LIGHT_GLSL = `
+    #include <packing>
+    uniform vec3 uAmb; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uGroundO; uniform float uSwirl; uniform float uXray; uniform float uSeeMode; uniform sampler2D uBiomeMap; uniform sampler2D uBiomeMap2; uniform vec2 uMapC; uniform float uMapSpan;
+    uniform vec4 uLP[${MAXL}]; uniform vec3 uLC[${MAXL}]; uniform int uLN;
+    uniform vec3 uCam; uniform float uFog; uniform float uFogStart; uniform float uTime; uniform vec3 uFogCol; uniform float uDayLight; uniform float uDetail; uniform sampler2D uHeightMap; uniform float uWorldSize; uniform float uShadowSoft; uniform float uShadowStr; uniform vec3 uPlayerW;
+    uniform sampler2D uShadowMap; uniform mat4 uShadowMat; uniform float uShadowOn; uniform vec2 uShadowTexel; uniform float uDepthPass;
+    float gShadow;
+    // moon shadow map, 3x3 PCF with a normal offset against acne
+    float shadowAt(vec3 W, vec3 n) {
+      if (uShadowOn < 0.5) return 1.0;
+      vec4 sp = uShadowMat * vec4(W + n * 0.08, 1.0);
+      vec3 sc = sp.xyz / sp.w * 0.5 + 0.5;
+      if (sc.x < 0.0 || sc.x > 1.0 || sc.y < 0.0 || sc.y > 1.0 || sc.z > 1.0) return 1.0;
+      float sh = 0.0;
+      for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) {
+        float d = unpackRGBAToDepth(texture2D(uShadowMap, sc.xy + vec2(float(x), float(y)) * uShadowTexel * uShadowSoft));
+        sh += (sc.z - 0.0012 > d) ? 0.0 : 1.0;
+      }
+      float edge = smoothstep(0.0, 0.08, min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y)));
+      return mix(1.0, mix(1.0, sh / 9.0, uShadowStr), edge);
+    }
+    vec3 lightAt(vec3 W, vec3 n) {
+      float sh = shadowAt(W, n); gShadow = sh;
+      // sky fill (walls get most of it too), wrapped key light so shapes roll off softly instead of going black
+      vec3 L = uAmb * (0.82 + 0.18 * n.y) * (0.85 + 0.15 * sh) * 1.25
+             + uMoonCol * max(dot(n, uMoonDir) * 0.62 + 0.38, 0.0) * (0.35 + 0.65 * sh);
+      for (int i = 0; i < ${MAXL}; i++) {
+        if (i >= uLN) break;
+        vec3 d = uLP[i].xyz - W; float dist = length(d);
+        float k = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
+        float att = k * k * (1.0 + 1.5 / (1.0 + dist * dist * 0.35));
+        L += uLC[i] * att * (max(dot(n, d / max(dist, 0.001)), 0.0) * 0.8 + 0.2);
+      }
+      return L;
+    }
+    // Blinn-Phong highlights from the moon (shadowed) and nearby lights
+    vec3 specAt(vec3 W, vec3 n, vec3 V, float shin) {
+      vec3 S = uMoonCol * pow(max(dot(n, normalize(uMoonDir + V)), 0.0), shin) * gShadow * 1.6;
+      for (int i = 0; i < ${MAXL}; i++) {
+        if (i >= uLN) break;
+        vec3 d = uLP[i].xyz - W; float dist = length(d);
+        float k = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
+        S += uLC[i] * k * k * pow(max(dot(n, normalize(d / max(dist, 0.001) + V)), 0.0), shin);
+      }
+      return S;
+    }
+    float fogAt(vec3 W) { return exp(-max(length(W - uCam) - uFogStart, 0.0) * uFog); }
+    vec3 applyFog(vec3 col, vec3 W) { return mix(uFogCol, col * uDayLight, fogAt(W)); }
+  `;
+  E.LIGHT_GLSL = LIGHT_GLSL;
+
+  const UBER_V = `
+    varying vec3 vN; varying vec3 vW; varying vec3 vC;
+    uniform vec3 uColor;
+    #include <skinning_pars_vertex>
+    void main() {
+      vec3 objectNormal = normal; vec3 transformed = position;
+      #include <skinbase_vertex>
+      #include <skinnormal_vertex>
+      #include <skinning_vertex>
+      vec4 p = vec4(transformed, 1.0); vec3 n = objectNormal;
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p; n = mat3(instanceMatrix) * n;
+      #endif
+      vec4 w = modelMatrix * p;
+      vN = normalize(mat3(modelMatrix) * n); vW = w.xyz; vC = uColor;
+      #ifdef USE_COLOR
+        vC *= color;
+      #endif
+      #ifdef USE_INSTANCING_COLOR
+        vC *= instanceColor;
+      #endif
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`;
+  const UBER_F = `
+    varying vec3 vN; varying vec3 vW; varying vec3 vC;
+    uniform vec3 uEmissive; uniform float uId; uniform float uFlash; uniform float uRim; uniform float uUnlit; uniform float uSpec; uniform float uNoFog; uniform float uFarGrass; uniform float uFill; uniform vec2 uGrassC; uniform sampler2D uAtlas; uniform float uTex; uniform float uSil;
+    float th(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+    float tn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(th(i), th(i + vec2(1.0, 0.0)), f.x), mix(th(i + vec2(0.0, 1.0)), th(i + vec2(1.0, 1.0)), f.x), f.y); }
+    // Procedural surface textures, projected from the dominant axis of the normal (triplanar-lite),
+    // so they are fixed to the object and give the glyph pass real structure to pick characters from.
+    float surfTex(float kind, vec3 W, vec3 n) {
+      vec3 an = abs(n);
+      vec2 uv = an.y > max(an.x, an.z) ? W.xz : (an.x > an.z ? W.zy : W.xy);
+      float vert = an.y > max(an.x, an.z) ? 0.0 : 1.0;
+      if (kind < 1.5) {            // 1 masonry: cut-stone blocks with mortar joints
+        vec2 b = uv / vec2(0.62, 0.3); float row = floor(b.y); b.x += mod(row, 2.0) * 0.5;
+        vec2 f = fract(b), id = floor(b);
+        float joint = smoothstep(0.0, 0.07, min(min(f.x, 1.0 - f.x) * 2.0, min(f.y, 1.0 - f.y)));
+        return (0.55 + 0.45 * joint) * (0.8 + 0.35 * th(id)) * (0.85 + 0.3 * tn(uv * 5.0));
+      } else if (kind < 2.5) {     // 2 planks: boards with gaps and grain
+        vec2 p = vert > 0.5 ? vec2(uv.y, uv.x) : uv;
+        float board = floor(p.y / 0.2), f = fract(p.y / 0.2);
+        float gap = smoothstep(0.0, 0.08, min(f, 1.0 - f));
+        float grain = 0.75 + 0.25 * sin(p.x * 9.0 + tn(vec2(p.x * 0.6, board * 7.0)) * 6.0 + f * 3.0);
+        return (0.45 + 0.55 * gap) * grain * (0.8 + 0.3 * th(vec2(board, 3.0)));
+      } else if (kind < 3.5) {     // 3 bark: vertical fissures
+        float a = atan(W.z, W.x);
+        float fis = abs(sin(uv.x * 22.0 + tn(vec2(uv.x * 3.0, W.y * 1.5)) * 4.0 + a * 3.0));
+        return 0.5 + 0.6 * smoothstep(0.1, 0.6, fis) * (0.8 + 0.3 * tn(vec2(W.y * 6.0, a * 4.0)));
+      } else if (kind < 4.5) {     // 4 thatch: slanted straw strands in tiers
+        float tier = fract(W.y / 0.32);
+        float st = 0.5 + 0.5 * sin((uv.x + uv.y * 0.35) * 70.0 + tn(uv * 8.0) * 5.0);
+        return (0.6 + 0.4 * st) * (0.7 + 0.3 * smoothstep(0.0, 0.25, tier));
+      } else if (kind < 5.5) {     // 5 foliage: clumps lit on top, dark between
+        float c = tn(W.xz * 2.2 + W.y * 1.7) * 0.65 + tn(W.xz * 7.0 - W.y * 5.0) * 0.35;
+        return (0.4 + 0.9 * smoothstep(0.35, 0.75, c)) * (0.75 + 0.35 * clamp(n.y, 0.0, 1.0));
+      } else if (kind < 6.5) {     // 6 rock: cracks and lichen
+        float cr = abs(tn(uv * 2.4) - 0.5); float crack = smoothstep(0.0, 0.05, cr);
+        float lich = smoothstep(0.72, 0.8, tn(uv * 5.0 + 9.0));
+        return (0.5 + 0.5 * crack) * (0.85 + 0.3 * tn(uv * 9.0)) + lich * 0.35;
+      } else {                     // 7 iron: seams and rivets
+        vec2 g = fract(uv / 0.35); float seam = smoothstep(0.0, 0.06, min(min(g.x, 1.0 - g.x), min(g.y, 1.0 - g.y)));
+        float riv = 1.0 - smoothstep(0.03, 0.05, length(g - vec2(0.1)));
+        return (0.6 + 0.4 * seam) + riv * 0.6;
+      }
+    }
+    // leaf clusters: 3D cells; each clump lit on its sunny side, dark gaps between, own shade of green
+    float h31(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+    vec3 leafClusters(vec3 W, vec3 n, vec3 sun) {
+      vec3 g = W / 0.62, i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec3 bid = vec3(0.0), bc = vec3(0.0);
+      vec3 lo = step(0.5, f) - 1.0;                              // only the 2x2x2 nearest cells (8 instead of 27 lookups)
+      for (int z = 0; z <= 1; z++) for (int y = 0; y <= 1; y++) for (int x = 0; x <= 1; x++) {
+        vec3 o = lo + vec3(float(x), float(y), float(z));
+        vec3 c = o + 0.2 + 0.6 * vec3(h31(i + o), h31(i + o + 7.1), h31(i + o + 3.7)) - f;
+        float d = dot(c, c); if (d < d1) { d2 = d1; d1 = d; bid = i + o; bc = c; } else if (d < d2) d2 = d;
+      }
+      float gap = smoothstep(0.0, 0.18, sqrt(d2) - sqrt(d1));
+      vec3 cn = normalize(-bc + n * 0.5);                        // the clump's own rounded normal
+      float lit = 0.3 + 0.85 * max(dot(cn, normalize(sun + vec3(0.0, 0.6, 0.0))), 0.0);
+      float r = h31(bid + 1.3);
+      vec3 tint = r < 0.45 ? vec3(0.62, 0.78, 0.78) : r < 0.8 ? vec3(0.9, 0.92, 0.82) : vec3(1.2, 1.1, 0.68);   // deep blue-green / mid / sunlit yellow-green
+      return tint * lit * (0.2 + 0.8 * gap);
+    }
+    // 8 cobblestone: rounded, irregular stones with deep dark gaps
+    float cobble(vec2 uv) {
+      vec2 g = uv / vec2(0.62, 0.42), i = floor(g), f = fract(g); float d1 = 9.0, d2 = 9.0; vec2 bid = vec2(0.0);
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+        vec2 o = vec2(float(x), float(y)); vec2 c = o + 0.15 + 0.7 * vec2(th(i + o), th(i + o + 17.0)) - f;
+        float d = dot(c, c); if (d < d1) { d2 = d1; d1 = d; bid = i + o; } else if (d < d2) d2 = d;
+      }
+      float edge = smoothstep(0.02, 0.14, sqrt(d2) - sqrt(d1));
+      float streak = 0.75 + 0.35 * tn(vec2(uv.x * 2.3, uv.y * 0.25));      // rain-streaked, weathered faces
+      return (0.08 + 0.92 * edge) * (0.55 + 0.75 * th(bid)) * (0.8 + 0.3 * (1.0 - sqrt(d1))) * streak;
+    }
+    ${LIGHT_GLSL}
+    void main() {
+      if (uDepthPass > 0.5) { gl_FragColor = packDepthToRGBA(gl_FragCoord.z); return; }
+      float xEdge = 0.0, xGhost = 0.0, xLamp = 0.0;
+      if (uXray > 0.5 && uTex > 0.5 && uPlayerW.y > -900.0) {
+        // see-through modes (Settings > Camera > See the hero): 1 roof lift, 2 dollhouse, 3 glyph thinning,
+        // 4 ghost walls, 5 dark outside (roof lift + 2D vignette), 6 lantern reveal
+        vec3 hp = uPlayerW + vec3(0.0, 0.9, 0.0), cd = normalize(uCam - hp), rr = vW - hp;
+        float tt = dot(rr, cd), dp = length(rr - cd * tt), dh = length(vW.xz - uPlayerW.xz);
+        int md = int(uSeeMode + 0.5);
+        if (md == 1 || md == 2 || md == 5) {
+          if (dh < 16.0) {
+            float roofY = uPlayerW.y + 2.5, kneeY = uPlayerW.y + 0.7;
+            float cutY = (md == 2 && tt > 0.3) ? kneeY : roofY;
+            if (vW.y > cutY) discard;
+            xEdge = smoothstep(cutY - 0.22, cutY, vW.y);
+          }
+        } else if (tt > 0.4) {
+          float R = 3.4, k = 1.0 - smoothstep(R * 0.55, R, dp);
+          vec3 nn = normalize(vN), VV = normalize(uCam - vW);
+          if (md == 3) {          // thin ink: only a sparse scatter of the wall survives, so its letters go light and thin
+            if (k > 0.0 && th(floor(gl_FragCoord.xy / 3.0) + 0.37) < k * 0.82) discard;
+          } else if (md == 4) {   // ghost: faces seen edge-on stay as faint outlines, the rest goes
+            float edge = 1.0 - abs(dot(nn, VV));
+            if (k > 0.0 && edge < 0.82 && th(floor(gl_FragCoord.xy * 0.5) + 0.71) < k * 0.97) discard;
+            xGhost = k;
+          } else if (md == 6) {   // lantern: a warm pool of light dissolves the wall, softest at its rim
+            float k2 = 1.0 - smoothstep(R * 0.8, R * 1.3, dp);
+            if (th(floor(gl_FragCoord.xy * 0.5) + 0.13) < k2 * (0.5 + 0.5 * (1.0 - smoothstep(R * 0.4, R, dp)))) discard;
+            xLamp = k2;
+          }
+        }
+      }
+      vec3 n = normalize(vN);
+      if (!gl_FrontFacing) n = -n;
+      vec3 L = mix(lightAt(vW, n), vec3(1.0), uUnlit);
+      vec3 V = normalize(uCam - vW);
+      float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * uRim;
+      vec3 base = vC;
+      if (uTex > 0.5 && uUnlit < 0.5) {
+        vec3 an = abs(n); vec2 uvc = an.y > max(an.x, an.z) ? vW.xz : (an.x > an.z ? vW.zy : vW.xy);
+        if (uTex > 8.5) {
+          // hair (tex 9): fur strokes are added after lighting
+        } else if (uTex > 4.5 && uTex < 5.5) {
+          vec3 lc = leafClusters(vW, n, uMoonDir);
+          base *= mix(vec3(0.85 + 0.15 * dot(lc, vec3(0.333))), lc, 0.6 + 0.4 * uDetail);
+        } else {
+          float t = uTex > 7.5 ? cobble(uvc) : surfTex(uTex, vW, n);
+          // zoom-aware: far away fine texture fades so glyphs form clean shapes instead of dots (masonry keeps its stones: the letters carry them)
+          base *= uTex > 7.5 ? t : mix(0.9 + 0.1 * t, t, 0.2 + 0.8 * uDetail);
+        }
+      }
+      else if (uSpec < 0.3 && uUnlit < 0.5 && uFarGrass <= 0.0) {
+        // matte, rough surfaces: blotchy grime at two scales + fine pitting
+        vec3 q3 = vW * vec3(1.0, 1.4, 1.0);
+        float g1 = tn(q3.xz * 1.7 + q3.y * 1.3), g2 = tn(q3.xz * 6.5 - q3.y * 5.0 + 3.0), g3 = th(floor(vW.xz * 18.0 + vW.y * 11.0));
+        base *= mix(0.95, 0.62 + 0.55 * g1 * (0.6 + 0.4 * g2) + (g3 - 0.5) * 0.18, 0.25 + 0.75 * uDetail);
+      }
+      float gGlyph = 0.0; vec3 gTint = vec3(0.0);
+      if (uFarGrass > 0.0) {
+        // ground = near-black earth printed with ASCII characters that are fixed to the world
+        // (they move with the ground, so no screen-fixed grid / scanlines)
+        float n1 = tn(vW.xz * 0.3), n2 = tn(vW.xz * 1.6 + 3.1);
+        float grassy = smoothstep(0.02, 0.06, vC.g - vC.r);
+        // dark patches in the meadow where the earth shows as dim blue-grey o 0 8 letters (as in the reference)
+        grassy *= 1.0 - step(1.0 - 0.32 * uGroundO, tn(vW.xz * 0.11 + 5.0) * 0.7 + tn(vW.xz * 0.37 + 1.7) * 0.3) * step(0.01, uGroundO);
+        base = vec3(0.02, 0.06, 0.045) * (0.8 + 0.4 * n2);
+        vec4 bm = texture2D(uBiomeMap, (vW.xz - uMapC) / uMapSpan + 0.5), bm2 = texture2D(uBiomeMap2, (vW.xz - uMapC) / uMapSpan + 0.5);
+        grassy *= (1.0 - bm.g) * (1.0 - 0.6 * bm.r) * (1.0 - bm.b) * (1.0 - 0.4 * bm.a);
+        base = mix(base, vec3(0.045, 0.04, 0.037) * (0.8 + 0.4 * n2), bm.r);              // ash
+        base = mix(base, vec3(0.16, 0.19, 0.24) * (0.8 + 0.4 * n2), bm.g);                // snow
+        base = mix(base, vec3(0.17, 0.15, 0.11) * (0.8 + 0.4 * n2), bm.b);                // salt
+        base = mix(base, vec3(0.05, 0.06, 0.05) * (0.8 + 0.4 * n2), bm.a);                // highlands
+        base = mix(base, vec3(0.025, 0.035, 0.02) * (0.8 + 0.4 * n2), bm2.r);             // mire
+        base = mix(base, vec3(0.01, 0.028, 0.032) * (0.8 + 0.4 * n2), bm2.g);             // duskwood
+        if (vC.b > 0.45 && vC.r < 0.36) base = vec3(0.1, 0.14, 0.2) * (0.9 + 0.2 * n2);   // frozen mere: dark glassy ice
+        vec2 gp = vW.xz / vec2(0.17, 0.24);
+        vec2 gc = floor(gp), gu = fract(gp);
+        float r = th(gc * 1.37 + 7.7);
+        float dens = mix(0.22, 0.9, grassy) * (0.75 + 0.4 * n1);
+        if (r < dens) {
+          float idx = 1.0 + floor(th(gc + 3.1) * 11.0);
+          float row = grassy > 0.5 ? 2.0 : 13.0;   // grass strokes on grassland, faint o 0 O 8 on bare earth
+          if (grassy <= 0.5) idx = 6.0 + floor(th(gc + 5.3) * 5.0);
+          vec2 auv = vec2((idx + gu.x) / 16.0, (32.0 - row + (1.0 - gu.y)) / 33.0);
+          float gm = texture2D(uAtlas, auv).r;
+          float px = max(fwidth(gp.x), fwidth(gp.y));            // glyph cells per pixel: fade before they alias
+          gGlyph = gm * (1.0 - smoothstep(0.22, 0.55, px));
+          gTint = grassy > 0.5 ? mix(vec3(0.07, 0.22, 0.17), vec3(0.13, 0.33, 0.26), th(gc + 9.0)) : vec3(0.1, 0.11, 0.15) * (0.7 + 0.6 * th(gc + 2.0));
+          gTint = mix(gTint, vec3(0.2, 0.16, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm.r);
+          gTint = mix(gTint, vec3(0.26, 0.31, 0.4) * (0.7 + 0.6 * th(gc + 2.0)), bm.g);
+          gTint = mix(gTint, vec3(0.3, 0.27, 0.2) * (0.7 + 0.6 * th(gc + 2.0)), bm.b);
+          gTint = mix(gTint, vec3(0.14, 0.16, 0.13) * (0.7 + 0.6 * th(gc + 2.0)), bm.a);
+          gTint = mix(gTint, vec3(0.1, 0.12, 0.06) * (0.7 + 0.6 * th(gc + 2.0)), bm2.r);
+          gTint = mix(gTint, vec3(0.04, 0.1, 0.12) * (0.7 + 0.6 * th(gc + 2.0)), bm2.g);
+        }
+      }
+      if (uTex > 0.5 && uUnlit < 0.5) {
+        float l = max(dot(L, vec3(0.333)), 1e-4);
+        float q = l * 4.0, fq = fract(q);
+        float lb = (floor(q) + smoothstep(0.35, 0.65, fq)) / 4.0;     // soft steps: lit / side / shade / deep shade
+        L *= mix(1.0, max(lb, 0.06) / l, 0.75);
+        if (uWorldSize > 0.0) {
+          float gh = texture2D(uHeightMap, (vW.xz - uMapC) / uMapSpan + 0.5).r;
+          L *= mix(0.5, 1.0, smoothstep(0.0, 1.1, vW.y - gh));      // contact shadow where walls meet the ground
+        }
+      }
+      vec3 col = base * L + uEmissive + vec3(rim * 0.35, rim * 0.4, rim * 0.5) + uFlash + base * uFill;
+      if (uSpec > 0.0 && uUnlit < 0.5) col += specAt(vW, n, V, 42.0) * uSpec;
+      bool hair = uTex > 8.5;
+      if (hair && uUnlit < 0.5) {
+        // foliage / animal fur: short combed strokes over the surface (same language as the grass), dark between them
+        float CEL = hair ? 0.06 : 0.095;
+        vec3 an3 = abs(n);
+        vec2 fp = an3.y > 0.6 || !hair ? vW.xz + vW.y * vec2(0.37, 0.61) : (an3.x > an3.z ? vW.zy : vW.xy) + vec2(0.0, vW.x * 0.21);
+        vec2 g = fp / CEL, gi = floor(g); float m = 0.0, best = 0.0, sp = 0.0;
+        float w = max(fwidth(fp.x), fwidth(fp.y)) * 0.6 + 0.0015;
+        vec2 comb = n.xz * 0.9 + vec2(0.0, 0.45);
+        for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+          vec2 c = gi + vec2(float(x), float(y)), ctr = (c + vec2(th(c + 1.7), th(c + 3.1))) * CEL;
+          vec2 dir = normalize(comb + (vec2(th(c + 5.3), th(c + 6.1)) - 0.5) * 1.4 + 1e-3);
+          float len = (hair ? 0.022 : 0.035) + (hair ? 0.03 : 0.05) * th(c + 8.9);
+          vec2 d = fp - ctr; float t = clamp(dot(d, dir), -len, len); float dist = length(d - dir * t);
+          float k = 1.0 - smoothstep(w * 0.5, w * 1.5, dist);
+          if (k > m) { m = k; best = th(c + 2.2); }
+          if (!hair && th(c * 1.31 + 0.7) > 0.975) sp = max(sp, 1.0 - smoothstep(w * 0.8, w * 2.2, length(d)));
+        }
+        if (hair) col = col * (0.1 + m * (0.9 + 2.2 * best * best)) + vec3(0.5, 0.47, 0.45) * m * step(0.86, best) * 0.35;   // grizzled light tips
+        else col = mix(vec3(dot(col, vec3(0.33))), col, 0.7) * vec3(0.8, 1.0, 0.88) * (0.2 + m * (1.3 + 1.3 * best)) + vec3(0.75, 0.8, 0.72) * sp * (0.25 + 0.75 * uDayLight);
+      }
+      if (uFarGrass > 0.0) col += gTint * gGlyph * (0.45 + 0.55 * gShadow + max(L - uAmb - uMoonCol, vec3(0.0)) * 1.5);
+      float outId = uId;
+      if (uNoFog < 0.5) col = uUnlit > 0.5 ? col * fogAt(vW) : applyFog(col, vW);
+      col = mix(col, vec3(0.5, 0.52, 0.56), xEdge * 0.85);   // cut wall tops read as a light floor-plan outline
+      col = mix(col, col * 0.22 + vec3(0.08, 0.1, 0.14), xGhost);
+      col += vec3(1.0, 0.62, 0.28) * xLamp * 0.22;
+      gl_FragColor = vec4(col, (outId + 0.5) / 32.0);
+      if (uSil > 0.5) {   // hero behind something: only his outline (the rim), in silver
+        float rr = 1.0 - max(dot(n, V), 0.0);
+        if (rr < 0.55) discard;
+        gl_FragColor = vec4(vec3(0.62, 0.7, 0.92) * (0.6 + 0.8 * rr), (outId + 0.5) / 32.0);
+      }
+    }`;
+
+  const SPEC = { 7: 0.9, 17: 1.0, 16: 0.7, 12: 0.25, 21: 0.35, 19: 0.45, 3: 0.0, 13: 0.0, 6: 0.15, 22: 0.06 };
+  // characters get a soft self-fill so they never sink into the night
+  const FILL = { 6: 0.12, 7: 0.09, 11: 0.12, 12: 0.11, 16: 0.1, 17: 0.09, 18: 0.11, 19: 0.1, 20: 0.12, 21: 0.1, 22: 0.13 };
+  // material factory
+  E.mat = function (o) {
+    o = o || {};
+    const m = new THREE.ShaderMaterial({
+      uniforms: Object.assign({
+        uColor: { value: new THREE.Color(o.color !== undefined ? o.color : 0xffffff) },
+        uEmissive: { value: new THREE.Color(o.emissive !== undefined ? o.emissive : 0x000000) },
+        uId: { value: o.id !== undefined ? o.id : ID.BODY },
+        uFlash: { value: 0 },
+        uRim: { value: o.rim !== undefined ? o.rim : 0.0 },
+        uUnlit: { value: o.unlit ? 1 : 0 },
+        uNoFog: { value: o.noFog ? 1 : 0 },
+        uFarGrass: { value: o.farGrass || 0 },
+        uGrassC: { value: new THREE.Vector2() },
+        uFill: { value: o.fill !== undefined ? o.fill : (FILL[o.id] || 0) },
+        uTex: { value: o.tex || 0 }, uSil: { value: 0 },
+        uSpec: { value: o.spec !== undefined ? o.spec : SPEC[o.id !== undefined ? o.id : ID.BODY] || 0.04 },
+      }, LU),
+      vertexShader: UBER_V, fragmentShader: UBER_F,
+      vertexColors: !!o.vertexColors,
+      side: o.side || THREE.FrontSide,
+    });
+    return m;
+  };
+
+  // ---------- post pipeline ----------
+  const ASCII_F = `
+    uniform sampler2D tScene; uniform sampler2D tAtlas;
+    uniform vec2 uRes; uniform vec2 uCell; uniform vec2 uCellA; uniform vec2 uCellS; uniform vec2 uCellT; uniform float uTime; uniform float uOl; uniform float uGrassMix; uniform vec2 uGridOff; uniform float uFarBlend; uniform float uActorPop;
+    vec2 CS;
+    uniform vec4 uSet[32]; uniform vec4 uSet2[32]; uniform vec4 uSet3[32];
+    varying vec2 vUv;
+    float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float lum(vec3 c) { return max(max(c.r, c.g), c.b) * 0.55 + dot(c, vec3(0.299, 0.587, 0.114)) * 0.45; }
+    int idAt(vec2 cell) { return int(texture2D(tScene, ((cell + 0.5) * CS + mod(uGridOff, CS)) / uRes).a * 32.0); }
+    float actorAt(vec2 cell) { return uSet2[idAt(cell)].w; }
+    void main() {
+      vec2 fc = gl_FragCoord.xy;
+      vec4 px = texture2D(tScene, fc / uRes);
+      int pid = int(px.a * 32.0);
+      // thin black outline around characters, measured in pixels (not glyph cells)
+      if (uSet2[pid].w < 0.5) {
+        float ol = 0.0, os = 0.0;
+        bool groundPx = pid == 1 || pid == 2;
+        for (int k = 0; k < 8; k++) {
+          float a = float(k) * 0.785398;
+          int nid = int(texture2D(tScene, (fc + vec2(cos(a), sin(a)) * uOl) / uRes).a * 32.0);
+          ol = max(ol, uSet2[nid].w);
+          if (groundPx) os = max(os, uSet3[nid].z);
+        }
+        if (ol > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+
+      }
+      // separate glyph densities: characters, water & sky, everything else
+      CS = uSet2[pid].w > 0.5 ? uCellA : ((pid == 4 || (pid >= 23 && pid <= 25)) ? uCellS : (uSet3[pid].w > 0.5 ? uCellT : uCell));
+      // the glyph grid is anchored to the world: it shifts with the ground as the camera pans
+      vec2 go = mod(uGridOff, CS);
+      vec2 cell = floor((fc - go) / CS);
+      vec2 cuv = fract((fc - go) / CS);
+      vec2 wcell = floor((fc - uGridOff) / CS);   // world-stable cell index for per-cell variation
+      vec2 cc = ((cell + 0.5) * CS + go) / uRes;
+      vec4 cs = texture2D(tScene, cc);
+      int id = int(cs.a * 32.0);
+      bool actor = uSet2[id].w > 0.5;
+      vec3 raw = px.rgb;
+      // raw sets (grass strokes) are decided per pixel so blades stay crisp lines;
+      // around characters the grass is darkened into a halo so silhouettes read
+      // grass blends from raw straws (zoomed out) to ASCII glyphs (zoomed in) by uGrassMix
+      bool asciiGrass = false;
+      if (uGrassMix > 0.01 && uSet[2].x > 0.5 && (pid == 2 || pid == 1) && !actor) {
+        vec2 qq = CS / uRes * 0.3;
+        bool cg = id == 2 || int(texture2D(tScene, cc + vec2(qq.x, qq.y)).a * 32.0) == 2 || int(texture2D(tScene, cc - vec2(qq.x, qq.y)).a * 32.0) == 2
+               || int(texture2D(tScene, cc + vec2(qq.x, -qq.y)).a * 32.0) == 2 || int(texture2D(tScene, cc + vec2(-qq.x, qq.y)).a * 32.0) == 2;
+        if (cg) { asciiGrass = true; id = 2; }
+      }
+      // foliage is drawn as rendered fur strokes, per pixel (like the grass), not as glyphs
+      if (pid == 9 && !actor) { gl_FragColor = vec4(raw * 1.15, 1.0); return; }
+      bool scenCell = uSet3[id].z > 0.5;
+      if (!actor && !scenCell && uSet[pid].x > 0.5 && uSet[pid].x < 1.5 && !asciiGrass) {
+        gl_FragColor = vec4(raw * uSet[pid].y, 1.0); return;
+      }
+      if (uSet[id].x > 0.5 && uSet[id].x < 1.5 && !asciiGrass) id = 1;
+      vec4 S = uSet[id]; vec4 S2 = uSet2[id]; vec4 S3 = uSet3[id];
+      if (!scenCell && !actor && (id == 1 || id == 2)) {
+        // ground cell touching a structure: drawn dark, a one-character shadow border
+        float sb = max(max(uSet3[idAt(cell + vec2(1.0, 0.0))].z, uSet3[idAt(cell - vec2(1.0, 0.0))].z), max(uSet3[idAt(cell + vec2(0.0, 1.0))].z, uSet3[idAt(cell - vec2(0.0, 1.0))].z));
+        if (sb > 0.5) { gl_FragColor = vec4(px.rgb * mix(0.15, 0.75, uFarBlend), 1.0); return; }
+      }
+      if (asciiGrass) S = vec4(0.0, 3.2, 0.32, 0.0);
+
+      if (S.x > 1.5) { gl_FragColor = vec4(raw * 0.25, 1.0); return; }
+      vec2 q = CS / uRes * 0.3;
+      vec3 c = (cs.rgb * 2.0 + texture2D(tScene, cc + vec2(q.x, q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, q.y)).rgb
+              + texture2D(tScene, cc + vec2(q.x, -q.y)).rgb + texture2D(tScene, cc + vec2(-q.x, -q.y)).rgb) / 6.0;
+      float v = clamp(lum(c) * S.y, 0.0, 1.0);
+      v = pow(v, 0.8);
+      float fl = S2.z > 0.0 ? floor(uTime * S2.z) : 0.0;
+      float jit = actor ? S3.x : 0.16;
+      v += (h21(wcell + fl * vec2(1.7, 9.2)) - 0.5) * jit * smoothstep(0.03, 0.2, v);
+      if (actor) v = clamp(pow(v, 1.1) * (1.5 + 0.7 * uActorPop), 0.3 + 0.22 * uActorPop, 0.999);
+      if (S3.w > 0.5) v = clamp(v * 1.35, 0.0, 0.999);     // letter walls: mortar and deep shade go blank, stones carry the letters
+      else if (S3.z > 0.5) v = clamp(v * 1.2, 0.34, 0.999);   // structures: dense, readable characters
+      v = clamp(v, 0.0, 0.999);
+      float idx = floor(v * 16.0);
+      // woven patterns: mail checker, plate bands, scale rows
+      if (S3.y > 0.5 && S3.y < 1.5) idx -= mod(cell.x + cell.y, 2.0) * 2.0;
+      if (S3.w > 0.5) idx = v < 0.16 ? 0.0 : clamp(floor(v * 7.0) + floor(h21(wcell * 0.731 + 2.9 + fl * 1.7) * 9.0), 1.0, 15.0);
+      idx = clamp(idx, actor ? 2.0 : 0.0, 15.0);
+      if (!actor && id != 4 && S3.z < 0.5 && idx > 0.5 && idx < 3.5 && h21(wcell * 1.37 + 4.1) > 0.4 + idx * 0.12) idx = 0.0;
+      float row = float(id);
+      if (S3.w > 0.5 && (id == 3 || id == 13 || id == 27 || id == 31)) { float rr = h21(wcell * 1.913 + 7.7); row = rr < 0.45 ? row : (rr < 0.8 ? 13.0 : 27.0); }   // letter walls mix three alphabets
+      float edgeBoost = 0.0;
+      if (actor) {
+        float mL = actorAt(cell + vec2(-1.0, 0.0)), mR = actorAt(cell + vec2(1.0, 0.0));
+        float mU = actorAt(cell + vec2(0.0, 1.0)), mD = actorAt(cell + vec2(0.0, -1.0));
+        if (mL + mR + mU + mD < 3.5) v *= 0.8;
+      } else if (S.w > 0.5 && idx > 0.5) {
+        float mL = idAt(cell + vec2(-1.0, 0.0)) == id ? 1.0 : 0.0;
+        float mR = idAt(cell + vec2(1.0, 0.0)) == id ? 1.0 : 0.0;
+        float mU = idAt(cell + vec2(0.0, 1.0)) == id ? 1.0 : 0.0;
+        float mD = idAt(cell + vec2(0.0, -1.0)) == id ? 1.0 : 0.0;
+        if (mL + mR + mU + mD < 3.5) {
+          vec2 g = vec2(mR - mL, mU - mD);
+          row = 32.0;
+          if (dot(g, g) < 0.1) idx = 4.0;
+          else idx = mod(floor(atan(g.y, g.x) / 3.14159265 * 4.0 + 0.5), 4.0);
+          v = max(v, 0.55);
+        }
+      }
+      float gm = texture2D(tAtlas, vec2((idx + cuv.x) / 16.0, (32.0 - row + cuv.y) / 33.0)).r;
+      float mx = max(max(c.r, c.g), c.b);
+      vec3 hue = c / max(mx, 0.03);
+      vec3 tint = mix(hue, vec3(1.0), S2.y * v + edgeBoost * 0.35);
+      if (actor) tint = mix(tint, vec3(0.92, 0.96, 1.0), 0.4 * uActorPop);   // cool silver key light: heroes read first
+      vec3 gcol = tint * (0.18 + v * 1.05 + edgeBoost * 0.55) * S2.x * (actor ? 1.12 + 0.4 * uActorPop : 1.0);
+      vec3 under = actor ? c * S.z : c * S.z;
+      vec3 outc = under + gm * gcol;
+      if (asciiGrass) outc = mix(raw, outc, uGrassMix);
+      // zoomed out, structures and trees blend with their real shaded colour; glyphs ride on top
+      if (!actor && S3.z > 0.5) outc = mix(outc, raw * 1.05 + gm * gcol * 0.45, uFarBlend);
+      gl_FragColor = vec4(outc, 1.0);
+    }`;
+  const QUAD_V = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+  const BRIGHT_F = `uniform sampler2D tIn; varying vec2 vUv; uniform vec2 uTexel;
+    void main() { vec3 c = vec3(0.0);
+      for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) c += texture2D(tIn, vUv + vec2(float(x), float(y)) * uTexel).rgb;
+      c /= 9.0; gl_FragColor = vec4(max(c - 0.22, 0.0) * 1.4, 1.0); }`;
+  const BLUR_F = `uniform sampler2D tIn; uniform vec2 uDir; varying vec2 vUv;
+    void main() { vec3 c = texture2D(tIn, vUv).rgb * 0.227;
+      c += texture2D(tIn, vUv + uDir * 1.38).rgb * 0.316; c += texture2D(tIn, vUv - uDir * 1.38).rgb * 0.316;
+      c += texture2D(tIn, vUv + uDir * 3.23).rgb * 0.07; c += texture2D(tIn, vUv - uDir * 3.23).rgb * 0.07;
+      gl_FragColor = vec4(c, 1.0); }`;
+  const COMP_F = `uniform sampler2D tA; uniform sampler2D tB; uniform float uBloom; uniform float uHurt; uniform float uTime; uniform vec2 uRes; uniform float uFadeW; uniform float uSS;
+    varying vec2 vUv;
+    float h21(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      // box-filter the supersampled glyph image down to screen pixels
+      vec2 px = 1.0 / uRes, o = px * 0.25 * uSS;
+      vec3 a = (texture2D(tA, vUv + vec2(-o.x, -o.y)).rgb + texture2D(tA, vUv + vec2(o.x, -o.y)).rgb
+              + texture2D(tA, vUv + vec2(-o.x, o.y)).rgb + texture2D(tA, vUv + vec2(o.x, o.y)).rgb) * 0.25;
+      vec3 b = texture2D(tB, vUv).rgb;
+      vec3 c = a + b * uBloom;
+      vec2 d = vUv - 0.5; d.x *= uRes.x / uRes.y;
+      float vig = smoothstep(1.15, 0.25, length(d));
+      c *= mix(0.55, 1.0, vig);
+      float edge = smoothstep(0.3, 0.95, length(vUv - 0.5) * 1.4);
+      c = mix(c, c * 0.4 + vec3(0.5, 0.0, 0.0) * edge, uHurt * edge);
+      c += (h21(vUv * uRes + uTime) - 0.5) * 0.025;
+      c = mix(c, vec3(1.0), uFadeW);
+      c *= 1.12;
+      c = c / (1.0 + c * 0.18);
+      float lu = dot(c, vec3(0.299, 0.587, 0.114));
+      c += vec3(-0.008, 0.0, 0.02) * (1.0 - lu) + vec3(0.03, 0.014, -0.018) * lu;
+      gl_FragColor = vec4(c, 1.0);
+    }`;
+
+  E.Renderer = function (canvas) {
+    const r = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
+    r.outputColorSpace = THREE.LinearSRGBColorSpace;
+    r.toneMapping = THREE.NoToneMapping;
+    r.autoClear = true;
+    this.r = r;
+    this.atlas = buildAtlas(); LU.uAtlas.value = this.atlas;
+    this.glyphPx = 9; this.quality = 2;
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+    quad.frustumCulled = false;
+    this.quadScene = new THREE.Scene(); this.quadScene.add(quad); this.quad = quad;
+    this.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const setA = SETS.map(s => new THREE.Vector4(s.mode, s.gain, s.under, s.edge));
+    const setB = SETS.map(s => new THREE.Vector4(s.bright, s.white, s.flick, s.actor || 0));
+    const setC = SETS.map(s => new THREE.Vector4(s.jit || 0.16, s.pat || 0, s.scen || 0, s.letters || 0));
+    this.setA = setA;
+    this.asciiMat = new THREE.ShaderMaterial({
+      uniforms: { tScene: { value: null }, tAtlas: { value: this.atlas }, uRes: { value: new THREE.Vector2() }, uCell: { value: new THREE.Vector2() }, uCellA: { value: new THREE.Vector2() }, uCellS: { value: new THREE.Vector2() }, uCellT: { value: new THREE.Vector2() }, uOl: { value: 2 }, uGrassMix: { value: 0 }, uGridOff: { value: new THREE.Vector2() }, uFarBlend: { value: 0 }, uActorPop: { value: 0 },
+        uTime: LU.uTime, uSet: { value: setA }, uSet2: { value: setB }, uSet3: { value: setC } },
+      vertexShader: QUAD_V, fragmentShader: ASCII_F, depthTest: false, depthWrite: false,
+    });
+    this.brightMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uTexel: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BRIGHT_F, depthTest: false, depthWrite: false });
+    this.blurMat = new THREE.ShaderMaterial({ uniforms: { tIn: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: QUAD_V, fragmentShader: BLUR_F, depthTest: false, depthWrite: false });
+    this.compMat = new THREE.ShaderMaterial({ uniforms: { tA: { value: null }, tB: { value: null }, uBloom: { value: 0.55 }, uHurt: { value: 0 }, uTime: LU.uTime, uRes: { value: new THREE.Vector2() }, uFadeW: { value: 0 }, uSS: { value: 1 } },
+      vertexShader: QUAD_V, fragmentShader: COMP_F, depthTest: false, depthWrite: false });
+    this.rts = null;
+    this.resize();
+  };
+  E.Renderer.prototype.setPureGrass = function (on) { this.setA[ID.GRASS].x = on ? 0 : 1; this.setA[ID.GRASS].y = on ? 2.4 : 1.0; this.setA[ID.GRASS].z = on ? 0.15 : 0; };
+  E.Renderer.prototype.resize = function () {
+    // Supersampling: the scene and the glyph pass run at `dpr` (internal pixels per CSS px), which can be
+    // well above the screen's own ratio, so each glyph cell gets enough pixels to read like on a phone.
+    // The final pass box-filters it down to the canvas at the screen's native ratio.
+    const w = window.innerWidth, h = window.innerHeight;
+    const native = Math.min(window.devicePixelRatio || 1, 2);
+    const want = this.renderScale === 'auto' || !this.renderScale ? [1.5, 2.5, 3][this.quality] : +this.renderScale;
+    const cap = [2.5e6, 6e6, 20e6][this.quality];
+    // a whole-number supersampling factor, so whole-screen-pixel camera steps are whole render pixels too
+    const ssMax = Math.min(Math.max(want, native), Math.sqrt(cap / (w * h))) / native;
+    this.ssCap = Math.max(1, Math.floor(ssMax + 0.15));
+    const ss = Math.max(1, Math.min(this.ssCap, this.ssLimit || 99));
+    const dpr = native * ss;
+    this.dpr = dpr; this.ss = ss;
+    this.r.setPixelRatio(native); this.r.setSize(w, h, false);
+    const W = Math.floor(w * dpr), H = Math.floor(h * dpr);
+    this.W = W; this.H = H; this.aspect = w / h;
+    const mk = (ww, hh, nearest) => new THREE.WebGLRenderTarget(ww, hh, {
+      minFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter, magFilter: nearest ? THREE.NearestFilter : THREE.LinearFilter,
+      depthBuffer: !!nearest, type: THREE.UnsignedByteType, format: THREE.RGBAFormat,
+    });
+    if (this.rts) Object.values(this.rts).forEach(t => t.dispose());
+    const bw = Math.max(1, W >> 2), bh = Math.max(1, H >> 2);
+    this.rts = { scene: mk(W, H, true), ascii: mk(W, H, false), b1: mk(bw, bh, false), b2: mk(bw, bh, false) };
+    this.updateCells();
+    this.brightMat.uniforms.uTexel.value.set(1 / W, 1 / H);
+    this.compMat.uniforms.uRes.value.set(W, H); this.compMat.uniforms.uSS.value = this.ss;
+    return;
+  };
+  // glyph cell sizes; `glyphZoom` grows them when the camera is close so the letters become readable
+  E.Renderer.prototype.updateCells = function () {
+    const dpr = this.dpr, z = this.glyphZoom || 1;
+    const cellOf = px => [Math.max(3, Math.round(px * z * dpr * 0.62)), Math.max(5, Math.round(px * z * dpr))];   // smaller cells can't draw a glyph, only bars
+    this.cell = cellOf(this.glyphPx);
+    const ca = cellOf(this.glyphA || this.glyphPx), cs = cellOf(this.glyphS || this.glyphPx);
+    this.asciiMat.uniforms.uRes.value.set(this.W, this.H);
+    this.asciiMat.uniforms.uCell.value.set(this.cell[0], this.cell[1]);
+    this.asciiMat.uniforms.uCellA.value.set(ca[0], ca[1]);
+    this.asciiMat.uniforms.uCellS.value.set(cs[0], cs[1]);
+    const ct = cellOf(this.glyphT || 9); this.asciiMat.uniforms.uCellT.value.set(ct[0], ct[1]);
+    this.asciiMat.uniforms.uOl.value = Math.max(1.5, 1.6 * dpr * Math.min(1.8, z));
+  };
+  E.Renderer.prototype.pass = function (mat, target) {
+    this.quad.material = mat;
+    this.r.setRenderTarget(target);
+    this.r.render(this.quadScene, this.quadCam);
+  };
+  E.Renderer.prototype.setShadows = function (size) {
+    if (this.shadowRT) { this.shadowRT.dispose(); this.shadowRT = null; }
+    if (!size) { LU.uShadowOn.value = 0; return; }
+    this.shadowRT = new THREE.WebGLRenderTarget(size, size, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    this.shadowCam = this.shadowCam || new THREE.OrthographicCamera(-30, 30, 30, -30, 1, 220);
+    this.depthMat = this.depthMat || new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
+    LU.uShadowTexel.value.set(1 / size, 1 / size);
+  };
+  // render the moon's depth view around `focus`; objects on layer 1 (ground, grass, effects) don't cast
+  E.Renderer.prototype.renderShadow = function (scene, focus, half) {
+    if (!this.shadowRT) { LU.uShadowOn.value = 0; return; }
+    const C = this.shadowCam, size = this.shadowRT.width, texel = half * 2 / size;
+    const fx = Math.round(focus.x / texel) * texel, fz = Math.round(focus.z / texel) * texel;
+    C.left = -half; C.right = half; C.top = half; C.bottom = -half; C.updateProjectionMatrix();
+    const d = LU.uMoonDir.value;
+    C.position.set(fx + d.x * 100, focus.y + d.y * 100, fz + d.z * 100); C.up.set(0, 1, 0); C.lookAt(fx, focus.y, fz);
+    C.updateMatrixWorld(); C.layers.set(0);
+    // the game's own shader writes packed depth here, so skinned and instanced meshes pose correctly
+    LU.uDepthPass.value = 1; LU.uShadowOn.value = 0;
+    LU.uShadowMap.value = this.dummyTex || (this.dummyTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1));
+    this.dummyTex.needsUpdate = this.dummyTex.needsUpdate || false;
+    this.r.setRenderTarget(this.shadowRT); this.r.setClearColor(0xffffff, 1); this.r.clear();
+    this.r.render(scene, C);
+    LU.uDepthPass.value = 0;
+    LU.uShadowMat.value.multiplyMatrices(C.projectionMatrix, C.matrixWorldInverse);
+    LU.uShadowMap.value = this.shadowRT.texture; LU.uShadowOn.value = 1;
+  };
+  // planar reflection for the water: render layers 0 (world, characters) and 2 (sky) from a mirrored camera
+  E.Renderer.prototype.renderReflection = function (scene, camera, h) {
+    const W = Math.max(2, Math.floor(this.W / this.ss / 1.4)), H = Math.max(2, Math.floor(this.H / this.ss / 1.4));
+    if (!this.reflRT || this.reflRT.width !== W || this.reflRT.height !== H) {
+      if (this.reflRT) this.reflRT.dispose();
+      this.reflRT = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+      this.reflCam = new THREE.PerspectiveCamera();
+    }
+    const C = this.reflCam, p = camera.position, d = camera.getWorldDirection(new THREE.Vector3());
+    C.copy(camera, false);
+    C.position.set(p.x, 2 * h - p.y, p.z);
+    C.up.set(0, -1, 0);
+    const t = p.clone().add(d.multiplyScalar(10)); C.lookAt(t.x, 2 * h - t.y, t.z);
+    C.updateMatrixWorld(); C.projectionMatrix.copy(camera.projectionMatrix);
+    C.layers.set(0); C.layers.enable(2);
+    this.r.setRenderTarget(this.reflRT); this.r.setClearColor(0x000000, 1); this.r.clear();
+    this.r.render(scene, C);
+    LU.uReflMat.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(C.projectionMatrix).multiply(C.matrixWorldInverse);
+    LU.uRefl.value = this.reflRT.texture; LU.uReflOn.value = 1;
+  };
+  E.Renderer.prototype.render = function (scene, camera, fx) {
+    const r = this.r, T = this.rts;
+    LU.uCam.value.copy(camera.position);
+    // world anchor for the glyph grid: where a fixed ground point lands on screen (render pixels)
+    camera.updateMatrixWorld();
+    if (fx && fx.gridOff) this.asciiMat.uniforms.uGridOff.value.copy(fx.gridOff);
+    else { const a = (this._anchor || (this._anchor = new THREE.Vector3())).set(0, 0, 0).project(camera);
+      this.asciiMat.uniforms.uGridOff.value.set(Math.round((a.x * 0.5 + 0.5) * this.W), Math.round((a.y * 0.5 + 0.5) * this.H)); }
+    camera.layers.enable(1); camera.layers.enable(2);
+    if (fx && fx.reflY !== undefined && this.reflOn) this.renderReflection(scene, camera, fx.reflY); else LU.uReflOn.value = 0;
+    if (fx && fx.shadowFocus) this.renderShadow(scene, fx.shadowFocus, fx.shadowHalf || 30); else LU.uShadowOn.value = 0;
+    r.setRenderTarget(T.scene); r.setClearColor(0x000000, 0); r.clear();
+    r.render(scene, camera);
+    if (fx && fx.silhouette) { const ac = r.autoClear; r.autoClear = false; fx.silhouette(r, camera); r.autoClear = ac; }
+    this.asciiMat.uniforms.tScene.value = T.scene.texture;
+    this.pass(this.asciiMat, T.ascii);
+    this.brightMat.uniforms.tIn.value = T.ascii.texture; this.pass(this.brightMat, T.b1);
+    const bw = T.b1.width, bh = T.b1.height;
+    this.blurMat.uniforms.tIn.value = T.b1.texture; this.blurMat.uniforms.uDir.value.set(1 / bw, 0); this.pass(this.blurMat, T.b2);
+    this.blurMat.uniforms.tIn.value = T.b2.texture; this.blurMat.uniforms.uDir.value.set(0, 1 / bh); this.pass(this.blurMat, T.b1);
+    this.blurMat.uniforms.tIn.value = T.b1.texture; this.blurMat.uniforms.uDir.value.set(2 / bw, 0); this.pass(this.blurMat, T.b2);
+    this.blurMat.uniforms.tIn.value = T.b2.texture; this.blurMat.uniforms.uDir.value.set(0, 2 / bh); this.pass(this.blurMat, T.b1);
+    const cu = this.compMat.uniforms;
+    cu.tA.value = T.ascii.texture; cu.tB.value = T.b1.texture;
+    cu.uHurt.value = fx ? fx.hurt : 0; cu.uFadeW.value = fx ? fx.white : 0;
+    this.pass(this.compMat, null);
+  };
+
+  // ---------- light manager: picks the nearest MAXL dynamic lights ----------
+  E.Lights = function () { this.list = []; };
+  E.Lights.prototype.add = function (x, y, z, color, radius, flicker) {
+    const l = { p: new THREE.Vector3(x, y, z), c: new THREE.Color(color), base: new THREE.Color(color), r: radius, flicker: flicker || 0, on: true, seed: Math.random() * 100 };
+    this.list.push(l); return l;
+  };
+  E.Lights.prototype.remove = function (l) { const i = this.list.indexOf(l); if (i >= 0) this.list.splice(i, 1); };
+  E.Lights.prototype.update = function (cx, cz, t) {
+    const arr = this.list.filter(l => l.on);
+    for (const l of arr) l._d = (l.p.x - cx) ** 2 + (l.p.z - cz) ** 2 - l.r * l.r;
+    arr.sort((a, b) => a._d - b._d);
+    const n = Math.min(MAXL, arr.length);
+    for (let i = 0; i < n; i++) {
+      const l = arr[i];
+      let f = 1;
+      if (l.flicker) f = 1 - l.flicker * (0.5 + 0.3 * Math.sin(t * 13 + l.seed) + 0.2 * Math.sin(t * 31 + l.seed * 3)) * 0.6;
+      LU.uLP.value[i].set(l.p.x, l.p.y, l.p.z, l.r);
+      LU.uLC.value[i].copy(l.c).multiplyScalar(f);
+    }
+    LU.uLN.value = n;
+  };
+
+  // ---------- small helpers ----------
+  E.rand = function (seed) { let s = seed >>> 0 || 1; return function () { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; }; };
+  E.clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  E.lerp = (a, b, t) => a + (b - a) * t;
+  E.angDiff = (a, b) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+  E.ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+})();
