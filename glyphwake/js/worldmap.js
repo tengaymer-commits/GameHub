@@ -56,7 +56,7 @@
         const t = TINT[D.B[k]], v = TINT[0], m = D.B[k] ? GW.clamp((D.BW[k] - 0.5) * 2.2, 0, 1) : 1;
         c = [GW.lerp(v[0], t[0], m), GW.lerp(v[1], t[1], m), GW.lerp(v[2], t[2], m)];
         const hn = GW.clamp(h / 45, 0, 1); c = c.map((q, n) => GW.lerp(q, [196, 186, 160][n], hn * 0.45));      // lowlands to uplands
-        if (h > 14 || edge > 3720) { const r = GW.clamp((Math.max(h, (edge - 3720) / 6) - 14) / 30, 0, 1); c = c.map((q, n) => GW.lerp(GW.lerp(q, [122, 116, 106][n], 0.7), [228, 232, 238][n], r * r)); }   // rock, then snow
+        if (h > 14 || edge > half - 280) { const r = GW.clamp((Math.max(h, (edge - (half - 280)) / 6) - 14) / 30, 0, 1); c = c.map((q, n) => GW.lerp(GW.lerp(q, [122, 116, 106][n], 0.7), [228, 232, 238][n], r * r)); }   // rock, then snow
         if (D.R[k] < W.RIVER_W * 4) c = c.map((q, n) => GW.lerp(q, [70, 110, 120][n], 0.25));   // wet banks
         if (D.Pd[k] < 6) c = c.map((q, n) => GW.lerp(q, [150, 120, 80][n], 0.35));
       }
@@ -65,7 +65,7 @@
       const sh = GW.clamp(1 - (dhx + dhz) * 0.045, 0.5, 1.5);
       const q0 = Math.floor(h / 6), cont = q0 !== Math.floor(at(i + 1, j) / 6) || q0 !== Math.floor(at(i, j + 1) / 6);
       const ck = cont ? (q0 % 5 === 0 ? 0.62 : 0.8) : 1;
-      const fade = edge > 3950 ? 0.35 : 1, o = k * 4;
+      const fade = edge > half - 50 ? 0.35 : 1, o = k * 4;
       img.data[o] = Math.min(255, c[0] * sh * ck * fade); img.data[o + 1] = Math.min(255, c[1] * sh * ck * fade); img.data[o + 2] = Math.min(255, c[2] * sh * ck * fade); img.data[o + 3] = 255;
     }
     g.putImageData(img, 0, 0); RELIEF = cv; RELIEF.px = img.data; return cv;
@@ -114,7 +114,7 @@
           const hgt = D.H[k], bi = D.B[k], r0 = hash(ci, cj);
           let ch = null, col = 'rgba(0,0,0,.35)';
           if (wet) { ch = '≈'; col = 'rgba(190,220,255,.55)'; }
-          else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3720) { ch = hgt > 30 ? '▲' : '^'; col = 'rgba(255,255,255,.55)'; }
+          else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > half - 280) { ch = hgt > 30 ? '▲' : '^'; col = 'rgba(255,255,255,.55)'; }
           else if (r0 < 0.3) { ch = SETS[bi].ch[Math.floor(hash(cj, ci) * SETS[bi].ch.length)]; col = 'rgba(0,0,0,.35)'; }
           else if (r0 < 0.42) { ch = L > 0.45 ? '░' : L > 0.3 ? '▒' : '▓'; col = 'rgba(0,0,0,.22)'; }
           if (ch) { g.fillStyle = col; g.fillText(ch, sx, sy); }
@@ -129,7 +129,7 @@
       const shade = GW.clamp(0.85 - (dhx + dhz) * 0.9 / Math.max(1, step / 16), 0.4, 1.3);
       let ch, c;
       if (D.Lk[k] || rd < W.RIVER_W * 0.8) { ch = WATER[Math.floor(r0 * WATER.length)]; c = [86, 146, 228]; }
-      else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3720) {
+      else if (hgt > 14 || Math.max(Math.abs(x), Math.abs(z)) > half - 280) {
         ch = MOUNT[Math.floor(r0 * MOUNT.length)]; const t = GW.clamp((hgt - 10) / 30, 0, 1); c = [150 + 80 * t, 150 + 80 * t, 160 + 70 * t];
       } else {
         const set = SETS[bi]; const dense = D.Gr[k];
@@ -168,7 +168,7 @@
     g.setLineDash([]);
     // the old-chart grid: 1 km squares, lettered and numbered at the frame
     g.strokeStyle = ST === 'ink' ? 'rgba(60,40,20,.18)' : 'rgba(220,210,180,.07)'; g.lineWidth = 1;
-    for (let k = -4; k <= 4; k++) { const [gx] = to(k * 1000, 0), [, gy] = to(0, k * 1000); g.beginPath(); g.moveTo(gx, 0); g.lineTo(gx, h); g.moveTo(0, gy); g.lineTo(w, gy); g.stroke(); }
+    for (let k = -4; k <= 4; k++) { const [gx] = to(k * S / 8, 0), [, gy] = to(0, k * S / 8); g.beginPath(); g.moveTo(gx, 0); g.lineTo(gx, h); g.moveTo(0, gy); g.lineTo(w, gy); g.stroke(); }
     return cv;
   }
 
@@ -271,7 +271,7 @@
     g.strokeStyle = ink; g.lineWidth = 1; g.strokeRect(M + 0.5, M + 0.5, w - 2 * M - 1, h - 2 * M - 1); g.strokeStyle = 'rgba(214,196,150,.35)'; g.strokeRect(M + 4.5, M + 4.5, w - 2 * M - 9, h - 2 * M - 9);
     g.font = 'bold 13px ui-monospace, Menlo, monospace'; g.fillStyle = ink; ['◈', '◈', '◈', '◈'].forEach((s, i) => g.fillText(s, i % 2 ? w - M : M, i < 2 ? M : h - M));
     g.font = '10px ui-monospace, Menlo, monospace'; g.fillStyle = 'rgba(214,196,150,.8)';
-    for (let k = 0; k < 8; k++) { const [gx] = to(-S / 2 + (k + 0.5) * 1000, 0), [, gy] = to(0, -S / 2 + (k + 0.5) * 1000);
+    for (let k = 0; k < 8; k++) { const [gx] = to(-S / 2 + (k + 0.5) * S / 8, 0), [, gy] = to(0, -S / 2 + (k + 0.5) * S / 8);
       if (gx > M + 10 && gx < w - M - 10) { g.fillText('ABCDEFGH'[k], gx, M + 12); g.fillText('ABCDEFGH'[k], gx, h - M - 12); }
       if (gy > M + 10 && gy < h - M - 10) { g.fillText(String(k + 1), M + 12, gy); g.fillText(String(k + 1), w - M - 12, gy); } }
     // cartouche
@@ -285,7 +285,7 @@
       g.fillStyle = '#ffcf6a'; g.fillText('N', cx, cy - 25); g.fillStyle = col; g.fillText('S', cx, cy + 25); g.fillText('W', cx - 25, cy); g.fillText('E', cx + 25, cy);
       g.fillStyle = '#ffcf6a'; g.fillText('▲', cx, cy - 12); g.fillStyle = col; g.fillText('▼', cx, cy + 12); g.fillText('◄', cx - 12, cy); g.fillText('►', cx + 12, cy); g.fillText('✦', cx, cy); }
     // scale bar
-    { const nice = [25, 50, 100, 250, 500, 1000, 2000]; let m = nice[0]; for (const n of nice) if (n * px <= 150) m = n;
+    { const nice = [25, 50, 100, 250, 500, 1000, 2000, 4000]; let m = nice[0]; for (const n of nice) if (n * px <= 150) m = n;
       const bx = M + 24, by = h - M - 30, L = m * px; g.strokeStyle = ink; g.lineWidth = 2; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + L, by); g.moveTo(bx, by - 5); g.lineTo(bx, by + 5); g.moveTo(bx + L, by - 5); g.lineTo(bx + L, by + 5); g.moveTo(bx + L / 2, by - 3); g.lineTo(bx + L / 2, by + 3); g.stroke();
       g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left'; halo(g, (m >= 1000 ? m / 1000 + ' km' : m + ' m'), bx + L + 8, by, 'rgba(232,216,170,.9)', 3); g.textAlign = 'center'; }
     // legend

@@ -205,13 +205,13 @@
       { key: 'cragwarlord', type: 'cragwarlord', x: 2470, z: -1520, title: 'THE CRAG WARLORD', sub: 'kneel, or be broken' },
     ];
     G.regionBosses.forEach(b => { const A = GW.World.ARENAS.find(a => a.key === b.key); if (A) { b.x = A.x; b.z = A.z; }   // world.js owns the arena spots
-      b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / 280)); b.e.bossKey = b.key; });
+      b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / GW.World.LVLD)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
     [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
-    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700], [900, 600], [-900, 700], [600, 1100], [-1000, -200]].forEach(([x, z]) => pack('wolf', x, z, 3));
+    [[-300, -800], [100, -1060], [-520, -950], [320, -720], [-800, -700], [900, 600], [-900, 700], [600, 1100], [-1000, -200]].map(([x, z]) => [x * GW.World.WS, z * GW.World.WS]).forEach(([x, z]) => pack('wolf', x, z, 3));
     [[-20, -20], [20, 15]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.cinder.x + dx, Lw.cinder.z + dz, { x: Lw.cinder.x, z: Lw.cinder.z }));
     [[-10, 20], [10, -20]].forEach(([dx, dz]) => G.spawnEnemy('hollow', Lw.abbey.x + dx, Lw.abbey.z + dz, { x: Lw.abbey.x, z: Lw.abbey.z }));
     // group everything into camps (enemies whose homes lie within 20 m share one)
@@ -255,7 +255,7 @@
     // spawn behind the edge of the view, in the dark
     for (let tries = 0; tries < 12; tries++) {
       const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 10, x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r;
-      if (Math.abs(x) > 3800 || Math.abs(z) > 3800 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
+      if (Math.abs(x) > GW.World.HALF - 200 || Math.abs(z) > GW.World.HALF - 200 || GW.World.blocked(x, z, 1.2) || GW.World.riverAt(x, z) < 6 || G.nearFire(x, z, 14)) continue;
       const type = Math.random() < 0.65 ? 'wolf' : 'hollow', n = type === 'wolf' ? 3 : 2;
       for (let k = 0; k < n; k++) { const e = G.spawnEnemy(type, x + Math.cos(k * 2.1) * 1.8, z + Math.sin(k * 2.1) * 1.8, { x: P.pos.x, z: P.pos.z }, true); e.hunter = true; e.aggro = false; }
       if (type === 'wolf') GWAudio.sfx('howl');
@@ -600,7 +600,7 @@
     });
   }
   // ---- exploration: fog of war, discovered fires, compass, regions ----
-  G.FOG_CELL = 20; G.FOG_N = Math.ceil(GW.World.SIZE / 20); G.fog = new Uint8Array(G.FOG_N * G.FOG_N); G.discovered = {};
+  G.FOG_CELL = 20 * GW.World.WS; G.FOG_N = Math.ceil(GW.World.SIZE / G.FOG_CELL); G.fog = new Uint8Array(G.FOG_N * G.FOG_N); G.discovered = {};
   function explore() {
     if (G.dungeon) return;
     const P = G.player, S = GW.World.SIZE, FC = G.FOG_CELL, FN = G.FOG_N, R = 70;
@@ -976,7 +976,7 @@
     else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); }
     else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
     else if (it.type === 'cave') enterLevel({ kind: 'cave', id: 'cave:' + it.poi.id, seed: it.poi.seed, region: it.poi.region, lvl: it.poi.lvl + 2, floors: 1, names: ['THE CAVE'], back: { x: it.x, z: it.z + 2 } });
-    else if (it.type === 'castle') { const L = GW.World.L; enterLevel({ kind: 'castle', id: 'dunmaer', seed: 9137, region: 'high', lvl: 1 + Math.floor(Math.hypot(L.dunmaer.x, L.dunmaer.z) / 280) + 3, floors: 3,
+    else if (it.type === 'castle') { const L = GW.World.L; enterLevel({ kind: 'castle', id: 'dunmaer', seed: 9137, region: 'high', lvl: 1 + Math.floor(Math.hypot(L.dunmaer.x, L.dunmaer.z) / GW.World.LVLD) + 3, floors: 3,
       names: ['THE GATEHALL', 'THE GREAT HALL', 'THE CROWN TOWER'], back: { x: it.x, z: it.z + 2.5 } }); }
     else if (it.type === 'dexit') fade(() => leaveLevel(false));
     else if (it.type === 'dstairs') fade(() => buildFloor(G.dungeon.floor + 1));

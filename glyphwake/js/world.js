@@ -4,47 +4,50 @@
   const GW = window.GW, ID = GW.ID;
   // 8 km world. Terrain data (2 m per texel) is computed per 128 m chunk on demand and cached;
   // the GPU gets a 1 km window around the hero. The old Vale is the centre.
-  const SIZE = 8000, HALF = SIZE / 2, CELLM = 2, DCH = 128, DN = DCH / CELLM, WIN = 1024, WN = WIN / CELLM;
+  // WS: the whole world's scale (regions, roads, river, rim). The Vale grows by VS; the world around it grows by WS.
+  const WS = 2, LVLD = 280 * WS;   // one enemy level per LVLD metres from the centre
+  const SIZE = 8000 * WS, HALF = SIZE / 2, CELLM = 2, DCH = 128, DN = DCH / CELLM, WIN = 1024, WN = WIN / CELLM;
   const CORE = 300;   // the hand-made Vale: |x|,|z| < CORE is scattered once at load, the rest streams in chunks
 
   // ---------- layout ----------
   // the hand-made Vale is laid out at VS× its original spacing (structures keep their size): more room to learn the basics
-  const VS = 2.2;
+  const VS = 4.4;    // site spacing
+  const VSC = 2.2;   // the densely hand-scattered heart of the Vale (beyond it the streamed countryside takes over)
   const L = {
-    start: { x: 0, z: 171.6 },
-    village: { x: 0, z: 66 },
-    fire: { x: 0, z: 66.0 },
-    anvil: { x: 8.5, z: 61.0 },
-    elder: { x: -5.5, z: 70.0 },
-    smith: { x: 10.5, z: 59.5 },
-    bridge: { x: -8.8, z: -28.6 },
-    meadow: { x: 26.4, z: -127.6 },
-    ruins: { x: -158.4, z: 92.4 },
-    grove: { x: 167.2, z: 79.2 },
-    arena: { x: 4.4, z: -237.6 },
-    ruinFire: { x: -105.6, z: 66 },
-    meadowFire: { x: -39.6, z: -92.4 },
-    castle: { x: 121, z: -143 },
-    chapel: { x: 39.6, z: 132 },
-    tower: { x: -22, z: -145.2 },
-    lair: { x: -121, z: -154 },
+    start: { x: 0.0, z: 343.2 },
+    village: { x: 0.0, z: 132.0 },
+    fire: { x: 0, z: 132 },
+    anvil: { x: 8.5, z: 127 },
+    elder: { x: -5.5, z: 136 },
+    smith: { x: 10.5, z: 125.5 },
+    bridge: { x: -17.6, z: -57.2 },
+    meadow: { x: 52.8, z: -255.2 },
+    ruins: { x: -316.8, z: 184.8 },
+    grove: { x: 334.4, z: 158.4 },
+    arena: { x: 8.8, z: -475.2 },
+    ruinFire: { x: -211.2, z: 132.0 },
+    meadowFire: { x: -79.2, z: -184.8 },
+    castle: { x: 242.0, z: -286.0 },
+    chapel: { x: 79.2, z: 264.0 },
+    tower: { x: -44.0, z: -290.4 },
+    lair: { x: -242.0, z: -308.0 },
     // ---- beyond the Vale ----
-    hearth: { x: 380, z: -380 },      // Hearthwick: the village hub on the crossroads
+    hearth: { x: 1000, z: -1000 },      // Hearthwick: the village hub on the crossroads
     // six regions in a ring around the Vale (r ~ 1.4-3.9 km): hubs at r 2.6 km
-    abbey: { x: -150, z: -2600 },     // N  Frostmere: Rimeglass Abbey
-    frostLake: { x: 120, z: -2470 },
-    high: { x: 2250, z: -1300 },      // NE the Highlands
-    cinder: { x: 2250, z: 1300 },     // SE the Ashen Barrens: Cinder Watch
-    salt: { x: 0, z: 2600 },          // S  the Salt Wastes
-    mire: { x: -2250, z: 1300 },      // SW the Mire
-    dusk: { x: -2250, z: -1300 },     // NW Duskwood
-    dunmaer: { x: 2620, z: -1760 },   // Castle Dunmaer, the great Highland ruin (three floors inside)
-    vfrost: { x: -150, z: -2552 },    // villages beside the two landmark hubs
-    vash: { x: 2250, z: 1348 },
+    abbey: { x: -300, z: -5200 },     // N  Frostmere: Rimeglass Abbey
+    frostLake: { x: 240, z: -4940 },
+    high: { x: 4500, z: -2600 },      // NE the Highlands
+    cinder: { x: 4500, z: 2600 },     // SE the Ashen Barrens: Cinder Watch
+    salt: { x: 0, z: 5200 },          // S  the Salt Wastes
+    mire: { x: -4500, z: 2600 },      // SW the Mire
+    dusk: { x: -4500, z: -2600 },     // NW Duskwood
+    dunmaer: { x: 5240, z: -3520 },   // Castle Dunmaer, the great Highland ruin (three floors inside)
+    vfrost: { x: -300, z: -5152 },    // villages beside the two landmark hubs
+    vash: { x: 4500, z: 2648 },
   };
   // region boss arenas (flattened, kept clear of points of interest and trees). The Rime Knight duels on the frozen mere;
   // the Colossus stands out in the open Barrens, well away from Cinder Watch and Emberfall.
-  const ARENAS = [{ key: 'colossus', x: 2600, z: 1500 }, { key: 'rimeknight', x: 120, z: -2470 }, { key: 'mirehag', x: -2050, z: 1560 }, { key: 'cragwarlord', x: 2470, z: -1520 }];
+  const ARENAS = [{ key: 'colossus', x: 5200, z: 3000 }, { key: 'rimeknight', x: 240, z: -4940 }, { key: 'mirehag', x: -4100, z: 3120 }, { key: 'cragwarlord', x: 4940, z: -3040 }];
   // one village per region (plus Hearthwick at the crossroads)
   const HUBS = [
     { id: 'vale', name: 'Hearthwick', at: 'hearth' },
@@ -55,55 +58,55 @@
     { id: 'mire', name: 'Bogwater', at: 'mire' },
     { id: 'dusk', name: 'Dimmering', at: 'dusk' },
   ];
-  const RIVER_CP = [[-3950.0, 260.0], [-3400.0, 120.0], [-2800.0, 220.0], [-2200.0, 60.0], [-1600.0, 120.0], [-1100.0, -20.0], [-700.0, 40.0], [-572.0, -66.0], [-308.0, -4.4], [-209.0, -30.8], [-121.0, -6.6], [-48.4, -13.2], [-8.8, -28.6], [44.0, -57.2], [121.0, -44.0], [198.0, -66.0], [308.0, -96.8], [572.0, -242.0], [700.0, -190.0], [1100.0, -260.0], [1600.0, -180.0], [2100.0, -420.0], [2700.0, -380.0], [3300.0, -560.0], [3950.0, -500.0]];
+  const RIVER_CP = [[-7900, 520], [-6800, 240], [-5600, 440], [-4400, 120], [-3200, 240], [-2200, -40], [-1144.0, -132.0], [-616.0, -8.8], [-418.0, -61.6], [-242.0, -13.2], [-96.8, -26.4], [-17.6, -57.2], [88.0, -114.4], [242.0, -88.0], [396.0, -132.0], [616.0, -193.6], [1144.0, -484.0], [2200, -520], [3200, -360], [4200, -840], [5400, -760], [6600, -1120], [7900, -1000]];
   const PATHS = [
-    [[0, 167.2], [2.2, 132], [-2.2, 101.2], [0, 83.6]],
-    [[0, 49], [-6.6, 8.8], [-8.8, -28.6], [4.4, -66], [17.6, -99], [26.4, -127.6], [17.6, -176], [6.6, -211.2], [4.4, -228.8]],
-    [[-17, 66], [-66, 74.8], [-105.6, 66], [-132, 83.6], [-154, 92.4]],
-    [[17, 66], [70.4, 59.4], [114.4, 72.6], [154, 79.2]],
-    [[30.8, -127.6], [66, -118.8], [96.8, -112.2], [121, -112.2], [121, -123.2]],
+    [[0, 343.2], [4.4, 264], [-4.4, 202.4], [0, 149]],
+    [[0, 115], [-13.2, 17.6], [-17.6, -57.2], [8.8, -132], [35.2, -198], [52.8, -255.2], [35.2, -352], [13.2, -422.4], [8.8, -457.6]],
+    [[-17, 132], [-132, 149.6], [-211.2, 132], [-264, 167.2], [-316.8, 184.8]],
+    [[17, 132], [140.8, 118.8], [228.8, 145.2], [334.4, 158.4]],
+    [[61.6, -255.2], [132, -237.6], [193.6, -224.4], [242, -224.4], [242, -246.4]],
     // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
-    [[121, -123.2], [210, -210], [290, -300], [380, -370]],
+    [[242, -246.4], [500, -520], [760, -770], [1000, -985]],
     // Hearthwick to the Highlands, the Barrens and Frostmere
-    [[380, -370], [700, -520], [1100, -700], [1500, -900], [1900, -1120], [2240, -1290]],
-    [[380, -370], [700, -150], [1100, 150], [1500, 500], [1900, 900], [2240, 1285]],
-    [[380, -390], [330, -700], [250, -1100], [120, -1500], [40, -1900], [-60, -2300], [-145, -2580]],
+    [[1000, -985], [1600, -1300], [2300, -1550], [3000, -1850], [3800, -2250], [4480, -2580]],
+    [[1000, -985], [1400, -500], [1900, 200], [2600, 900], [3400, 1700], [4480, 2570]],
+    [[1000, -1015], [700, -1600], [400, -2300], [240, -3000], [80, -3800], [-120, -4600], [-290, -5160]],
     // the Vale to the Mire and Duskwood (west) and the Salt Wastes (south)
-    [[-154, 92.4], [-360, 150], [-700, 300], [-1200, 600], [-1700, 950], [-2240, 1290]],
-    [[4.4, -228.8], [-340, -380], [-800, -560], [-1300, -820], [-1800, -1080], [-2240, -1295]],
-    [[0, 167.2], [40, 440], [-20, 900], [60, 1500], [-30, 2100], [0, 2585]],
+    [[-316.8, 184.8], [-700, 330], [-1400, 700], [-2400, 1200], [-3400, 1900], [-4480, 2580]],
+    [[8.8, -457.6], [-400, -560], [-1000, -800], [-2000, -1300], [-3000, -1800], [-3600, -2160], [-4480, -2590]],
+    [[0, 334.4], [40, 640], [-20, 1200], [120, 2400], [-60, 3600], [0, 5170]],
     // the old ring road between the region hubs
-    [[-145, -2580], [700, -2300], [1600, -1850], [2240, -1290], [2600, -300], [2600, 400], [2240, 1285], [1500, 1950], [700, 2400], [0, 2585],
-     [-700, 2400], [-1500, 1950], [-2240, 1290], [-2600, 400], [-2600, -300], [-2240, -1295], [-1600, -1850], [-800, -2350], [-145, -2580]],
+    [[-290, -5160], [1400, -4600], [3200, -3700], [4480, -2580], [5200, -600], [5200, 800], [4480, 2570], [3000, 3900], [1400, 4800], [0, 5170],
+     [-1400, 4800], [-3000, 3900], [-4480, 2580], [-5200, 800], [-5200, -600], [-4480, -2590], [-3200, -3700], [-1600, -4700], [-290, -5160]],
   ];
   const ZONES = [
-    { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 171.6, r: 14 },
-    { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0, z: 66, r: 17 },
-    { name: 'THE GLASS RIVER', sub: 'crossing', x: -8.8, z: -28.6, r: 9 },
-    { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 26.4, z: -127.6, r: 42 },
-    { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -158.4, z: 92.4, r: 30 },
-    { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 39.6, z: 136.4, r: 12 },
-    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -22, z: -145.2, r: 10 },
-    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -121, z: -154, r: 16 },
-    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 121, z: -143, r: 17 },
-    { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -79.2, z: 140.8, r: 13 },
-    { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 167.2, z: 79.2, r: 38 },
-    { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 4.4, z: -237.6, r: 22 },
-    { name: 'HEARTHWICK', sub: 'the crossroads village', x: 380, z: -380, r: 30 },
-    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 2250, z: 1300, r: 24 },
-    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -150, z: -2600, r: 24 },
-    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 120, z: -2470, r: 70 },
-    { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -150, z: -2552, r: 30 },
-    { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 2620, z: -1760, r: 26 },
-    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 2600, z: 1500, r: 26 },
-    { name: 'THE FROZEN MERE', sub: 'a knight keeps vigil on the ice', x: 120, z: -2470, r: 40 },
-    { name: "THE HAG'S POOL", sub: 'green light under the water', x: -2050, z: 1560, r: 22 },
-    { name: 'THE WARLORD\'S CROWN', sub: 'he never stopped ruling', x: 2470, z: -1520, r: 22 },
-    { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 2250, z: -1300, r: 30 },
-    { name: 'EMBERFALL', sub: 'they rebuild between the fires', x: 2250, z: 1348, r: 30 },
-    { name: 'SALTREACH', sub: 'water is worth more than gold', x: 0, z: 2600, r: 30 },
-    { name: 'BOGWATER', sub: 'houses on stilts, people on edge', x: -2250, z: 1300, r: 30 },
-    { name: 'DIMMERING', sub: 'lamps lit at noon', x: -2250, z: -1300, r: 30 },
+    { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0.0, z: 343.2, r: 14 },
+    { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0.0, z: 132.0, r: 17 },
+    { name: 'THE GLASS RIVER', sub: 'crossing', x: -17.6, z: -57.2, r: 9 },
+    { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 52.8, z: -255.2, r: 42 },
+    { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -316.8, z: 184.8, r: 30 },
+    { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 79.2, z: 272.8, r: 12 },
+    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -44.0, z: -290.4, r: 10 },
+    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -242.0, z: -308.0, r: 16 },
+    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 242.0, z: -286.0, r: 17 },
+    { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -158.4, z: 281.6, r: 13 },
+    { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 334.4, z: 158.4, r: 38 },
+    { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 8.8, z: -475.2, r: 22 },
+    { name: 'HEARTHWICK', sub: 'the crossroads village', x: 1000, z: -1000, r: 30 },
+    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 4500, z: 2600, r: 24 },
+    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -300, z: -5200, r: 24 },
+    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 240, z: -4940, r: 70 },
+    { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -300, z: -5152, r: 30 },
+    { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 5240, z: -3520, r: 26 },
+    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 5200, z: 3000, r: 26 },
+    { name: 'THE FROZEN MERE', sub: 'a knight keeps vigil on the ice', x: 240, z: -4940, r: 40 },
+    { name: "THE HAG'S POOL", sub: 'green light under the water', x: -4100, z: 3120, r: 22 },
+    { name: 'THE WARLORD\'S CROWN', sub: 'he never stopped ruling', x: 4940, z: -3040, r: 22 },
+    { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 4500, z: -2600, r: 30 },
+    { name: 'EMBERFALL', sub: 'they rebuild between the fires', x: 4500, z: 2648, r: 30 },
+    { name: 'SALTREACH', sub: 'water is worth more than gold', x: 0, z: 5200, r: 30 },
+    { name: 'BOGWATER', sub: 'houses on stilts, people on edge', x: -4500, z: 2600, r: 30 },
+    { name: 'DIMMERING', sub: 'lamps lit at noon', x: -4500, z: -2600, r: 30 },
   ];
   // regions (biomes): name, subtitle, banner colour
   const REGIONS = {
@@ -158,8 +161,8 @@
   }
   // biome weights: the Vale inside r ~1.4 km, then six sectors clockwise from north (frost, high, ash, salt, mire, dusk)
   function biomeW(x, z) {
-    const r = Math.hypot(x, z), wob = (vnoise(x * 0.0015, z * 0.0015) - 0.5) * 520;
-    const outer = ss(1250, 1650, r + wob);
+    const r = Math.hypot(x, z), wob = (vnoise(x * 0.0015 / WS, z * 0.0015 / WS) - 0.5) * 520 * WS;
+    const outer = ss(1250 * WS, 1650 * WS, r + wob);
     const out = [0, 0, 0, 0, 0, 0]; if (outer <= 0) return out;
     const a = Math.atan2(x, -z) + (vnoise(x * 0.0011 + 9, z * 0.0011 - 4) - 0.5) * 0.7;
     let sum = 0;
@@ -199,7 +202,7 @@
     if (b[3] > 0) h = GW.lerp(h, h * 0.15 + 0.3, b[3]);                                                                         // salt: flat pans
     if (b[4] > 0) h = GW.lerp(h, -0.15 + vnoise(x * 0.025, z * 0.025) * 0.9, b[4] * 0.9);                                     // mire: low and wet
     if (b[5] > 0) h += b[5] * (vnoise(x * 0.007 + 2, z * 0.007 - 6) - 0.4) * 14;                                              // duskwood: hills
-    h += ss(3650, 3950, Math.max(Math.abs(x), Math.abs(z))) * 60;                                                                // the world's rim
+    h += ss(HALF - 350, HALF - 50, Math.max(Math.abs(x), Math.abs(z))) * 60;                                                                // the world's rim
     return h;
   }
 
@@ -394,7 +397,7 @@
         if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2), k = (rr - d) / d; p.x += dx * k; p.z += dz * k; hit = true; }
       }
     }
-    const lim = 3880;   // the mountains at the world's edge
+    const lim = HALF - 120;   // the mountains at the world's edge
     if (p.x > 9000) return hit;   // inside a dungeon level
     if (Math.abs(p.x) > lim) { p.x = Math.sign(p.x) * lim; hit = true; }
     if (Math.abs(p.z) > lim) { p.z = Math.sign(p.z) * lim; hit = true; }
@@ -629,14 +632,14 @@
     };
 
     // forest ring
-    for (let k = 0; k < 950; k++) {
+    for (let k = 0; k < 1700; k++) {
       const a = rnd() * Math.PI * 2, r = (96 + rnd() * 30) * VS;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (free(x, z, 1)) kitTree(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][Math.floor(rnd() * 3)], x, z, 0.9 + rnd() * 0.5);
     }
     // scattered trees
     for (let k = 0; k < 560; k++) {
-      const x = (rnd() - 0.5) * 190 * VS, z = (rnd() - 0.5) * 190 * VS;
+      const x = (rnd() - 0.5) * 190 * VSC, z = (rnd() - 0.5) * 190 * VSC;
       if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 40) continue;
       if (Math.hypot(x - L.ruins.x, z - L.ruins.z) < 24) continue;
       if (free(x, z, 1)) kitTree(rnd() < 0.5 ? 'kit_oak_a' : 'kit_pine_a', x, z, 0.75 + rnd() * 0.4);
@@ -648,7 +651,7 @@
     }
     // rocks
     for (let k = 0; k < 600; k++) {
-      const x = (rnd() - 0.5) * 210 * VS, z = (rnd() - 0.5) * 210 * VS, s = 0.5 + rnd() * rnd() * 2.2;
+      const x = (rnd() - 0.5) * 210 * VSC, z = (rnd() - 0.5) * 210 * VSC, s = 0.5 + rnd() * rnd() * 2.2;
       if (k % 2 || [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 30)) continue;   // fewer, and none around camps
       if (free(x, z, 1.5)) rock(x, z, s);
     }
@@ -676,8 +679,8 @@
       if (W.riverAt(x, z) > RIVER_W + 1) flower(x, z);
     }
     for (let k = 0; k < 2600; k++) {
-      const x = (rnd() - 0.5) * 220 * VS, z = (rnd() - 0.5) * 220 * VS;
-      if (Math.hypot(x, z) < 105 * VS && W.riverAt(x, z) > RIVER_W + 0.5) { flower(x, z); }
+      const x = (rnd() - 0.5) * 220 * VSC, z = (rnd() - 0.5) * 220 * VSC;
+      if (Math.hypot(x, z) < 105 * VSC && W.riverAt(x, z) > RIVER_W + 0.5) { flower(x, z); }
     }
     campfire(scene, L.meadowFire.x, L.meadowFire.z, 'Meadow watchfire');
 
@@ -738,13 +741,13 @@
       if (opts.col) W.addCollider(x, z, opts.col, opts.tag || 'tree');
     };
     // conifers thicken the forest ring
-    for (let k = 0; k < 480; k++) {
+    for (let k = 0; k < 900; k++) {
       const a = rnd() * Math.PI * 2, r = (92 + rnd() * 30) * VS, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 3.2 + rnd() * 2.2;
       if (free(x, z, 1)) kitTree(['kit_pine_a', 'kit_pine_b', 'kit_pine_c'][Math.floor(rnd() * 3)], x, z, 0.85 + rnd() * 0.45);
     }
     // broadleaf trees: oaks in the open, birches with autumn leaves around the village and the ruins
     for (let k = 0; k < 460; k++) {
-      const x = (rnd() - 0.5) * 190 * VS, z = (rnd() - 0.5) * 190 * VS, s = 3 + rnd() * 2;
+      const x = (rnd() - 0.5) * 190 * VSC, z = (rnd() - 0.5) * 190 * VSC, s = 3 + rnd() * 2;
       if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 40) continue;
       const nearVillage = Math.hypot(x - L.village.x, z - L.village.z) < 45 || Math.hypot(x - L.ruins.x, z - L.ruins.z) < 40;
       if (free(x, z, 1.2)) kitTree(rnd() < 0.55 ? ['kit_oak_a', 'kit_oak_b'][Math.floor(rnd() * 2)] : ['kit_pine_a', 'kit_pine_c'][Math.floor(rnd() * 2)], x, z, 0.8 + rnd() * 0.4);
@@ -760,7 +763,7 @@
     }
     // logs, stumps, boulders, bushes
     for (let k = 0; k < 260; k++) {
-      const x = (rnd() - 0.5) * 200 * VS, z = (rnd() - 0.5) * 200 * VS;
+      const x = (rnd() - 0.5) * 200 * VSC, z = (rnd() - 0.5) * 200 * VSC;
       if (!free(x, z, 1.5)) continue;
       const r = rnd();
       if (r < 0.3) put('log', x, z, 2.6 + rnd(), { col: 0.9, tag: 'log' });
@@ -770,8 +773,8 @@
       else put('rock_large', x, z, 1.8 + rnd() * 1.6, { col: 1.0, tag: 'rock' });
     }
     for (let k = 0; k < 220; k++) {
-      const x = (rnd() - 0.5) * 210 * VS, z = (rnd() - 0.5) * 210 * VS;
-      if (Math.hypot(x, z) < 108 * VS && Math.hypot(x, z) > 70 * VS && free(x, z, 0.4)) put('bush_large', x, z, 2 + rnd() * 2);
+      const x = (rnd() - 0.5) * 210 * VSC, z = (rnd() - 0.5) * 210 * VSC;
+      if (Math.hypot(x, z) < 108 * VSC && Math.hypot(x, z) > 70 * VSC && free(x, z, 0.4)) put('bush_large', x, z, 2 + rnd() * 2);
     }
   }
 
@@ -840,7 +843,7 @@
     // dead trees in Wispwood and across the vale, rocks everywhere
     const trees = ['kit_deadtree_a', 'kit_deadtree_b', 'kit_deadtree_c'];
     for (let k = 0; k < 18; k++) { const a = rnd() * 6.28, r = 4 + rnd() * 26, x = L.grove.x + Math.cos(a) * r, z = L.grove.z + Math.sin(a) * r; if (free(x, z, 1)) put(trees[k % 3], x, z, 0.9 + rnd() * 0.4, rnd() * 6.28, 0.4); }
-    for (let k = 0; k < 80; k++) { const x = (rnd() - 0.5) * 200 * VS, z = (rnd() - 0.5) * 200 * VS; if (Math.hypot(x, z) < 100 * VS && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
+    for (let k = 0; k < 80; k++) { const x = (rnd() - 0.5) * 200 * VSC, z = (rnd() - 0.5) * 200 * VSC; if (Math.hypot(x, z) < 100 * VSC && free(x, z, 1.2)) put(trees[k % 3], x, z, 0.8 + rnd() * 0.5, rnd() * 6.28, 0.4); }
     // the Widow's hollow: a ring of dead trees strung with glowing webs
     { const C = L.lair, anchors = [];
       for (let k = 0; k < 9; k++) {
@@ -870,7 +873,7 @@
     // ---- Rimeglass Abbey: lanterns along the frozen approach ----
     { const A = L.abbey; [[-4, 14, 0], [4, 14, 3.1], [-4, 22, 0], [4, 22, 3.1]].forEach(([dx, dz, a]) => lantern(A.x + dx, A.z + dz, a)); }
     const nearCamp = (x, z) => [L.fire, L.ruinFire, L.meadowFire, L.start, L.village].some(c => Math.hypot(x - c.x, z - c.z) < 26);
-    for (let k = 0; k < 150; k++) { const x = (rnd() - 0.5) * 210 * VS, z = (rnd() - 0.5) * 210 * VS, s = 0.4 + rnd() * 0.45; if (Math.hypot(x, z) < 104 * VS && !nearCamp(x, z) && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, s, rnd() * 6.28, 0.85); }
+    for (let k = 0; k < 150; k++) { const x = (rnd() - 0.5) * 210 * VSC, z = (rnd() - 0.5) * 210 * VSC, s = 0.4 + rnd() * 0.45; if (Math.hypot(x, z) < 104 * VSC && !nearCamp(x, z) && free(x, z, 1.4)) put(['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][k % 3], x, z, s, rnd() * 6.28, 0.85); }
   }
 
   // glowing dotted spider webs (thin ribbons drawn with the twinkling star glyphs)
@@ -992,12 +995,14 @@
     const over = BIO_MAT[bio] && BIO_MAT[bio][mn]; if (!over) return kitMat(mn);
     const k = mn + '@' + bio; return bioMats[k] || (bioMats[k] = GW.mat(Object.assign({ side: THREE.DoubleSide }, KIT_MAT[mn], { color: over })));
   }
+  const VALE_CLEAR = [['start', 24], ['village', 30], ['meadow', 48], ['ruins', 34], ['arena', 32], ['castle', 30], ['chapel', 22], ['tower', 18], ['lair', 26], ['ruinFire', 14], ['meadowFire', 14]];
   function chunkFree(x, z, r) {
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
-    if (Math.max(Math.abs(x), Math.abs(z)) > 3800) return false;
+    if (Math.max(Math.abs(x), Math.abs(z)) > HALF - 200) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
     for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash, L.dunmaer]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
     if (W.poisNear(x, z, 16 + r).length) return false;
+    for (const [k, rr] of VALE_CLEAR) if (Math.hypot(x - L[k].x, z - L[k].z) < rr + r) return false;
     for (const a of ARENAS) if (Math.hypot(x - a.x, z - a.z) < 34 + r) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
     return !W.blocked(x, z, r + 0.6);
@@ -1029,7 +1034,7 @@
         if (nb.some(q => Math.hypot(q[0] - cx, q[1] - cz) < 85)) continue;
         const s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
     }
-    const ok = r0 < 0.84 && !(Math.abs(x) < CORE + 80 && Math.abs(z) < CORE + 80) && Math.max(Math.abs(x), Math.abs(z)) < 3650
+    const ok = r0 < 0.84 && Math.hypot(x, z) > 640 && Math.max(Math.abs(x), Math.abs(z)) < HALF - 350
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
       && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
       && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 16;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
@@ -1038,7 +1043,7 @@
       const w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
       if (slope > 2.4 && type !== 'ambush') type = 'vista';   // still a crag: make it a lookout
-      const lvl = 1 + Math.floor(Math.hypot(x, z) / 280);
+      const lvl = 1 + Math.floor(Math.hypot(x, z) / LVLD);
       p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };
     }
     poiCache.set(key, p); return p;
@@ -1098,14 +1103,14 @@
         const x = x0 + 8 + vr() * (CHK - 16), z = z0 + 8 + vr() * (CHK - 16), bio = W.regionAt(x, z), roll = vr(), pick = vr();
         if (roll > (bio === 'high' || bio === 'ash' ? 0.6 : 0.42) || !chunkFree(x, z, 2.6)) continue;
         let ore = 'iron_ore', acc = 0; for (const [o, wgt] of Object.entries(F.VEINS[bio] || F.VEINS.vale)) { acc += wgt; if (pick < acc) { ore = o; break; } }
-        if (Math.hypot(x, z) > 2400 && vr() < 0.05) ore = 'star';
+        if (Math.hypot(x, z) > 2400 * WS && vr() < 0.05) ore = 'star';
         const id = 'v:' + ci + ',' + cj + ',' + k, col = F.ORES[ore].color;
         kit('kit_rock_b', x, z, 0.85, 1.1, bio, new THREE.Color(0.8, 0.8, 0.82));
         const g = new THREE.Group(), y = W.heightAt(x, z), cm = crystalMat(col);
         for (let q = 0; q < 6; q++) { const a = q / 6 * Math.PI * 2 + vr(), r = 0.5 + vr() * 0.9, m = new THREE.Mesh(CRYSTAL_G, cm);
           m.position.set(x + Math.cos(a) * r, y + 0.6 + vr() * 0.9, z + Math.sin(a) * r); m.rotation.set(vr() * 3, vr() * 3, vr() * 3); m.scale.set(0.8 + vr() * 0.6, 1.3 + vr() * 1.2, 0.8 + vr() * 0.6); g.add(m); }
         g.visible = !(W.isMined && W.isMined(id)); scene.add(g); veinGroups.push(g);
-        inter.push({ type: 'vein', id, ore, x, z, r: 2.8, label: 'Mine the ' + F.ORES[ore].name.toLowerCase(), crystals: g, lvl: 1 + Math.floor(Math.hypot(x, z) / 280) });
+        inter.push({ type: 'vein', id, ore, x, z, r: 2.8, label: 'Mine the ' + F.ORES[ore].name.toLowerCase(), crystals: g, lvl: 1 + Math.floor(Math.hypot(x, z) / LVLD) });
       } }
     inter.forEach(it => W.interact.push(it));
     for (let k = 0; k < 90; k++) {
@@ -1702,17 +1707,17 @@
     if (pd < 1.8) return [138, 106, 68];
     let c = [29, 58, 34];
     for (let k = 0; k < 6; k++) if (b[k] > 0.01) c = c.map((v, i) => GW.lerp(v, MAP_BIO[k][i], b[k]));
-    if (h > 14 || Math.max(Math.abs(x), Math.abs(z)) > 3700) c = c.map(v => Math.min(255, v * 1.35 + 18));
+    if (h > 14 || Math.max(Math.abs(x), Math.abs(z)) > HALF - 300) c = c.map(v => Math.min(255, v * 1.35 + 18));
     return c;
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
-  W.ARENAS = ARENAS; W.VS = VS;
+  W.ARENAS = ARENAS; W.VS = VS; W.WS = WS; W.LVLD = LVLD; W.HALF = HALF;
   W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {
     if (MAPD) return MAPD;
-    const N = 512, cell = SIZE / N, n = N * N, f = {};
+    const N = 768, cell = SIZE / N, n = N * N, f = {};
     const H = new Float32Array(n), R = new Float32Array(n), Pd = new Float32Array(n), Gr = new Float32Array(n), B = new Uint8Array(n), BW = new Float32Array(n), Lk = new Uint8Array(n);
     const cen = BIOMES.map(() => [0, 0, 0]).concat([[0, 0, 0]]);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -1722,7 +1727,7 @@
       let bi = 0, bv = 0.5; for (let q = 0; q < 6; q++) if (f.bw[q] > bv) { bv = f.bw[q]; bi = q + 1; }
       B[k] = bi; BW[k] = bi ? bv : 1 - Math.max(...f.bw);
       Lk[k] = Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72 ? 1 : 0;
-      if (Math.max(Math.abs(x), Math.abs(z)) < 3800) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; }
+      if (Math.max(Math.abs(x), Math.abs(z)) < HALF - 200) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; }
     }
     const centroids = cen.map(c => c[2] ? { x: c[0] / c[2], z: c[1] / c[2] } : null);
     MAPD = { N, cell, H, R, Pd, Gr, B, BW, Lk, centroids };
@@ -1743,7 +1748,7 @@
       let ch = '.';
       if (f.rd < RIVER_W + 3 || Math.hypot(wx - L.frostLake.x, wz - L.frostLake.z) < 72) ch = '~';
       else if (f.pd < 4) ch = ':';
-      else if (f.h > 14 || Math.max(Math.abs(wx), Math.abs(wz)) > 3700) ch = '^';
+      else if (f.h > 14 || Math.max(Math.abs(wx), Math.abs(wz)) > HALF - 300) ch = '^';
       else if (((x * 7 + y * 13) % 5) !== 0) continue;
       glyphs.push([ch, x + 2, y + 2, col]);
     }
