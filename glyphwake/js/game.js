@@ -414,6 +414,7 @@
       const s = G.pzState(p), done = !!G.solved[p.id], key = 'pz' + p.id + it.role + (it.idx || 0);
       if (it.role === 'vault') {
         const open = G.opened['puz:' + p.id];
+        it.label = done ? (p.pz === 'plates' ? 'Open the crypt' : 'Open the vault') : (p.pz === 'plates' ? 'A sealed crypt' : p.pz === 'runes' ? 'A sealed vault' : 'A sealed chest');
         if (d < 18) UI.label(key, done ? (open ? '·' : '⌂ open') : '⌂ sealed', gy(it.x, it.z, 2.6), 'name', done ? '#ffd860' : '#8a90a0');
         if (p.pz === 'plates' && !done) {   // stepping: the player's feet press whichever slab they stand on
           let on = -1; s.Z.plates.forEach((pl, k) => { if (Math.abs(P.pos.x - pl.x) < 1.05 && Math.abs(P.pos.z - pl.z) < 1.05) on = k; });
