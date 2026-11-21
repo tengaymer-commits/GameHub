@@ -1022,13 +1022,13 @@
   // ---------- points of interest: one per 150 m cell (most cells), seeded, typed by region ----------
   const POI_CELL = 150, poiCache = new Map();
   const POI_W = {
-    vale: { cave: 0.05, camp: 0.21, ruin: 0.14, chest: 0.14, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08 },
-    frost: { cave: 0.05, camp: 0.25, ruin: 0.12, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09 },
-    high: { cave: 0.06, camp: 0.18, ruin: 0.2, chest: 0.12, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08 },
-    ash: { cave: 0.05, camp: 0.27, ruin: 0.16, chest: 0.1, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1 },
-    salt: { cave: 0.05, camp: 0.17, ruin: 0.18, chest: 0.16, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06 },
-    mire: { cave: 0.05, camp: 0.23, ruin: 0.14, chest: 0.12, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08 },
-    dusk: { cave: 0.06, camp: 0.2, ruin: 0.16, chest: 0.12, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08 },
+    vale: { puzzle: 0.1, cave: 0.05, camp: 0.15, ruin: 0.14, chest: 0.1, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08},
+    frost: { puzzle: 0.1, cave: 0.05, camp: 0.19, ruin: 0.12, chest: 0.08, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09},
+    high: { puzzle: 0.1, cave: 0.06, camp: 0.12, ruin: 0.2, chest: 0.08, shrine: 0.08, waystone: 0.07, vista: 0.12, wanderer: 0.04, ambush: 0.05, elite: 0.08},
+    ash: { puzzle: 0.1, cave: 0.05, camp: 0.21, ruin: 0.16, chest: 0.06, shrine: 0.08, waystone: 0.07, vista: 0.06, wanderer: 0.03, ambush: 0.08, elite: 0.1},
+    salt: { puzzle: 0.1, cave: 0.05, camp: 0.11, ruin: 0.18, chest: 0.12, shrine: 0.1, waystone: 0.08, vista: 0.08, wanderer: 0.06, ambush: 0.06, elite: 0.06},
+    mire: { puzzle: 0.1, cave: 0.05, camp: 0.17, ruin: 0.14, chest: 0.08, shrine: 0.1, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.12, elite: 0.08},
+    dusk: { puzzle: 0.1, cave: 0.06, camp: 0.14, ruin: 0.16, chest: 0.08, shrine: 0.12, waystone: 0.07, vista: 0.05, wanderer: 0.04, ambush: 0.1, elite: 0.08},
   };
   W.poiAt = function (i, j) {
     const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
@@ -1057,6 +1057,8 @@
       if (slope > 2.4 && type !== 'ambush') type = 'vista';   // still a crag: make it a lookout
       const lvl = 1 + Math.floor(Math.hypot(x, z) / LVLD);
       p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };
+      if (type === 'puzzle') p.pz = ['runes', 'lanterns', 'plates', 'bells'][Math.floor(hsh(i * 2.7 - 1.1, j * 0.9 + 4.4) * 4)];
+      if (type === 'vista' && hsh(i + 5.5, j - 3.3) < 0.45) p.cache = true;
     }
     poiCache.set(key, p); return p;
   };
@@ -1069,6 +1071,20 @@
   };
   W.POI_CELL = POI_CELL;
   // props + interactables for one point of interest (built with the chunk that contains it)
+  // ---------- puzzles: one shared layout so the world (props) and the game (logic) agree ----------
+  W.puzzleLayout = function (p) {
+    const R = GW.rand(p.seed + 77), o = { kind: p.pz || (p.cache ? 'dig' : null) };
+    if (p.pz === 'runes') { o.vault = { x: p.x, z: p.z - 5.5 }; o.tablet = { x: p.x + 6, z: p.z + 3.5 };
+      o.stones = [0, 1, 2, 3].map(k => { const a = k / 4 * Math.PI * 2 + 0.4; return { x: p.x + Math.cos(a) * 7.5, z: p.z + Math.sin(a) * 7.5 }; }); }
+    if (p.pz === 'lanterns') { o.vault = { x: p.x, z: p.z + 1.8 };
+      o.lanterns = [0, 1, 2].map(k => { const a = k / 3 * Math.PI * 2 + 0.3; return { x: p.x + Math.cos(a) * 7, z: p.z + Math.sin(a) * 7 }; }); }
+    if (p.pz === 'plates') { o.vault = { x: p.x, z: p.z - 6.5 }; o.tablet = { x: p.x - 6, z: p.z + 2 };
+      o.plates = []; for (let k = 0; k < 9; k++) o.plates.push({ x: p.x + (k % 3 - 1) * 2.4, z: p.z + (Math.floor(k / 3) - 1) * 2.4 }); }
+    if (p.pz === 'bells') { o.vault = { x: p.x, z: p.z - 3 }; o.tablet = { x: p.x, z: p.z + 1.5 };
+      o.bells = [0, 1, 2, 3].map(k => { const a = k / 4 * Math.PI * 2 + Math.PI / 4; return { x: p.x + Math.cos(a) * 6.5, z: p.z + Math.sin(a) * 6.5 }; }); }
+    if (p.cache) { const a = R() * Math.PI * 2, d = 45 + R() * 35; o.dig = { x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d }; }
+    return o;
+  };
   function buildPOI(p, kit, cols, inter) {
     const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
     const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
@@ -1078,7 +1094,28 @@
       case 'chest': ring(3, 2.4, (x, z) => kit('kit_rock_a', x, z, 0.35 + R() * 0.2, 0.6, bio)); chest(p.x, p.z); break;
       case 'shrine': kit('kit_shrine', p.x, p.z, 1, 0.7, bio); inter.push({ type: 'shrine', x: p.x, z: p.z + 1.6, r: 2.4, label: 'Pray at the shrine', poi: p }); break;
       case 'waystone': kit('kit_pillar_a', p.x, p.z, 1.35, 0.6, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
-      case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
+      case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p });
+        if (p.cache) { const D = W.puzzleLayout(p).dig;   // a buried cache somewhere in view: three small stones mark it
+          for (let k = 0; k < 3; k++) kit('kit_rock_a', D.x + (k - 1) * 0.6, D.z + (k % 2) * 0.5, 0.28, 0, bio);
+          inter.push({ type: 'pz', role: 'dig', x: D.x, z: D.z, r: 2.4, label: 'Dig', poi: p }); }
+        break;
+      case 'puzzle': {
+        const Z = W.puzzleLayout(p), tint = new THREE.Color(0.75, 0.82, 1.0);
+        const push = (role, at, label, idx) => inter.push({ type: 'pz', role, idx, x: at.x, z: at.z, r: 2.4, label, poi: p });
+        if (p.pz === 'runes') { kit('kit_crypt', Z.vault.x, Z.vault.z, 1.3, 1.6, bio); kit('kit_shrine', Z.tablet.x, Z.tablet.z, 0.8, 0.5, bio);
+          Z.stones.forEach((st, k) => { kit('kit_pillar_a', st.x, st.z, 0.55, 0.45, bio, tint); push('stone', st, 'Touch the rune stone', k); });
+          push('tablet', Z.tablet, 'Read the tablet'); push('vault', Z.vault, 'A sealed vault'); }
+        if (p.pz === 'lanterns') { kit('kit_shrine', p.x, p.z, 1.0, 0.6, bio); kit('kit_crate', Z.vault.x, Z.vault.z, 1.0, 0.4, bio, new THREE.Color(0.9, 0.75, 0.45));
+          Z.lanterns.forEach((l, k) => { kit('kit_lantern', l.x, l.z, 1.4, 0, bio); push('lantern', l, 'Turn the lantern', k); });
+          push('vault', Z.vault, 'A sealed chest'); }
+        if (p.pz === 'plates') { kit('kit_crypt', Z.vault.x, Z.vault.z, 1.2, 1.5, bio); kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.1, 0.4, bio);
+          Z.plates.forEach(pl => kit('kit_grave_slab', pl.x, pl.z, 0.95, 0, bio, new THREE.Color(0.8, 0.8, 0.85)));
+          push('tablet', Z.tablet, 'Study the worn mosaic'); push('vault', Z.vault, 'A sealed crypt'); }
+        if (p.pz === 'bells') { kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.2, 0.4, bio, tint); kit('kit_crate', Z.vault.x, Z.vault.z, 1.0, 0.4, bio, new THREE.Color(0.9, 0.75, 0.45));
+          Z.bells.forEach((bl, k) => { kit('kit_pillar_b', bl.x, bl.z, 0.5, 0.45, bio); kit('kit_lantern', bl.x, bl.z, 0.9, 0, bio); push('bell', bl, 'Strike the bell', k); });
+          push('tablet', Z.tablet, 'Listen to the humming stone'); push('vault', Z.vault, 'A sealed chest'); }
+        break;
+      }
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
       case 'elite': ring(6, 9, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
       case 'cave':     // a rock mound with a black mouth: walk in to go underground

@@ -317,6 +317,7 @@
   // ---------------- mining: three strikes and the vein gives up its ore; it grows back after 20 minutes ----------------
   GW.World.isMined = id => !!(G.mined[id] && Date.now() - G.mined[id] < 20 * 60 * 1000);
   G.mineHit = function (it) {
+    if (it.type === 'pz') return G.pzDig(it);
     const P = G.player, O = GW.Forge.ORES[it.ore], col = '#' + O.color.toString(16).padStart(6, '0');
     it.hits = (it.hits || 0) + 1; GWAudio.sfx('anvil'); G.shake(0.12); G.hitstop = 0.04;
     G.parts.spark.burst(it.x, P.pos.y + 0.9, it.z, 12, 4, O.color, 0.4, 1, -6);
@@ -325,6 +326,118 @@
     const n = 1 + (Math.random() < 0.5 ? 1 : 0) + ((it.lvl || 1) >= 6 ? 1 : 0) + (Math.random() < (P.ws.xp || 0) ? 1 : 0);
     give('ore', it.ore, n); it.hits = 0; G.mined[it.id] = Date.now(); if (it.crystals) it.crystals.visible = false;
     G.glyphRing(it.x, P.pos.y + 1, it.z, 0.6, 14, O.g + '*·', col, 5, 0.6, 15); save();
+  };
+
+  // ---------------- puzzles: each one guards an elite-quality cache; solved state is saved ----------------
+  // runes: touch four stones in the order the tablet gives · lanterns: turn three beams onto the shrine
+  // plates: step only on the slabs the mosaic marks · bells: strike the melody the humming stone sings · dig: a vista's hidden cache
+  G.solved = {}; G.pzS = {}; G.pzSeq = [];
+  const RUNE_G = ['◇', '✕', '△', '○'], BELL_F = [392, 440, 523.25, 587.33], BELL_G = ['♩', '♪', '♫', '♬'];
+  const PZ_NAME = { runes: 'RUNE VAULT', lanterns: 'LANTERN SHRINE', plates: 'PRESSURE CRYPT', bells: 'ECHO BELLS', dig: 'BURIED CACHE' };
+  G.pzState = function (p) {
+    let s = G.pzS[p.id]; if (s) return s;
+    const R = GW.rand(p.seed + 401), Z = GW.World.puzzleLayout(p), perm = [0, 1, 2, 3]; for (let i = 3; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+    s = G.pzS[p.id] = { p, Z, prog: 0, order: perm };
+    if (p.pz === 'lanterns') { s.dirs = [0, 1, 2].map(() => 1 + Math.floor(R() * 3)); }
+    if (p.pz === 'plates') { const cells = [0, 1, 2, 3, 4, 5, 6, 7, 8]; for (let i = 8; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; } s.safe = cells.slice(0, 4); s.down = {}; s.on = -1; }
+    if (p.pz === 'bells') s.order = [0, 1, 2, 3].map(() => Math.floor(R() * 4));
+    if (p.cache) s.hits = 0;
+    return s;
+  };
+  const gy = (x, z, h) => new V3(x, GW.World.heightAt(x, z) + h, z);
+  function pzFail(s, why) {
+    s.prog = 0; if (s.down) s.down = {};
+    GWAudio.sfx('ui'); G.shake(0.15); UI.toast('<span style="color:#ff8a7a">✕</span> ' + why, 1.8);
+    const v = s.Z.vault; G.glyphRing(v.x, GW.World.heightAt(v.x, v.z) + 1, v.z, 1.2, 12, '×·', '#ff7060', 3, 0.5, 14);
+  }
+  function pzSolve(s) {
+    const p = s.p; if (G.solved[p.id]) return; G.solved[p.id] = Date.now();
+    const v = s.Z.vault || s.Z.dig, y = GW.World.heightAt(v.x, v.z);
+    GWAudio.sfx('level'); G.shake(0.25); UI.banner('the seal gives way', (PZ_NAME[p.pz || 'dig']) + ' SOLVED', 2.6);
+    G.glyphRing(v.x, y + 1, v.z, 0.8, 22, '✦◇*·', '#ffd860', 6, 0.9, 18); G.parts.spark.burst(v.x, y + 1, v.z, 40, 5, 0xffd870, 0.8, 1.2, -3, 2);
+    gainXP(40 + p.lvl * 12);
+    if (p.cache) openChest({ id: 'puz:' + p.id, x: v.x, z: v.z, poi: Object.assign({}, p, { type: 'elite', seed: p.seed + 91 }) });
+    else { UI.hint('The ' + (p.pz === 'plates' ? 'crypt' : 'vault') + ' is open. Press <b>E</b> at it to claim what it kept.', 4); save(); }
+  }
+  G.pzUse = function (it) {
+    const p = it.poi, s = G.pzState(p), P = G.player;
+    if (it.role === 'vault') {
+      if (G.solved[p.id]) { if (!G.opened['puz:' + p.id]) openChest({ id: 'puz:' + p.id, x: it.x, z: it.z, poi: Object.assign({}, p, { type: 'elite', seed: p.seed + 91 }) }); return; }
+      UI.toast({ runes: 'Sealed. Four rune stones stand around it.', lanterns: 'Sealed. Its lock waits for light.', plates: 'Sealed. The slabs before it are worn by old footsteps.', bells: 'Sealed. Four bells hang silent around it.' }[p.pz], 2.4); GWAudio.sfx('ui'); return;
+    }
+    if (it.role === 'dig') { if (P.state === 'move') { P.state = 'mine'; P.t = 0; P.fired = false; P.mineIt = it; P.yaw = Math.atan2(it.x - P.pos.x, it.z - P.pos.z); } return; }
+    if (p.pz === 'runes' && it.role === 'tablet') { UI.banner(s.order.map(k => RUNE_G[k]).join('  '), 'THE TABLET READS', 3.2); GWAudio.sfx('socket'); return; }
+    if (p.pz === 'runes' && it.role === 'stone') {
+      if (s.order[s.prog] !== it.idx) return pzFail(s, 'The stones go dark. Start again.');
+      s.prog++; GWAudio.tone(BELL_F[Math.min(3, s.prog - 1)] * 0.75, 0.7); G.glyphRing(it.x, GW.World.heightAt(it.x, it.z) + 1.3, it.z, 0.5, 10, RUNE_G[it.idx] + '·', '#9fd8ff', 3, 0.5, 14);
+      if (s.prog >= 4) pzSolve(s); return;
+    }
+    if (p.pz === 'lanterns' && it.role === 'lantern') {
+      s.dirs[it.idx] = (s.dirs[it.idx] + 1) % 4; GWAudio.sfx('anvil'); G.shake(0.06);
+      if (s.dirs.every(d => d === 0)) pzSolve(s); else if (s.dirs[it.idx] === 0) { GWAudio.tone(523.25, 0.6); UI.toast('<span style="color:#ffd860">✦</span> The beam finds the shrine', 1.4); }
+      return;
+    }
+    if (p.pz === 'plates' && it.role === 'tablet') {
+      const rows = [0, 1, 2].map(r => [0, 1, 2].map(c => s.safe.includes(r * 3 + c) ? '■' : '□').join(' ')).join('<br>');
+      UI.toast('<div style="text-align:center;line-height:1.25">the crypt side is at the top<br><span style="font-size:22px;letter-spacing:4px;color:#ffd860">' + rows + '</span></div>', 5); GWAudio.sfx('socket'); return;
+    }
+    if (p.pz === 'bells' && it.role === 'tablet') {
+      if (G.pzSeq.length) return; UI.toast('The stone hums...', 1.6);
+      s.order.forEach((b, k) => G.pzSeq.push({ t: G.t + 0.6 + k * 0.8, s, b, ghost: true })); s.prog = 0; return;
+    }
+    if (p.pz === 'bells' && it.role === 'bell') {
+      ringBell(s, it.idx, false);
+      if (s.order[s.prog] !== it.idx) return pzFail(s, 'A sour note. The bells fall still.');
+      s.prog++; if (s.prog >= 4) setTimeout(() => pzSolve(s), 500);
+    }
+  };
+  function ringBell(s, b, ghost) {
+    const bl = s.Z.bells[b], y = GW.World.heightAt(bl.x, bl.z);
+    GWAudio.tone(BELL_F[b], ghost ? 1.1 : 1.3);
+    G.hitGlyphs.push({ x: bl.x, y: y + 2.6, z: bl.z, still: true, pop: true, size: ghost ? 22 : 30, t: 0, life: 0.7, ch: BELL_G[b], col: ghost ? '#a8b8ff' : '#ffe9a0' });
+    if (ghost) { const t = s.Z.tablet; G.hitGlyphs.push({ x: t.x, y: GW.World.heightAt(t.x, t.z) + 2.4, z: t.z, vy: 1.2, ng: true, t: 0, life: 0.9, ch: BELL_G[b], col: '#a8b8ff', size: 20 }); }
+  }
+  G.pzDig = function (it) {
+    const P = G.player, s = G.pzState(it.poi);
+    s.hits = (s.hits || 0) + 1; GWAudio.sfx('hit'); G.shake(0.1);
+    G.parts.spark.burst(it.x, P.pos.y + 0.3, it.z, 14, 3, 0x8a7050, 0.5, 1, -8);
+    if (s.hits < 3) { UI.float(s.hits + '/3', new V3(it.x, P.pos.y, it.z), { color: '#d8c090', size: 12, y: 1.8, life: 0.6 }); return; }
+    pzSolve(s);
+  };
+  // per frame: bell playback, plate stepping, lantern beams and state glyphs over every puzzle within reach
+  G.pzUpdate = function () {
+    while (G.pzSeq.length && G.t >= G.pzSeq[0].t) { const q = G.pzSeq.shift(); ringBell(q.s, q.b, true); }
+    const P = G.player; if ((P.floor || 0) !== 0 || G.dungeon) return;
+    for (const it of GW.World.interact) {
+      if (it.type !== 'pz') continue;
+      const p = it.poi, d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d > 28) continue;
+      const s = G.pzState(p), done = !!G.solved[p.id], key = 'pz' + p.id + it.role + (it.idx || 0);
+      if (it.role === 'vault') {
+        const open = G.opened['puz:' + p.id];
+        if (d < 18) UI.label(key, done ? (open ? '·' : '⌂ open') : '⌂ sealed', gy(it.x, it.z, 2.6), 'name', done ? '#ffd860' : '#8a90a0');
+        if (p.pz === 'plates' && !done) {   // stepping: the player's feet press whichever slab they stand on
+          let on = -1; s.Z.plates.forEach((pl, k) => { if (Math.abs(P.pos.x - pl.x) < 1.05 && Math.abs(P.pos.z - pl.z) < 1.05) on = k; });
+          if (on !== s.on && on >= 0 && !s.down[on]) {
+            if (s.safe.includes(on)) { s.down[on] = 1; GWAudio.sfx('anvil'); GWAudio.tone(392 + Object.keys(s.down).length * 60, 0.5); if (s.safe.every(k => s.down[k])) pzSolve(s); }
+            else { const pl = s.Z.plates[on], y = GW.World.heightAt(pl.x, pl.z); G.glyphRing(pl.x, y + 0.2, pl.z, 0.3, 10, '^Λ', '#ff6050', 4, 0.4, 16); G.hurtPlayer(12, null, { dot: true }); pzFail(s, 'Spikes! The plates reset.'); }
+          }
+          s.on = on;
+          if (d < 14) s.Z.plates.forEach((pl, k) => { if (s.down[k]) UI.label(key + 'p' + k, '◆', gy(pl.x, pl.z, 0.35), 'name', '#ffd860'); });
+        }
+        if (p.pz === 'lanterns') {   // the beams: glyph lines from each lantern, gold when they meet the shrine
+          s.Z.lanterns.forEach((l, k) => {
+            const base = Math.atan2(p.x - l.x, p.z - l.z), a = base + (done ? 0 : s.dirs[k]) * Math.PI / 2, ok = done || s.dirs[k] === 0, L = ok ? Math.hypot(p.x - l.x, p.z - l.z) - 0.8 : 6;
+            const y0 = GW.World.heightAt(l.x, l.z) + 1.5;
+            G.glyphChain({ x: l.x, y: y0, z: l.z }, { x: l.x + Math.sin(a) * L, y: ok ? GW.World.heightAt(p.x, p.z) + 1.2 : y0, z: l.z + Math.cos(a) * L }, ok ? '#ffd860' : '#9fc8ff', ok ? '#fff0b0' : '#6a88c0');
+          });
+        }
+      }
+      if (done) continue;
+      if (it.role === 'stone') UI.label(key, RUNE_G[it.idx], gy(it.x, it.z, 2.0), 'name', s.order.slice(0, s.prog).includes(it.idx) ? '#ffd860' : '#9fd8ff');
+      if (it.role === 'bell' && d < 18) UI.label(key, BELL_G[it.idx], gy(it.x, it.z, 2.2), 'name', s.order.slice(0, s.prog).length && s.order[s.prog - 1] === it.idx ? '#ffd860' : '#c8c0ff');
+      if (it.role === 'tablet' && d < 12) UI.label(key, '?', gy(it.x, it.z, 2.2), 'name', '#c8a0ff');
+      if (it.role === 'dig' && (d < 8 || (G.pzKnown && G.pzKnown[p.id]))) UI.label(key, '✕', gy(it.x, it.z, 0.9), 'name', '#ffc870');
+    }
   };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
@@ -528,7 +641,7 @@
         const d = loadData();
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
-          G.opened = d.opened || {}; G.mined = d.mined || {}; for (const it of GW.World.interact) if (it.type === 'vein' && it.crystals) it.crystals.visible = !GW.World.isMined(it.id); G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
+          G.opened = d.opened || {}; G.mined = d.mined || {}; G.solved = d.solved || {}; G.pzKnown = d.pzKnown || {}; for (const it of GW.World.interact) if (it.type === 'vein' && it.crystals) it.crystals.visible = !GW.World.isMined(it.id); G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
           if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
@@ -960,7 +1073,7 @@
   // ---------------- interaction ----------------
   function nearestInteract() {
     const P = G.player; let best = null, bd = 1e9;
-    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
+    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id)) || (it.type === 'pz' && G.solved[it.poi.id] && (it.role !== 'vault' || G.opened['puz:' + it.poi.id]))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
     return best;
   }
   function doInteract(it) {
@@ -975,7 +1088,10 @@
     else if (it.type === 'waystone') { const p = it.poi, nm = GW.World.REGIONS[p.region].name.replace('THE ', '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' waystone ' + p.id;
       if (!G.waystones[p.id]) { G.waystones[p.id] = { x: p.x, z: p.z + 2.6, name: nm }; UI.toast('<span style="color:#9fd8ff">◊</span> Waystone attuned', 2.5); save(); }
       const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
-    else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); }
+    else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest');
+      if (it.poi.cache && !G.solved[it.poi.id]) { const D = GW.World.puzzleLayout(it.poi).dig; G.pzKnown = G.pzKnown || {}; G.pzKnown[it.poi.id] = 1; G.waypoint = { x: D.x, z: D.z };
+        setTimeout(() => UI.toast('<span style="color:#ffc870">✕</span> Something glints below: three stones over loose earth. Marked on your map.', 3.5), 1600); save(); } }
+    else if (it.type === 'pz') G.pzUse(it);
     else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
     else if (it.type === 'tomb') enterLevel({ kind: 'tomb', id: it.id, seed: 7100 + it.id.length * 31 + (it.quest ? 5 : 0) + it.name.length, region: 'tomb', lvl: 2, floors: it.floors, quest: it.quest,
       names: it.floors > 1 ? [it.name, 'THE SCRIBE\'S REST'] : [it.name], back: { x: it.x, z: it.z } });
@@ -1163,7 +1279,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, items: G.items || {}, opened: G.opened, mined: G.mined, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, items: G.items || {}, opened: G.opened, mined: G.mined, solved: G.solved, pzKnown: G.pzKnown || {}, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
@@ -1539,7 +1655,7 @@
         // tutorial hints + boss trigger + zones
         world(sdt);
         // respawn timers
-        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt);
+        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.pzUpdate();
         if (frame % 15 === 0) explore();
         if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));

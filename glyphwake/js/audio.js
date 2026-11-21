@@ -145,6 +145,7 @@
     if (hat) noise(0.04, 0.03, 'highpass', 7000, 0, 1, A.musBus);
   }
 
+  A.tone = function (f, dur) { if (!A.ctx) return; osc('sine', f, 0, dur || 0.9, 0.13, A.verb); osc('triangle', f * 2, 0, (dur || 0.9) * 0.5, 0.04, A.verb); osc('sine', f * 3.01, 0, (dur || 0.9) * 0.3, 0.02, A.verb); };
   A.sfx = function (name, p) {
     if (!A.ctx || A.vol <= 0) return;
     p = p || 1;

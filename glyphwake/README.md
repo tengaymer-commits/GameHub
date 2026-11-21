@@ -162,6 +162,14 @@ Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise
 - **Hollow Ruins** is 1.7× wider, with five walls, 20 pillars, six arches and 12 Hollows. **Points of interest** are bigger too: camps have 4 huts and a cart with 4–6 enemies, ruins have wider rings, and caves sit in a big rock mound with a 1.45× arch.
 - **Three tombs** surround Hollow Ruins: *the Nameless*, *the Scribe's* (2 floors) and *the Sexton's*. Walk to the lanterns and press **E** to go underground. A new quest step, **Beneath the Scriptorium**, sends you to find **the Scribe's Seal** on the Scribe's Tomb's second floor, which introduces dungeons early.
 
+## Puzzles that hide loot
+About one wilderness site in ten is a puzzle (a purple **?** on the map). Each guards an elite-quality cache, gives XP when solved, and stays solved in your save.
+- **Rune vault:** read the tablet (it shows four runes, e.g. `◇ ✕ △ ○`), then touch the rune stones in that order. A wrong stone resets the sequence.
+- **Lantern shrine:** three lanterns cast glyph beams. Press **E** to turn one 90°. When all three beams turn gold and meet on the shrine, the chest unseals.
+- **Pressure crypt:** the worn mosaic shows four safe slabs on a 3×3 grid, with the crypt side at the top. Step only on those. A wrong slab fires spikes (12 damage) and resets the grid.
+- **Echo bells:** the humming stone sings a four-note melody. Strike the bells in the same order. A sour note resets.
+- **Buried caches:** some vistas hide one. After **Look out**, a ✕ waypoint marks three stones over loose earth. Press **E** three times to dig it up.
+
 ## World map (M)
 A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.
 - **V** cycles four styles: *Touring map*, *ASCII relief* (the whole map in the game's brightness ramp), *Explorer's ink* (parchment and sepia) and *Glyph mosaic* (colour tiles with shade blocks).
