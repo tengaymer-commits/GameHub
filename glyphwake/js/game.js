@@ -20,6 +20,7 @@
     { id: 'smith', title: 'GLYPH AND STEEL', text: () => 'Socket a rune into your blade at Hesk\'s anvil', target: () => L().anvil },
     { id: 'wolves', title: 'THORNS ACROSS THE WATER', text: c => `Cull the Thornwolves north of the river (${c.wolf || 0}/6)`, target: () => L().meadow, need: { wolf: 6 } },
     { id: 'hollows', title: 'THE OLD SCRIPTORIUM', text: c => `Break the Hollows in the western ruins (${c.hollow || 0}/4)`, target: () => L().ruins, need: { hollow: 4 } },
+    { id: 'tomb', title: 'BENEATH THE SCRIPTORIUM', text: () => "Find the Scribe's Seal in the tombs below the Hollow Ruins", target: () => L().tombQ || L().ruins },
     { id: 'wisps', title: 'LANTERNS THAT BITE', text: c => `Snuff the Lantern Wisps in Wispwood (${c.wisp || 0}/3)`, target: () => L().grove, need: { wisp: 3 } },
     { id: 'return', title: 'WHAT THE STONES SAID', text: () => 'Return to Mara at Emberhold', target: () => L().elder },
     { id: 'boss', title: 'THE WARDEN CIRCLE', text: () => 'Face the Mire Warden in the stone circle, far north', target: () => L().arena },
@@ -38,6 +39,7 @@
   }
   function onStage() {
     const id = QUESTS[G.stage].id;
+    if (id === 'tomb') setTimeout(() => UI.hint('Tombs and caves lead <b>underground</b>: walk to the entrance and press <b>E</b>.<br>The deepest rooms keep the best loot.', 7), 2500);
     if (id === 'wolves') setTimeout(() => UI.hint('<b>1 · 2 · 3 · 4</b> are your ability slots (they spend focus).<br><b>B</b> opens the Book of Glyphs: swap abilities, craft new ones at a fire or anvil.', 8), 2500);
   }
   function give(kind, key, n) {
@@ -193,7 +195,7 @@
     [[-3, 62], [3, 61], [0, 56]].forEach(([x, z]) => G.spawnEnemy('husk', x, (z - 60) + 60 * VS));
     const packs = [[4, -48], [22, -60], [-2, -70], [28, -44], [14, -78]].map(([x, z]) => [Lw.meadow.x + (x - 12) * 1.5, Lw.meadow.z + (z + 58) * 1.5]);
     packs.forEach(([px, pz]) => { for (let k = 0; k < 3; k++) { const a = k * 2.1; G.spawnEnemy('wolf', px + Math.cos(a) * 2.5, pz + Math.sin(a) * 2.5, { x: px, z: pz }); } });
-    for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, r = 4 + (k % 3) * 2.5; G.spawnEnemy('hollow', Lw.ruins.x + Math.cos(a) * r, Lw.ruins.z + Math.sin(a) * r); }
+    for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2, r = 6 + (k % 4) * 4.5; G.spawnEnemy('hollow', Lw.ruins.x + Math.cos(a) * r, Lw.ruins.z + Math.sin(a) * r); }
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, r = 6 + (k % 2) * 6; G.spawnEnemy('wisp', Lw.grove.x + Math.cos(a) * r, Lw.grove.z + Math.sin(a) * r); }
     G.boss = G.spawnEnemy('warden', Lw.arena.x, Lw.arena.z - 4);
     G.widow = G.spawnEnemy('widow', Lw.lair.x, Lw.lair.z);
@@ -207,7 +209,7 @@
     G.regionBosses.forEach(b => { const A = GW.World.ARENAS.find(a => a.key === b.key); if (A) { b.x = A.x; b.z = A.z; }   // world.js owns the arena spots
       b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / GW.World.LVLD)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
-    [[-4, -5], [4, -4], [0, -8]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx, Lw.castle.z - ly, { x: Lw.castle.x, z: Lw.castle.z + 3 }));
+    { const BS = GW.World.BS; [[-4, -5], [4, -4], [0, -8], [-7, -2], [7, -7]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx * BS, Lw.castle.z - ly * BS, { x: Lw.castle.x, z: Lw.castle.z + 3 * BS })); }
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
@@ -533,7 +535,7 @@
           P.inv.armor = P.inv.armor || { greathelm: 1, knightplate: 1, crimson: 1 }; P.cd = {};
           P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
           if (d.tod !== undefined) G.tod = d.tod;
-          G.castleLooted = !!d.castleLooted;
+          G.castleLooted = !!d.castleLooted; G.items = d.items || {};
           G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
           if (G.bossDead) killSilently(G.boss);
           G.widowDead = !!d.widowDead; if (G.widowDead) killSilently(G.widow);
@@ -827,9 +829,9 @@
   }
   G.castleLoot = function () {
     if (G.castleLooted) return;
-    const Lw = GW.World.L, y = GW.World.levelAt(Lw.castle.x - 3, Lw.castle.z - 7, 1).y;
+    const Lw = GW.World.L, BS = GW.World.BS, y = GW.World.levelAt(Lw.castle.x - 3 * BS, Lw.castle.z - 7 * BS, 1).y;
     [['armor', 'scale'], ['ingot', 'gold'], ['rune', 'thirst']].forEach(([k, key], i) => {
-      spawnPickup(k, key, new V3(Lw.castle.x - 3 + i * 0.9, y, Lw.castle.z - 7.5), y, 'castle');
+      spawnPickup(k, key, new V3(Lw.castle.x - 3 * BS + i * 0.9, y, Lw.castle.z - 7.5 * BS), y, 'castle');
     });
   };
   function spawnPickup(kind, key, at, fixedY, tag) {
@@ -975,6 +977,9 @@
       const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
     else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); }
     else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
+    else if (it.type === 'tomb') enterLevel({ kind: 'tomb', id: it.id, seed: 7100 + it.id.length * 31 + (it.quest ? 5 : 0) + it.name.length, region: 'tomb', lvl: 2, floors: it.floors, quest: it.quest,
+      names: it.floors > 1 ? [it.name, 'THE SCRIBE\'S REST'] : [it.name], back: { x: it.x, z: it.z } });
+    else if (it.type === 'relic') takeRelic(it);
     else if (it.type === 'cave') enterLevel({ kind: 'cave', id: 'cave:' + it.poi.id, seed: it.poi.seed, region: it.poi.region, lvl: it.poi.lvl + 2, floors: 1, names: ['THE CAVE'], back: { x: it.x, z: it.z + 2 } });
     else if (it.type === 'castle') { const L = GW.World.L; enterLevel({ kind: 'castle', id: 'dunmaer', seed: 9137, region: 'high', lvl: 1 + Math.floor(Math.hypot(L.dunmaer.x, L.dunmaer.z) / GW.World.LVLD) + 3, floors: 3,
       names: ['THE GATEHALL', 'THE GREAT HALL', 'THE CROWN TOWER'], back: { x: it.x, z: it.z + 2.5 } }); }
@@ -983,7 +988,13 @@
   }
   // ---------------- dungeons: caves and Castle Dunmaer are separate levels ----------------
   G.dungeon = null;
-  const DPOOL = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['highguard', 'cragwolf'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
+  function takeRelic(it) {
+    G.items = G.items || {}; G.items.seal = true; it.r = 0; if (it.mesh) it.mesh.visible = false;
+    GWAudio.sfx('quest'); G.flashWhite = 0.4; give('shards', 60, true);
+    UI.banner('a seal of black ink, still warm', "THE SCRIBE'S SEAL", 3.2);
+    if (QUESTS[G.stage].id === 'tomb') setTimeout(advance, 1200); save();
+  }
+  const DPOOL = { tomb: ['hollow', 'hollow', 'wisp'], vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['highguard', 'cragwolf'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
   function enterLevel(def) {
     const P = G.player; if (P.horse && P.horse.ridden) dismount(false);
     fade(() => {
@@ -1013,6 +1024,10 @@
     const glow = (x, z, col) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24).rotateX(-Math.PI / 2), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true, side: THREE.DoubleSide })); m.position.set(x, 0.05, z); G.scene.add(m); lv.meshes.push(m); lv.lights.push(W.lights.add(x, 1.5, z, new THREE.Color(col).multiplyScalar(0.8), 6, 0.3)); };
     const add = it => { W.interact.push(it); lv.inter.push(it); };
     glow(sx, sz, 0x6ab8ff); add({ type: 'dexit', x: sx, z: sz, r: 2.2, label: f === 0 ? 'Leave' : 'Leave the castle' });
+    if (top && d.quest && !(G.items && G.items.seal)) {   // the quest's relic waits on the last floor
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), GW.mat({ id: ID.RUNE, color: 0, emissive: 0x9a7aff, unlit: true })); m.position.set(ex - 2, 1.3, ez); G.scene.add(m); lv.meshes.push(m);
+      W.flames.push({ m, s: 2, base: 1 }); add({ type: 'relic', x: ex - 2, z: ez, r: 2.0, label: "Take the Scribe's Seal", mesh: m });
+    }
     if (top) { const id = d.id + ':chest'; if (!G.opened[id]) { add({ type: 'chest', x: ex, z: ez, r: 1.8, label: 'Open the chest', id, poi: { seed: d.seed + 5, lvl: d.lvl + f, type: 'elite' } });
         const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.65), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x9a7040 })); box.position.set(ex, 0.3, ez); G.scene.add(box); lv.meshes.push(box); } }
     else { glow(ex, ez, 0xffd070); add({ type: 'dstairs', x: ex, z: ez, r: 2.2, label: 'Climb to ' + (d.names[f + 1] || 'the next floor').toLowerCase() }); }
@@ -1093,9 +1108,9 @@
       if (!['camp', 'elite', 'ambush'].includes(p.type) || G.cleared[p.id] || G.poiLive[p.id]) continue;
       if (p.type === 'ambush' && d > 26) continue;
       const pool = POI_ENEMY[p.region] || POI_ENEMY.vale, R = GW.rand(p.seed + 7), list = [];
-      const n = p.type === 'elite' ? 1 : p.type === 'ambush' ? 3 : 3 + Math.floor(R() * 2);
+      const n = p.type === 'elite' ? 1 : p.type === 'ambush' ? 3 : 4 + Math.floor(R() * 3);
       for (let k = 0; k < n; k++) {
-        const a = k / n * Math.PI * 2 + R(), r = p.type === 'ambush' ? 9 : 3;
+        const a = k / n * Math.PI * 2 + R(), r = p.type === 'ambush' ? 9 : 4.5;
         const ex = (p.type === 'ambush' ? P.pos.x : p.x) + Math.cos(a) * r, ez = (p.type === 'ambush' ? P.pos.z : p.z) + Math.sin(a) * r;
         const e = G.spawnEnemy(pool[Math.floor(R() * pool.length)], ex, ez, { x: p.x, z: p.z }, false, p.lvl, p.type === 'elite');
         e.poi = p.id; if (p.type === 'ambush') e.aggro = true; list.push(e);
@@ -1121,7 +1136,7 @@
     const T = GW.World.tower, P = G.player; if (!T || !T.door || (P.floor || 0) !== 0 || G._tpT > G.t) return;
     if (Math.hypot(P.pos.x - T.door.x, P.pos.z - T.door.z) < 1.1 && P.mvel && (P.mvel.z || 0) < -0.5) {
       G._tpT = G.t + 2;
-      fade(() => { P.place(T.x - 0.4, T.z + 1.6); P.floor = 2; P.pos.y = T.topY; P.yaw = Math.PI; G.snapCam = true; UI.banner('', 'THE IVY WATCH · ROOF', 2.2); });
+      fade(() => { P.place(T.x - 0.4 * GW.World.BS, T.z + 1.6 * GW.World.BS); P.floor = 2; P.pos.y = T.topY; P.yaw = Math.PI; G.snapCam = true; UI.banner('', 'THE IVY WATCH · ROOF', 2.2); });
     }
   }
   function openChest(it) {
@@ -1148,7 +1163,7 @@
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, opened: G.opened, mined: G.mined, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, items: G.items || {}, opened: G.opened, mined: G.mined, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }

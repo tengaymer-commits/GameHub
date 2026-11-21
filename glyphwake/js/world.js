@@ -12,7 +12,8 @@
   // ---------- layout ----------
   // the hand-made Vale is laid out at VS× its original spacing (structures keep their size): more room to learn the basics
   const VS = 4.4;    // site spacing
-  const VSC = 2.2;   // the densely hand-scattered heart of the Vale (beyond it the streamed countryside takes over)
+  const VSC = 2.2;
+  const BS = 1.6;    // enterable buildings (keeps, chapels, towers) at a believable size next to the hero; colliders and floors follow   // the densely hand-scattered heart of the Vale (beyond it the streamed countryside takes over)
   const L = {
     start: { x: 0.0, z: 343.2 },
     village: { x: 0.0, z: 132.0 },
@@ -176,9 +177,9 @@
     flatK(L.village.x, L.village.z, 12, 20, 0.15);
     flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
     flatK(L.start.x, L.start.z, 6, 12, 0.3);
-    flatK(L.castle.x, L.castle.z, 16, 23, 0.4);
-    flatK(L.chapel.x, L.chapel.z - 5, 10, 16, 0.3);
-    flatK(L.tower.x, L.tower.z, 6, 11, 0.25);
+    flatK(L.castle.x, L.castle.z, 16 * BS, 23 * BS, 0.4);
+    flatK(L.chapel.x, L.chapel.z - 5 * BS, 10 * BS, 16 * BS, 0.3);
+    flatK(L.tower.x, L.tower.z, 6 * BS, 11 * BS, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
     // twin sites (a village beside its landmark) share one ground height, so the land between them doesn't ramp
     const TWIN = { vfrost: 'abbey', vash: 'cinder' };
@@ -627,7 +628,7 @@
     const free = (x, z, r) => {
       if (W.riverAt(x, z) < RIVER_W + 1.5 + r) return false;
       if (W.pathAt(x, z) < 2.5 + r) return false;
-      for (const k of ['village', 'start', 'arena', 'castle', 'chapel', 'tower', 'lair']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 : k === 'chapel' ? 13 : k === 'tower' ? 8 : k === 'lair' ? 17 : 18) + r) return false;
+      for (const k of ['village', 'start', 'arena', 'castle', 'chapel', 'tower', 'lair']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 * BS : k === 'chapel' ? 13 * BS : k === 'tower' ? 8 * BS : k === 'lair' ? 17 : 18) + r) return false;
       return !W.blocked(x, z, r + 0.6);
     };
 
@@ -641,7 +642,7 @@
     for (let k = 0; k < 560; k++) {
       const x = (rnd() - 0.5) * 190 * VSC, z = (rnd() - 0.5) * 190 * VSC;
       if (Math.hypot(x - L.meadow.x, z - L.meadow.z) < 40) continue;
-      if (Math.hypot(x - L.ruins.x, z - L.ruins.z) < 24) continue;
+      if (Math.hypot(x - L.ruins.x, z - L.ruins.z) < 44) continue;
       if (free(x, z, 1)) kitTree(rnd() < 0.5 ? 'kit_oak_a' : 'kit_pine_a', x, z, 0.75 + rnd() * 0.4);
     }
     // wispwood: dead trees + some pines
@@ -664,12 +665,14 @@
     // ruins (west)
     {
       const cx = L.ruins.x, cz = L.ruins.z;
-      wallSeg(cx - 14, cz - 10, cx + 6, cz - 13, 3.2);
-      wallSeg(cx - 16, cz - 6, cx - 15, cz + 12, 2.6);
-      wallSeg(cx + 10, cz + 6, cx + 12, cz + 16, 2.2);
-      wallSeg(cx - 8, cz + 16, cx + 4, cz + 17, 1.8);
-      for (let k = 0; k < 14; k++) { const a = k / 14 * 6.28, r = 9 + (k % 2) * 1.5; pillar(cx + Math.cos(a) * r, cz + Math.sin(a) * r, k % 3 === 0 ? 0.8 + rnd() : 2.5 + rnd() * 2.5); }
-      for (let k = 0; k < 26; k++) { const x = cx + (rnd() - 0.5) * 34, z = cz + (rnd() - 0.5) * 34; if (!W.blocked(x, z, 0.6)) batch.add('box', boxG0, ruinM, place(x, W.heightAt(x, z) - 0.1, z, rnd() * 6, 0.5 + rnd() * 0.9, 0.3 + rnd() * 0.5, 0.5 + rnd() * 0.9)); }
+      const RS = 1.7;   // the old scriptorium, at the size of a place worth fighting through
+      wallSeg(cx - 14 * RS, cz - 10 * RS, cx + 6 * RS, cz - 13 * RS, 4.0);
+      wallSeg(cx - 16 * RS, cz - 6 * RS, cx - 15 * RS, cz + 12 * RS, 3.3);
+      wallSeg(cx + 10 * RS, cz + 6 * RS, cx + 12 * RS, cz + 16 * RS, 2.8);
+      wallSeg(cx - 8 * RS, cz + 16 * RS, cx + 4 * RS, cz + 17 * RS, 2.3);
+      wallSeg(cx + 14 * RS, cz - 8 * RS, cx + 16 * RS, cz + 2 * RS, 3.0);
+      for (let k = 0; k < 20; k++) { const a = k / 20 * 6.28, r = (9 + (k % 2) * 1.5) * RS; pillar(cx + Math.cos(a) * r, cz + Math.sin(a) * r, k % 3 === 0 ? 0.8 + rnd() : 2.5 + rnd() * 2.5); }
+      for (let k = 0; k < 50; k++) { const x = cx + (rnd() - 0.5) * 34 * RS, z = cz + (rnd() - 0.5) * 34 * RS; if (!W.blocked(x, z, 0.6)) batch.add('box', boxG0, ruinM, place(x, W.heightAt(x, z) - 0.1, z, rnd() * 6, 0.5 + rnd() * 0.9, 0.3 + rnd() * 0.5, 0.5 + rnd() * 0.9)); }
       // ruin campfire (rest point)
       campfire(scene, L.ruinFire.x, L.ruinFire.z, 'Ruin-edge fire');
     }
@@ -818,8 +821,17 @@
     };
     // ruins: arches, pillars, rubble around the old scriptorium
     const R = L.ruins;
-    [[-6, -11, 0.2], [9, -4, 1.8], [-12, 7, 1.2], [4, 13, 2.9]].forEach(([dx, dz, a]) => put('kit_arch', R.x + dx, R.z + dz, 1.15, a, 1.6));
-    for (let k = 0; k < 10; k++) { const a = rnd() * 6.28, r = 5 + rnd() * 13, x = R.x + Math.cos(a) * r, z = R.z + Math.sin(a) * r; if (!W.blocked(x, z, 0.8)) put(rnd() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b', x, z, 0.9 + rnd() * 0.3, rnd() * 6.28, 0.6); }
+    [[-6, -11, 0.2], [9, -4, 1.8], [-12, 7, 1.2], [4, 13, 2.9], [14, 9, 0.8], [-15, -4, 2.4]].forEach(([dx, dz, a]) => put('kit_arch', R.x + dx * 1.7, R.z + dz * 1.7, 1.45, a, 1.6));
+    for (let k = 0; k < 18; k++) { const a = rnd() * 6.28, r = 8 + rnd() * 22, x = R.x + Math.cos(a) * r, z = R.z + Math.sin(a) * r; if (!W.blocked(x, z, 0.8)) put(rnd() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b', x, z, 0.9 + rnd() * 0.3, rnd() * 6.28, 0.6); }
+    // the tombs around the old scriptorium: three crypts that go underground; the Scribe's holds the quest's seal
+    W.tombs = [];
+    [[-46, -22, 'THE NAMELESS TOMB', 1, false], [-52, 24, "THE SCRIBE'S TOMB", 2, true], [-14, 50, "THE SEXTON'S TOMB", 1, false]].forEach(([dx, dz, name, floors, quest], i) => {
+      const x = R.x + dx, z = R.z + dz, ry = Math.atan2(R.x - x, R.z - z), fx = x + Math.sin(ry) * 4.2, fz = z + Math.cos(ry) * 4.2;
+      put('kit_crypt', x, z, 1.6, ry, 1.9);
+      lantern(fx + Math.cos(ry) * 2.2, fz - Math.sin(ry) * 2.2, ry); lantern(fx - Math.cos(ry) * 2.2, fz + Math.sin(ry) * 2.2, ry + Math.PI);
+      const t = { type: 'tomb', id: 'tomb' + i, x: fx, z: fz, r: 2.8, label: 'Descend into ' + name.toLowerCase().replace(/^the /, 'the '), name, floors, quest };
+      W.interact.push(t); W.tombs.push(t); if (quest) L.tombQ = { x: fx, z: fz };
+    });
     // the quiet graves: crypt, rows of graves, shrine, dead trees, lanterns, fence
     const GX = -36 * VS, GZ = 64 * VS;
     put('kit_crypt', GX, GZ - 6, 1.1, 0, 2.0);
@@ -922,15 +934,15 @@
       cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a8a84, fill: 0.1 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5e5e5a, fill: 0.08 }),
       moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x7a8a5a, fill: 0.1 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a5a44 }),
       woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x4a3e30 }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
-    }, null, C.x, base, C.z, scene);
-    const tw = (lx, ly) => [C.x + lx, C.z - ly], R = 11;
+    }, null, C.x, base, C.z, scene, BS);
+    const tw = (lx, ly) => [C.x + lx * BS, C.z - ly * BS], R = 11;
     const seg = (x0, y0, x1, y1, r, skip) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
-      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; W.addCollider(...tw(lx, ly), r, 'castle'); } };
+      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; W.addCollider(...tw(lx, ly), r * BS, 'castle'); } };
     seg(-R, -R, R, -R, 0.7, lx => Math.abs(lx) < 1.6); seg(-R, -R, -R, R, 0.7); seg(-R, R, R, R, 0.7); seg(R, -R, R, R, 0.7);
-    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => W.addCollider(...tw(lx, ly), 2.7, 'castle'));
+    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => W.addCollider(...tw(lx, ly), 2.7 * BS, 'castle'));
     seg(-6, 2, 6, 2, 0.55); seg(-6, 2, -6, 10, 0.55); seg(-6, 10, 6, 10, 0.55); seg(6, 2, 6, 10, 0.55);   // the keep: entered through its door
-    W.interact.push({ type: 'castle', x: C.x, z: C.z - 1.2, r: 2.4, label: 'Enter Castle Dunmaer' });
-    campfire(scene, C.x - 5, C.z + 16, 'Dunmaer Gate');
+    W.interact.push({ type: 'castle', x: C.x, z: C.z - 1.2 * BS, r: 2.8, label: 'Enter Castle Dunmaer' });
+    campfire(scene, C.x - 8, C.z + 24, 'Dunmaer Gate');
   }
   function buildHubs(scene) {
     buildDunmaer(scene);
@@ -951,10 +963,10 @@
         moss: GW.mat({ id: ID.FIRE, color: 0, emissive: 0x7a2a08, unlit: true }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x3a2a20 }),
         woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x2a2018 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
         gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
-      }, null, C.x, base, C.z, scene);
-      W.addCollider(C.x, C.z, 3.6, 'tower');
-      campfire(scene, C.x - 9, C.z + 3, 'Cinder Watch');
-      torch(scene, C.x - 2.2, C.z + 4.2, 2.2); torch(scene, C.x + 2.2, C.z + 4.2, 2.2);
+      }, null, C.x, base, C.z, scene, BS);
+      W.addCollider(C.x, C.z, 3.6 * BS, 'tower');
+      campfire(scene, C.x - 11, C.z + 4, 'Cinder Watch');
+      torch(scene, C.x - 2.2 * BS, C.z + 4.2 * BS, 2.4); torch(scene, C.x + 2.2 * BS, C.z + 4.2 * BS, 2.4);
     }
     // Rimeglass Abbey: the chapel model in frost-pale stone, by the frozen mere
     const cg = GW.Assets.gltf.chapel;
@@ -963,14 +975,14 @@
       mergeByMat(cg, {
         cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0xa8b4c4, fill: 0.14 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x6a7686, fill: 0.08 }),
         moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0xc8d8e8, fill: 0.12 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
-      }, null, A.x, base, A.z, scene);
-      const tw = (lx, ly) => [A.x + lx, A.z - ly];
+      }, null, A.x, base, A.z, scene, BS);
+      const tw = (lx, ly) => [A.x + lx * BS, A.z - ly * BS];
       const seg = (x0, y0, x1, y1, r) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
-        for (let i = 0; i <= n; i++) { const t = i / n; W.addCollider(...tw(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t), r, 'chapel'); } };
+        for (let i = 0; i <= n; i++) { const t = i / n; W.addCollider(...tw(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t), r * BS, 'chapel'); } };
       seg(-6.3, 0.55, -1.6, 0.55, 0.6); seg(1.6, 0.55, 6.3, 0.55, 0.6);
-      [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55, 'chapel'));
+      [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55 * BS, 'chapel'));
       seg(-5.45, 1.2, -5.45, 12.6, 0.55); seg(5.45, 1.2, 5.45, 12.6, 0.55); seg(-5.45, 12.65, 5.45, 12.65, 0.55);
-      campfire(scene, A.x - 12, A.z + 10, 'Rimeglass Abbey');
+      campfire(scene, A.x - 16, A.z + 14, 'Rimeglass Abbey');
     }
     // the frozen mere: a sheet of dark ice
     { const F = L.frostLake, y = W.heightAt(F.x, F.z) + 0.04;
@@ -995,13 +1007,13 @@
     const over = BIO_MAT[bio] && BIO_MAT[bio][mn]; if (!over) return kitMat(mn);
     const k = mn + '@' + bio; return bioMats[k] || (bioMats[k] = GW.mat(Object.assign({ side: THREE.DoubleSide }, KIT_MAT[mn], { color: over })));
   }
-  const VALE_CLEAR = [['start', 24], ['village', 30], ['meadow', 48], ['ruins', 34], ['arena', 32], ['castle', 30], ['chapel', 22], ['tower', 18], ['lair', 26], ['ruinFire', 14], ['meadowFire', 14]];
+  const VALE_CLEAR = [['start', 24], ['village', 30], ['meadow', 48], ['ruins', 52], ['arena', 32], ['castle', 40], ['chapel', 28], ['tower', 22], ['lair', 26], ['ruinFire', 14], ['meadowFire', 14]];
   function chunkFree(x, z, r) {
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
     if (Math.max(Math.abs(x), Math.abs(z)) > HALF - 200) return false;
     if (sample('R', x, z) < RIVER_W + 1.5 + r || sample('P', x, z) < 3.2 + r) return false;
     for (const c of [L.hearth, L.cinder, L.abbey, L.high, L.salt, L.mire, L.dusk, L.vfrost, L.vash, L.dunmaer]) if (Math.hypot(x - c.x, z - c.z) < 36 + r) return false;
-    if (W.poisNear(x, z, 16 + r).length) return false;
+    if (W.poisNear(x, z, 22 + r).length) return false;
     for (const [k, rr] of VALE_CLEAR) if (Math.hypot(x - L[k].x, z - L[k].z) < rr + r) return false;
     for (const a of ARENAS) if (Math.hypot(x - a.x, z - a.z) < 34 + r) return false;
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 80 + r) return false;
@@ -1061,18 +1073,19 @@
     const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
     const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
     switch (p.type) {
-      case 'camp': ring(3, 7, (x, z) => kit('kit_hut', x, z, 0.9, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); break;
-      case 'ruin': ring(4 + Math.floor(R() * 3), 6 + R() * 3, (x, z) => kit(R() < 0.5 ? 'kit_arch' : (R() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b'), x, z, 0.9 + R() * 0.3, 0.6, bio)); chest(p.x, p.z); break;
+      case 'camp': ring(4, 11, (x, z) => kit('kit_hut', x, z, 1.05, 1.0, bio, new THREE.Color(0.8, 0.72, 0.6))); kit('kit_barrel', p.x + 2, p.z - 1, 1, 0.3, bio); kit('kit_barrel', p.x + 2.8, p.z - 0.2, 1, 0.3, bio); kit('kit_crate', p.x - 2, p.z + 1.5, 1, 0.4, bio); kit('kit_cart', p.x - 4, p.z - 3.5, 1, 1.0, bio); break;
+      case 'ruin': ring(6 + Math.floor(R() * 3), 9 + R() * 4, (x, z) => kit(R() < 0.5 ? 'kit_arch' : (R() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b'), x, z, 1.1 + R() * 0.4, 0.6, bio)); chest(p.x, p.z); break;
       case 'chest': ring(3, 2.4, (x, z) => kit('kit_rock_a', x, z, 0.35 + R() * 0.2, 0.6, bio)); chest(p.x, p.z); break;
       case 'shrine': kit('kit_shrine', p.x, p.z, 1, 0.7, bio); inter.push({ type: 'shrine', x: p.x, z: p.z + 1.6, r: 2.4, label: 'Pray at the shrine', poi: p }); break;
       case 'waystone': kit('kit_pillar_a', p.x, p.z, 1.35, 0.6, bio, new THREE.Color(0.75, 0.85, 1.0)); inter.push({ type: 'waystone', x: p.x, z: p.z + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
       case 'vista': ring(5, 3, (x, z) => kit('kit_rock_b', x, z, 0.8 + R() * 0.5, 0.8, bio)); kit('kit_pillar_a', p.x, p.z, 1.2, 0.6, bio); inter.push({ type: 'vista', x: p.x, z: p.z + 2, r: 2.6, label: 'Look out over the land', poi: p }); break;
       case 'wanderer': kit('kit_cart', p.x + 2.5, p.z, 1, 1.0, bio); kit('kit_lantern', p.x - 1.5, p.z + 1, 1, 0.2, bio); inter.push({ type: 'shop', x: p.x, z: p.z + 1, r: 2.6, label: 'Trade with the wanderer', poi: p }); break;
-      case 'elite': ring(5, 6, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
+      case 'elite': ring(6, 9, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.4, 0.4, bio, new THREE.Color(0.6, 0.5, 0.5))); chest(p.x, p.z + 1.5); break;
       case 'cave':     // a rock mound with a black mouth: walk in to go underground
-        ring(6, 3.4, (x, z, a) => { if (Math.abs(GW.angDiff(a, Math.PI / 2)) > 0.5) kit('kit_rock_' + 'abc'[Math.floor(R() * 3)], x, z, 0.9 + R() * 0.6, 0.9, bio); });
-        kit('kit_arch', p.x, p.z + 2.5, 1.0, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
-        inter.push({ type: 'cave', x: p.x, z: p.z + 3.4, r: 2.4, label: 'Enter the cave', poi: p }); break;
+        ring(9, 5.2, (x, z, a) => { if (Math.abs(GW.angDiff(a, Math.PI / 2)) > 0.42) kit('kit_rock_' + 'abc'[Math.floor(R() * 3)], x, z, 1.3 + R() * 0.8, 1.1, bio); });
+        kit('kit_rock_b', p.x, p.z - 1.5, 1.8, 1.6, bio);
+        kit('kit_arch', p.x, p.z + 4.0, 1.45, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
+        inter.push({ type: 'cave', x: p.x, z: p.z + 5.2, r: 3.0, label: 'Enter the cave', poi: p }); break;
       default: break;   // ambush: nothing to see until it is too late
     }
   }
@@ -1163,9 +1176,10 @@
   };
 
   // ----- Greymoss Keep (tools/blender/build_castle.py). Local coords: lx east, ly north (= game -z). -----
-  const CL = { u: 1.0, floorY: 3.4 };
-  const toW = (lx, ly) => [L.castle.x + lx, L.castle.z - ly];
-  W.castleLocal = (x, z) => [x - L.castle.x, -(z - L.castle.z)];
+  const CL = { u: 1.0, floorY: 3.4 * BS };
+  const toW = (lx, ly) => [L.castle.x + lx * BS, L.castle.z - ly * BS];
+  W.castleLocal = (x, z) => [(x - L.castle.x) / BS, -(z - L.castle.z) / BS];
+  W.BS = BS;
   function buildCastle(scene) {
     const g = GW.Assets.gltf.castle; if (!g) return;
     const base = W.heightAt(L.castle.x, L.castle.z) - 0.05;
@@ -1184,20 +1198,20 @@
       const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let k = 0;
       geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
       merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-      const m = new THREE.Mesh(merged, cmat[mn] || cmat.cobble); m.position.set(L.castle.x, base, L.castle.z); m.frustumCulled = false; scene.add(m);
+      const m = new THREE.Mesh(merged, cmat[mn] || cmat.cobble); m.position.set(L.castle.x, base, L.castle.z); m.scale.setScalar(BS); m.frustumCulled = false; scene.add(m);
       if (mn !== 'void') { merged.computeBoundingSphere(); m.updateMatrixWorld(); W.occluders.push(m); }
     }
     CL.base = base;
     // ---- colliders (level 0 = ground, 1 = upper floor; undefined = both) ----
     const seg = (x0, y0, x1, y1, r, lv, skip) => {
       const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(len / (r * 1.1)));
-      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; const [x, z] = toW(lx, ly); W.addCollider(x, z, r, 'castle', lv); }
+      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; const [x, z] = toW(lx, ly); W.addCollider(x, z, r * BS, 'castle', lv); }
     };
     const R = 11;
     seg(-R, -R, R, -R, 0.7, undefined, (lx) => Math.abs(lx) < 1.6);                 // south wall, gate
     seg(-R, -R, -R, R, 0.7, undefined, (lx, ly) => ly > -6 && ly < -1.5);         // west wall, breach (climb over rubble)
     seg(-R, R, R, R, 0.7); seg(R, -R, R, R, 0.7);
-    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => { const [x, z] = toW(lx, ly); W.addCollider(x, z, 2.7, 'castle'); });
+    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => { const [x, z] = toW(lx, ly); W.addCollider(x, z, 2.7 * BS, 'castle'); });
     // keep: outer face x -6..6, y 2..10
     seg(-6, 2, -1.1, 2, 0.55); seg(1.1, 2, 6, 2, 0.55); seg(-1.1, 2, 1.1, 2, 0.55, 1);   // door only open on the ground
     seg(-6, 2, -6, 10, 0.55); seg(-6, 10, 6, 10, 0.55);
@@ -1205,10 +1219,10 @@
     seg(8.0, 0.2, 8.0, 8.4, 0.35);                                                 // stair's outer wall
     seg(6.2, 8.6, 7.8, 8.6, 0.35, 0);                                              // the stair's back (can't walk under it)
     seg(6.0, 9.4, 8.0, 9.4, 0.35, 1); seg(8.0, 8.4, 8.0, 9.4, 0.35, 1);              // landing walls at the top
-    W.addCollider(...toW(-5, -5), 1.0, 'castle');                                  // well
+    W.addCollider(...toW(-5, -5), 1.0 * BS, 'castle');                                  // well
   }
   // ----- The Pale Chapel (tools/blender/build_chapel.py): gothic facade with the arched black doorway -----
-  function mergeByMat(g, mats, fallback, x, y, z, scene) {
+  function mergeByMat(g, mats, fallback, x, y, z, scene, sc) {
     g.scene.updateMatrixWorld(true);
     const byMat = {};
     g.scene.traverse(o => { if (o.isMesh) { const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); (byMat[o.material.name] = byMat[o.material.name] || []).push(geo); } });
@@ -1218,7 +1232,7 @@
       const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let k = 0;
       geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
       merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-      const m = new THREE.Mesh(merged, mats[mn] || fallback || Object.values(mats)[0]); m.position.set(x, y, z); m.frustumCulled = false; scene.add(m);
+      const m = new THREE.Mesh(merged, mats[mn] || fallback || Object.values(mats)[0]); m.position.set(x, y, z); if (sc) m.scale.setScalar(sc); m.frustumCulled = false; scene.add(m);
       if (mn !== 'void') { merged.computeBoundingSphere(); m.updateMatrixWorld(); W.occluders.push(m); }
     }
   }
@@ -1229,22 +1243,22 @@
       cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x929396, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x58595c, fill: 0.08 }),
       moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
     };
-    mergeByMat(g, mats, mats.cobble, C.x, base, C.z, scene);
-    const tw = (lx, ly) => [C.x + lx, C.z - ly];
+    mergeByMat(g, mats, mats.cobble, C.x, base, C.z, scene, BS);
+    const tw = (lx, ly) => [C.x + lx * BS, C.z - ly * BS];
     const seg = (x0, y0, x1, y1, r) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
-      for (let i = 0; i <= n; i++) { const t = i / n; W.addCollider(...tw(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t), r, 'chapel'); } };
+      for (let i = 0; i <= n; i++) { const t = i / n; W.addCollider(...tw(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t), r * BS, 'chapel'); } };
     seg(-6.3, 0.55, -1.6, 0.55, 0.6); seg(1.6, 0.55, 6.3, 0.55, 0.6);          // facade, door open
-    [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55, 'chapel'));   // buttresses
+    [-6.35, -2.1, 2.1, 6.35].forEach(x => W.addCollider(...tw(x, -0.4), 0.55 * BS, 'chapel'));   // buttresses
     seg(-5.45, 1.2, -5.45, 12.6, 0.55); seg(5.45, 1.2, 5.45, 12.6, 0.55); seg(-5.45, 12.65, 5.45, 12.65, 0.55);
     // the torch on the east door buttress
-    const [fx, fz] = tw(2.1, -1.45), fy = base + 3.55;
+    const [fx, fz] = tw(2.1, -1.45), fy = base + 3.55 * BS;
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }));
     f.position.set(fx, fy, fz); scene.add(f); W.flames.push({ m: f, s: 3.3, base: 1 });
     W.lights.add(fx, fy + 0.3, fz - 0.6, new THREE.Color(1.0, 0.56, 0.24), 9.5, 0.9);
   }
 
   // ----- The Ivy Watch (tools/blender/build_tower.py): walk in the door, come out on the roof -----
-  const TW = { top: 13.1, r: 3.3 };
+  const TW = { top: 13.1 * BS, r: 3.3 * BS };
   W.tower = TW;
   function buildTower(scene) {
     const g = GW.Assets.gltf.tower; if (!g) return;
@@ -1256,15 +1270,15 @@
       woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
       gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
     };
-    mergeByMat(g, mats, mats.cobble, T.x, base, T.z, scene);
-    W.addCollider(T.x, T.z, 3.6, 'tower', 0);                         // the tower body (ground level only)
+    mergeByMat(g, mats, mats.cobble, T.x, base, T.z, scene, BS);
+    W.addCollider(T.x, T.z, 3.6 * BS, 'tower', 0);                         // the tower body (ground level only)
     for (let k = 0; k < 28; k++) {                                     // the parapet on the roof, broken on the west
       const a = k / 28 * Math.PI * 2; if (a > 2.7 && a < 3.5) continue;
-      W.addCollider(T.x + Math.cos(a) * 3.35, T.z - Math.sin(a) * 3.35, 0.4, 'tower', 2);
+      W.addCollider(T.x + Math.cos(a) * 3.35 * BS, T.z - Math.sin(a) * 3.35 * BS, 0.4, 'tower', 2);
     }
-    TW.door = { x: T.x, z: T.z + 4.0 };
-    TW.chest = { x: T.x - 0.6, z: T.z - 1.2 };
-    W.interact.push({ type: 'hatch', x: T.x + 1.6, z: T.z + 0.4, r: 1.3, label: 'Climb down', floor: 2 });
+    TW.door = { x: T.x, z: T.z + 4.0 * BS };
+    TW.chest = { x: T.x - 0.6 * BS, z: T.z - 1.2 * BS };
+    W.interact.push({ type: 'hatch', x: T.x + 1.6 * BS, z: T.z + 0.4 * BS, r: 1.3, label: 'Climb down', floor: 2 });
     W.interact.push({ type: 'chest', x: TW.chest.x, z: TW.chest.z, r: 1.6, label: 'Open the chest', floor: 2, id: 'tower' });
     W.lights.add(T.x, TW.topY + 2.5, T.z, new THREE.Color(0.35, 0.42, 0.6), 7, 0.4);   // moonlit roof
   }
@@ -1272,7 +1286,7 @@
   // walkable height for a position at a given level; returns { y, lv }
   W.levelAt = function (x, z, lv) {
     if (lv === 2) {
-      if (TW.base !== undefined && Math.hypot(x - TW.x, z - TW.z) < 3.25) return { y: TW.topY, lv: 2 };
+      if (TW.base !== undefined && Math.hypot(x - TW.x, z - TW.z) < 3.25 * BS) return { y: TW.topY, lv: 2 };
       return { y: W.groundY(x, z), lv: 0 };               // stepped through the broken parapet: drop
     }
     if (CL.base === undefined) return { y: W.groundY(x, z), lv: 0 };

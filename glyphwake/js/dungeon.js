@@ -9,6 +9,7 @@
   const STYLE = {
     cave: { wall: { id: ID.ROCK, tex: 6, color: 0x6a6660, fill: 0.08 }, floor: { id: ID.STONE, tex: 8, color: 0x2e2c2a }, rooms: [6, 8], size: [6, 11], torch: 1.2 },
     castle: { wall: { id: ID.MASONRY, tex: 8, color: 0x8a8c90, fill: 0.1 }, floor: { id: ID.STONE, tex: 8, color: 0x46484c }, rooms: [5, 7], size: [7, 12], torch: 1.6 },
+    tomb: { wall: { id: ID.MASONRY, tex: 1, color: 0x5e6070, fill: 0.08 }, floor: { id: ID.STONE, tex: 8, color: 0x2a2a32 }, rooms: [4, 5], size: [6, 9], torch: 1.0 },
   };
   // carve rooms joined by corridors on a tile grid
   function layout(rnd, st) {
