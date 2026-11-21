@@ -174,6 +174,7 @@
     GW.Knight.dress(this);
   };
   Player.prototype.recalc = function () {
+    if (GW.Arms && this.inv) GW.Arms.bindWeapon(this);
     const s = GW.Forge.weaponStats(this.weapon, this.level);
     this.ws = s;
     const WC = GW.Arms.cur(this); s.crit += WC.crit; s.speed *= WC.speed;

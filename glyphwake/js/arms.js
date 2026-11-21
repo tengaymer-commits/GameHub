@@ -34,6 +34,13 @@
     if (!a.set[a.act]) a.act = a.set[0] ? 0 : 1;
     return a;
   };
+  // every weapon form keeps its own forging: metal, runes and upgrade level. P.weapon always points at the one in hand.
+  A.bindWeapon = function (P) {
+    const a = A.ensure(P), k = A.curKey(P); a.forge = a.forge || {};
+    if (!a.forge[k]) a.forge[k] = (k === 'sword' && P.weapon && !Object.values(a.forge).includes(P.weapon)) ? P.weapon : { metal: 'iron', runes: [null, null, null], up: 0 };
+    const w = a.forge[k]; w.cls = k; w.up = w.up || 0; while (w.runes.length < (w.up >= 3 ? 4 : 3)) w.runes.push(null);
+    P.weapon = w; return w;
+  };
   A.cur = P => CLS[A.ensure(P).set[P.inv.arms.act]] || CLS.sword;
   A.curKey = P => A.ensure(P).set[P.inv.arms.act] || 'sword';
   A.learn = function (P, k) { const a = A.ensure(P); if (a.owned[k]) return false; a.owned[k] = 1; if (!a.set[1]) a.set[1] = k; return true; };

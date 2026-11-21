@@ -65,7 +65,7 @@
 
   F.weaponStats = function (w, level) {
     const m = METALS[w.metal];
-    const s = { dmg: m.dmg * (1 + 0.08 * (level - 1)), crit: 0.05 + (m.crit || 0), speed: 1 + (m.speed || 0), undead: m.undead || 0, xp: m.xp || 0,
+    const s = { dmg: m.dmg * (1 + 0.08 * (level - 1)) * (1 + 0.08 * (w.up || 0)), crit: 0.05 + (m.crit || 0), speed: 1 + (m.speed || 0), undead: m.undead || 0, xp: m.xp || 0,
       focusRegen: 1 + (m.focus || 0), burn: m.burn || 0, slow: m.slow || 0, chain: 0, poison: m.poison || 0, ward: 0, vigor: 0, steal: 0 };
     const cols = [];
     for (const r of w.runes) {
@@ -78,14 +78,20 @@
     s.trail = c.getHex(); s.glow = c.getHex(); s.trailParticles = cols.length > 0;
     return s;
   };
+  const NOUN = { sword: 'Blade', great: 'Greatsword', spear: 'Spear', daggers: 'Daggers', bow: 'Bow' };
   F.weaponName = function (w) {
-    const rs = w.runes.filter(Boolean);
-    const m = METALS[w.metal].name;
-    if (!rs.length) return 'Plain ' + m + ' Blade';
+    const rs = w.runes.filter(Boolean), up = w.up ? ' +' + w.up : '';
+    const m = METALS[w.metal].name, noun = NOUN[w.cls] || 'Blade';
+    if (!rs.length) return 'Plain ' + m + ' ' + noun + up;
     const adj = RUNES[rs[0]].adj;
     const of = rs.length > 1 ? ' ' + RUNES[rs[rs.length - 1]].of : '';
-    return adj + ' ' + m + ' Blade' + of;
+    return adj + ' ' + m + ' ' + noun + up + of;
   };
+  // upgrades +1..+5: iron ingots and shards; +4 and +5 also want steel; +3 opens a fourth rune socket
+  F.UP_COST = [{ iron: 1, shards: 40 }, { iron: 2, shards: 80 }, { iron: 3, shards: 140 }, { iron: 4, shards: 220, steel: 1 }, { iron: 5, shards: 320, steel: 1 }];
+  F.upCost = w => F.UP_COST[w.up || 0] || null;
+  F.canUpgrade = (P, w) => { const c = F.upCost(w); if (!c) return false; const g = P.inv.ingots; return (g.iron || 0) >= c.iron && (P.inv.shards || 0) >= c.shards && (!c.steel || (g.steel || 0) >= c.steel); };
+  F.upgrade = (P, w) => { if (!F.canUpgrade(P, w)) return false; const c = F.upCost(w), g = P.inv.ingots; g.iron -= c.iron; P.inv.shards -= c.shards; if (c.steel) g.steel -= c.steel; w.up = (w.up || 0) + 1; P.recalc(); return true; };
 
   // ---------------- 3D preview ----------------
   function View() {
@@ -182,14 +188,14 @@
 
   F.render = function () {
     const P = G.player, w = P.weapon;
-    document.getElementById('f-name').textContent = F.weaponName({ metal: sel, runes: w.runes });
+    document.getElementById('f-name').textContent = (GW.Arms.cur(P).name + ' · ') + F.weaponName({ metal: sel, runes: w.runes, up: w.up, cls: w.cls });
     // runes
     const rr = document.getElementById('f-runes'); rr.innerHTML = '';
     Object.keys(RUNES).forEach(k => {
       const R = RUNES[k], n = P.inv.runes[k] || 0;
       const b = document.createElement('button'); b.className = 'chip rune' + (n ? '' : ' off');
       b.innerHTML = `<span style="color:#${R.color.toString(16).padStart(6, '0')}">${R.g}</span>` + (n ? `<span class="n">${n}</span>` : '');
-      b.onclick = () => { if (!n) { G.ui.toast('You have no ' + R.name + ' rune yet', 1.2); return; } const i = w.runes.indexOf(null); if (i < 0) { G.ui.toast('All three slots are full: tap a slot to free it', 1.4); return; }
+      b.onclick = () => { if (!n) { G.ui.toast('You have no ' + R.name + ' rune yet', 1.2); return; } const i = w.runes.indexOf(null); if (i < 0) { G.ui.toast('All slots are full: tap a slot to free it', 1.4); return; }
         w.runes[i] = k; P.inv.runes[k]--; GWAudio.sfx('socket'); P.recalc(); G.onSocket(); F.render(); };
       tip(b, R.name + ' rune  ' + R.g + '\n' + R.desc + '\nowned: ' + n);
       rr.appendChild(b);
@@ -216,14 +222,14 @@
       ss.appendChild(d);
     });
     // stats
-    const s = F.weaponStats({ metal: sel, runes: w.runes }, P.level), cur = P.ws;
+    const s = F.weaponStats({ metal: sel, runes: w.runes, up: w.up, cls: w.cls }, P.level), cur = F.weaponStats(w, P.level);
     const diff = (a, b, f) => a === b ? '' : (a > b ? ` <span style="color:#7fcf6a">▲${f(a - b)}</span>` : ` <span style="color:#e0484a">▼${f(b - a)}</span>`);
     const pct = v => Math.round(v * 100) + '%';
     const lines = [
       `Metal: <b>${METALS[sel].name}</b>`,
       `Damage: <b>${s.dmg.toFixed(1)}</b>${diff(+s.dmg.toFixed(1), +cur.dmg.toFixed(1), v => v.toFixed(1))}`,
       `Critical: <b>${pct(s.crit)}</b>   Speed: <b>${pct(s.speed)}</b>`,
-      `Runes: ${w.runes.filter(Boolean).length} / 3`,
+      `Runes: ${w.runes.filter(Boolean).length} / ${w.runes.length}   Upgrade: +${w.up || 0}`,
     ];
     if (s.burn) lines.push('Burn ' + pct(s.burn) + ' of each hit over 3s');
     if (s.slow) lines.push('Chill: slows 40% for 2s');
@@ -241,6 +247,14 @@
     tb.disabled = !can;
     tb.textContent = sel === w.metal ? 'Blade is tempered' : can ? 'Reforge in ' + METALS[sel].name + (sel === 'iron' ? '' : ' (1 ingot)') : 'Need a ' + METALS[sel].name + ' ingot';
     view.set(sel, w.runes);
+    // which carried weapon is on the anvil
+    const fa = document.getElementById('f-arms'); if (fa) { fa.innerHTML = ''; const ar = GW.Arms.ensure(P);
+      ar.set.forEach((k, i) => { if (!k) return; const C = GW.Arms.CLS[k], b = document.createElement('button'); b.className = 'chip' + (ar.act === i ? ' sel' : '');
+        b.innerHTML = `<span style="color:${C.col}">${C.g}</span> ${C.name}`; b.onclick = () => { if (ar.act === i) return; ar.act = i; GW.Knight.dress(P); P.recalc(); sel = P.weapon.metal; GWAudio.sfx('ui'); G.ui.refreshArms && G.ui.refreshArms(); F.render(); }; fa.appendChild(b); }); }
+    // upgrade
+    const ub = document.getElementById('f-up'); if (ub) { const c = F.upCost(w), ok = F.canUpgrade(P, w), g = P.inv.ingots;
+      ub.disabled = !ok;
+      ub.innerHTML = !c ? 'Fully upgraded (+5)' : `Upgrade to +${(w.up || 0) + 1}<br><small>${g.iron || 0}/${c.iron} iron ingots · ${P.inv.shards || 0}/${c.shards} ◈${c.steel ? ` · ${g.steel || 0}/${c.steel} steel` : ''}${(w.up || 0) + 1 === 3 ? ' · opens a 4th socket' : ''}</small>`; }
     // smelting
     const sm = document.getElementById('f-smelt'); if (sm) { sm.innerHTML = '';
       const ores = P.inv.ores || {}, hex = c => '#' + c.toString(16).padStart(6, '0');
@@ -263,6 +277,11 @@
 
   UIF.init = function () {
     document.getElementById('f-close').onclick = () => UIF.close();
+    document.getElementById('f-up').onclick = () => {
+      const P = G.player; if (!F.upgrade(P, P.weapon)) return;
+      GWAudio.sfx('anvil'); setTimeout(() => GWAudio.sfx('anvil'), 160); setTimeout(() => GWAudio.sfx('level'), 380);
+      G.ui.toast(F.weaponName(P.weapon), 2.2); G.flashWhite = 0.4; G.save(); F.render();
+    };
     document.getElementById('f-temper').onclick = () => {
       const P = G.player, w = P.weapon;
       if (sel === w.metal) return;

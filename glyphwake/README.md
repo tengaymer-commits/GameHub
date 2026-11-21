@@ -119,6 +119,21 @@ python tools/blender/build_armor.py glyphwake/assets/models/armor.glb
 - **Smelt at any anvil** (the Forge's new section): 2 ore + coal → 1 ingot. Steel needs 2 iron ore + 2 coal, rimesteel adds an iron ore, and saltglass and duskglass need no fuel. Traders sell coal (3 for 10 shards).
 - **New metals with built-in traits:** **Emberite** (hits burn), **Rimesteel** (hits chill), **Saltglass** (+12% crit, +4% speed), **Bog-iron** (hits poison).
 
+## Forging each weapon
+Every weapon you own keeps its **own** metal, runes and upgrade level. The forge works on the weapon in your hand. Switch between your two carried weapons under *On the anvil*.
+
+**Upgrades** (+8% damage each):
+
+| Upgrade | Cost | Also |
+|---|---|---|
+| → +1 | 1 iron ingot + 40 ◈ | |
+| → +2 | 2 iron + 80 ◈ | |
+| → +3 | 3 iron + 140 ◈ | opens a **4th rune socket** |
+| → +4 | 4 iron + 220 ◈ + 1 steel | |
+| → +5 | 5 iron + 320 ◈ + 1 steel | |
+
+Names show the level, for example *Searing Steel Blade +3*.
+
 ## Skill tree (Book → Skills)
 One point per level; reset is free while testing. Deeper rows need 2, 4 or 6 points already spent in that branch.
 - **Blade:** Honed Edge (+6% damage per rank), Flow (cheaper light attacks), Quick Draw (faster charge), Momentum (deeper combo hits hit harder), Sunder (+break), Keen Eye (+crit), Executioner (finishers +50% and heal more), Shatterpoint (reactions +40%).
