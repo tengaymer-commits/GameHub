@@ -1155,7 +1155,7 @@
           Z.lanterns.forEach((l, k) => { kit('kit_lantern', l.x, l.z, 1.4, 0, bio); push('lantern', l, 'Turn the lantern', k); });
           push('vault', toward(Z.vault), 'A sealed chest'); }
         if (p.pz === 'plates') { kit('kit_crypt', Z.vault.x, Z.vault.z, 1.2, 1.5, bio); kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.1, 0.4, bio);
-          Z.plates.forEach(pl => kit('kit_grave_slab', pl.x, pl.z, 0.95, 0, bio, new THREE.Color(1.35, 1.35, 1.4)));
+          // the nine slabs themselves are drawn by the game (they light up when pressed)
           push('tablet', Z.tablet, 'Study the worn mosaic'); push('vault', toward(Z.vault), 'A sealed crypt'); }
         if (p.pz === 'bells') { kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.2, 0.4, bio, tint); kit('kit_crate', Z.vault.x, Z.vault.z, 1.0, 0.4, bio, new THREE.Color(0.9, 0.75, 0.45));
           Z.bells.forEach((bl, k) => { kit('kit_pillar_b', bl.x, bl.z, 0.5, 0.45, bio); kit('kit_lantern', bl.x, bl.z, 0.9, 0, bio); push('bell', bl, 'Strike the bell', k); });

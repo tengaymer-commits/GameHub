@@ -345,6 +345,8 @@
     return s;
   };
   const gy = (x, z, h) => new V3(x, GW.World.heightAt(x, z) + h, z);
+  const PZ_TILE_G = new THREE.BoxGeometry(2.0, 0.16, 2.0), PZ_TILE_M = GW.mat({ id: ID.MASONRY, tex: 1, color: 0xa8aab4, fill: 0.1 }), PZ_TILE_ON = GW.mat({ id: ID.MASONRY, tex: 1, color: 0xe8c070, emissive: 0x5a3a08, fill: 0.1 });
+  function pzDropTiles() { for (const id in G.pzS) { const s = G.pzS[id]; if (s.tiles && Math.hypot(G.player.pos.x - s.p.x, G.player.pos.z - s.p.z) > 120) { s.tiles.forEach(m => G.scene.remove(m)); s.tiles = null; } } }
   function pzFail(s, why) {
     s.prog = 0; if (s.down) s.down = {};
     GWAudio.sfx('ui'); G.shake(0.15); UI.toast('<span style="color:#ff8a7a">✕</span> ' + why, 1.8);
@@ -408,6 +410,7 @@
   G.pzUpdate = function () {
     while (G.pzSeq.length && G.t >= G.pzSeq[0].t) { const q = G.pzSeq.shift(); ringBell(q.s, q.b, true); }
     const P = G.player; if ((P.floor || 0) !== 0 || G.dungeon) return;
+    if ((G.frameN = (G.frameN || 0) + 1) % 60 === 0) pzDropTiles();
     for (const it of GW.World.interact) {
       if (it.type !== 'pz') continue;
       const p = it.poi, d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d > 28) continue;
@@ -416,6 +419,10 @@
         const open = G.opened['puz:' + p.id];
         it.label = done ? (p.pz === 'plates' ? 'Open the crypt' : 'Open the vault') : (p.pz === 'plates' ? 'A sealed crypt' : p.pz === 'runes' ? 'A sealed vault' : 'A sealed chest');
         if (d < 18) UI.label(key, done ? (open ? '·' : '⌂ open') : '⌂ sealed', gy(it.x, it.z, 2.6), 'name', done ? '#ffd860' : '#8a90a0');
+        if (p.pz === 'plates') {   // the slabs: flat carved stones, gold once pressed
+          if (!s.tiles) { s.tiles = s.Z.plates.map(pl => { const m = new THREE.Mesh(PZ_TILE_G, PZ_TILE_M); m.position.set(pl.x, GW.World.heightAt(pl.x, pl.z) + 0.12, pl.z); G.scene.add(m); return m; }); }
+          s.tiles.forEach((m, k) => { m.material = (done || s.down[k]) ? PZ_TILE_ON : PZ_TILE_M; });
+        }
         if (p.pz === 'plates' && !done) {   // stepping: the player's feet press whichever slab they stand on
           let on = -1; s.Z.plates.forEach((pl, k) => { if (Math.abs(P.pos.x - pl.x) < 1.05 && Math.abs(P.pos.z - pl.z) < 1.05) on = k; });
           if (on !== s.on && on >= 0 && !s.down[on]) {
