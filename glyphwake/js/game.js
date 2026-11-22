@@ -1078,6 +1078,7 @@
     return best;
   }
   function doInteract(it) {
+    const P = G.player;
     if (it.type === 'rest') rest(it);
     else if (it.type === 'forge') openForge();
     else if (it.type === 'npc') talk(it.npc);
