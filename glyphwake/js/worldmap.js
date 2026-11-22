@@ -231,8 +231,10 @@
       const PC = W.POI_CELL, pxPad = 16, i0 = Math.floor((WM.cx - w / 2 / px) / PC) - 1, i1 = Math.ceil((WM.cx + w / 2 / px) / PC) + 1, j0 = Math.floor((WM.cz - h / 2 / px) / PC) - 1, j1 = Math.ceil((WM.cz + h / 2 / px) / PC) + 1;
       const big = WM.zoom > 6;
       g.font = `bold ${big ? 14 : 12}px ui-monospace, Menlo, monospace`;
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const p = W.poiAt(i, j); if (!p || !POI_ICON[p.type]) continue;
+      const plist = []; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const q = W.poiAt(i, j); if (q) plist.push(q); }
+      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); });
+      for (const p of plist) {
+        if (!POI_ICON[p.type]) continue;
         if (WM.zoom < 5 && !LANDMARK[p.type]) continue;
         if (!reveal() && !(G.poiSeen && G.poiSeen[p.id])) continue;
         const [x, y] = to(p.x, p.z); if (!onScreen(x, y, pxPad)) continue;

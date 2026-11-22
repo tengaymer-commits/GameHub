@@ -5,7 +5,7 @@
   // 8 km world. Terrain data (2 m per texel) is computed per 128 m chunk on demand and cached;
   // the GPU gets a 1 km window around the hero. The old Vale is the centre.
   // WS: the whole world's scale (regions, roads, river, rim). The Vale grows by VS; the world around it grows by WS.
-  const WS = 2, LVLD = 280 * WS;   // one enemy level per LVLD metres from the centre
+  const WS = 3, LVLD = 280 * WS;   // one enemy level per LVLD metres from the centre
   const SIZE = 8000 * WS, HALF = SIZE / 2, CELLM = 2, DCH = 128, DN = DCH / CELLM, WIN = 1024, WN = WIN / CELLM;
   const CORE = 300;   // the hand-made Vale: |x|,|z| < CORE is scattered once at load, the rest streams in chunks
 
@@ -33,22 +33,22 @@
     tower: { x: -44.0, z: -290.4 },
     lair: { x: -242.0, z: -308.0 },
     // ---- beyond the Vale ----
-    hearth: { x: 1000, z: -1000 },      // Hearthwick: the village hub on the crossroads
-    // six regions in a ring around the Vale (r ~ 1.4-3.9 km): hubs at r 2.6 km
-    abbey: { x: -300, z: -5200 },     // N  Frostmere: Rimeglass Abbey
-    frostLake: { x: 240, z: -4940 },
-    high: { x: 4500, z: -2600 },      // NE the Highlands
-    cinder: { x: 4500, z: 2600 },     // SE the Ashen Barrens: Cinder Watch
-    salt: { x: 0, z: 5200 },          // S  the Salt Wastes
-    mire: { x: -4500, z: 2600 },      // SW the Mire
-    dusk: { x: -4500, z: -2600 },     // NW Duskwood
-    dunmaer: { x: 5240, z: -3520 },   // Castle Dunmaer, the great Highland ruin (three floors inside)
-    vfrost: { x: -300, z: -5152 },    // villages beside the two landmark hubs
-    vash: { x: 4500, z: 2648 },
+    hearth: { x: 1500, z: -1500 },      // Hearthwick: the village hub on the crossroads
+    // six regions in a ring around the Vale (from ~4 km out): hubs at r ~7.8 km
+    abbey: { x: -450, z: -7800 },     // N  Frostmere: Rimeglass Abbey
+    frostLake: { x: 360, z: -7410 },
+    high: { x: 6750, z: -3900 },      // NE the Highlands
+    cinder: { x: 6750, z: 3900 },     // SE the Ashen Barrens: Cinder Watch
+    salt: { x: 0, z: 7800 },          // S  the Salt Wastes
+    mire: { x: -6750, z: 3900 },      // SW the Mire
+    dusk: { x: -6750, z: -3900 },     // NW Duskwood
+    dunmaer: { x: 7860, z: -5280 },   // Castle Dunmaer, the great Highland ruin (three floors inside)
+    vfrost: { x: -450, z: -7752 },    // villages beside the two landmark hubs
+    vash: { x: 6750, z: 3948 },
   };
   // region boss arenas (flattened, kept clear of points of interest and trees). The Rime Knight duels on the frozen mere;
   // the Colossus stands out in the open Barrens, well away from Cinder Watch and Emberfall.
-  const ARENAS = [{ key: 'colossus', x: 5200, z: 3000 }, { key: 'rimeknight', x: 240, z: -4940 }, { key: 'mirehag', x: -4100, z: 3120 }, { key: 'cragwarlord', x: 4940, z: -3040 }];
+  const ARENAS = [{ key: 'colossus', x: 7800, z: 4500 }, { key: 'rimeknight', x: 360, z: -7410 }, { key: 'mirehag', x: -6150, z: 4680 }, { key: 'cragwarlord', x: 7410, z: -4560 }];
   // one village per region (plus Hearthwick at the crossroads)
   const HUBS = [
     { id: 'vale', name: 'Hearthwick', at: 'hearth' },
@@ -59,7 +59,7 @@
     { id: 'mire', name: 'Bogwater', at: 'mire' },
     { id: 'dusk', name: 'Dimmering', at: 'dusk' },
   ];
-  const RIVER_CP = [[-7900, 520], [-6800, 240], [-5600, 440], [-4400, 120], [-3200, 240], [-2200, -40], [-1144.0, -132.0], [-616.0, -8.8], [-418.0, -61.6], [-242.0, -13.2], [-96.8, -26.4], [-17.6, -57.2], [88.0, -114.4], [242.0, -88.0], [396.0, -132.0], [616.0, -193.6], [1144.0, -484.0], [2200, -520], [3200, -360], [4200, -840], [5400, -760], [6600, -1120], [7900, -1000]];
+  const RIVER_CP = [[-11850, 780], [-10200, 360], [-8400, 660], [-6600, 180], [-4800, 360], [-3300, -60], [-1716, -198], [-616, -8.8], [-418, -61.6], [-242, -13.2], [-96.8, -26.4], [-17.6, -57.2], [88, -114.4], [242, -88], [396, -132], [616, -193.6], [1716, -726], [3300, -780], [4800, -540], [6300, -1260], [8100, -1140], [9900, -1680], [11850, -1500]];
   const PATHS = [
     [[0, 343.2], [4.4, 264], [-4.4, 202.4], [0, 149]],
     [[0, 115], [-13.2, 17.6], [-17.6, -57.2], [8.8, -132], [35.2, -198], [52.8, -255.2], [35.2, -352], [13.2, -422.4], [8.8, -457.6]],
@@ -67,47 +67,47 @@
     [[17, 132], [140.8, 118.8], [228.8, 145.2], [334.4, 158.4]],
     [[61.6, -255.2], [132, -237.6], [193.6, -224.4], [242, -224.4], [242, -246.4]],
     // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
-    [[242, -246.4], [500, -520], [760, -770], [1000, -985]],
+    [[242, -246.4], [750, -780], [1140, -1155], [1500, -1477.5]],
     // Hearthwick to the Highlands, the Barrens and Frostmere
-    [[1000, -985], [1600, -1300], [2300, -1550], [3000, -1850], [3800, -2250], [4480, -2580]],
-    [[1000, -985], [1400, -500], [1900, 200], [2600, 900], [3400, 1700], [4480, 2570]],
-    [[1000, -1015], [700, -1600], [400, -2300], [240, -3000], [80, -3800], [-120, -4600], [-290, -5160]],
+    [[1500, -1477.5], [2400, -1950], [3450, -2325], [4500, -2775], [5700, -3375], [6720, -3870]],
+    [[1500, -1477.5], [2100, -750], [2850, 300], [3900, 1350], [5100, 2550], [6720, 3855]],
+    [[1500, -1522.5], [1050, -2400], [600, -3450], [360, -4500], [120, -5700], [-180, -6900], [-435, -7740]],
     // the Vale to the Mire and Duskwood (west) and the Salt Wastes (south)
-    [[-316.8, 184.8], [-700, 330], [-1400, 700], [-2400, 1200], [-3400, 1900], [-4480, 2580]],
-    [[8.8, -457.6], [-400, -560], [-1000, -800], [-2000, -1300], [-3000, -1800], [-3600, -2160], [-4480, -2590]],
-    [[0, 334.4], [40, 640], [-20, 1200], [120, 2400], [-60, 3600], [0, 5170]],
+    [[-316.8, 184.8], [-1050, 495], [-2100, 1050], [-3600, 1800], [-5100, 2850], [-6720, 3870]],
+    [[8.8, -457.6], [-400, -560], [-1500, -1200], [-3000, -1950], [-4500, -2700], [-5400, -3240], [-6720, -3885]],
+    [[0, 334.4], [40, 640], [-30, 1800], [180, 3600], [-90, 5400], [0, 7755]],
     // the old ring road between the region hubs
-    [[-290, -5160], [1400, -4600], [3200, -3700], [4480, -2580], [5200, -600], [5200, 800], [4480, 2570], [3000, 3900], [1400, 4800], [0, 5170],
-     [-1400, 4800], [-3000, 3900], [-4480, 2580], [-5200, 800], [-5200, -600], [-4480, -2590], [-3200, -3700], [-1600, -4700], [-290, -5160]],
+    [[-435, -7740], [2100, -6900], [4800, -5550], [6720, -3870], [7800, -900], [7800, 1200], [6720, 3855], [4500, 5850], [2100, 7200], [0, 7755],
+     [-2100, 7200], [-4500, 5850], [-6720, 3870], [-7800, 1200], [-7800, -900], [-6720, -3885], [-4800, -5550], [-2400, -7050], [-435, -7740]],
   ];
   const ZONES = [
-    { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0.0, z: 343.2, r: 14 },
-    { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0.0, z: 132.0, r: 17 },
+    { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 343.2, r: 14 },
+    { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0, z: 132, r: 17 },
     { name: 'THE GLASS RIVER', sub: 'crossing', x: -17.6, z: -57.2, r: 9 },
     { name: 'THORNWOLF MEADOW', sub: 'hunting grounds', x: 52.8, z: -255.2, r: 42 },
     { name: 'HOLLOW RUINS', sub: 'the old scriptorium', x: -316.8, z: 184.8, r: 30 },
     { name: 'THE PALE CHAPEL', sub: 'its door still stands', x: 79.2, z: 272.8, r: 12 },
-    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -44.0, z: -290.4, r: 10 },
-    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -242.0, z: -308.0, r: 16 },
-    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 242.0, z: -286.0, r: 17 },
+    { name: 'THE IVY WATCH', sub: 'a tower that still keeps watch', x: -44, z: -290.4, r: 10 },
+    { name: "THE WIDOW'S HOLLOW", sub: 'something vast is breathing', x: -242, z: -308, r: 16 },
+    { name: 'GREYMOSS KEEP', sub: 'a castle the vale forgot', x: 242, z: -286, r: 17 },
     { name: 'THE QUIET GRAVES', sub: 'where the vale keeps its dead', x: -158.4, z: 281.6, r: 13 },
     { name: 'WISPWOOD', sub: 'where the lanterns drift', x: 334.4, z: 158.4, r: 38 },
     { name: 'THE WARDEN CIRCLE', sub: 'stone remembers', x: 8.8, z: -475.2, r: 22 },
-    { name: 'HEARTHWICK', sub: 'the crossroads village', x: 1000, z: -1000, r: 30 },
-    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 4500, z: 2600, r: 24 },
-    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -300, z: -5200, r: 24 },
-    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 240, z: -4940, r: 70 },
-    { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -300, z: -5152, r: 30 },
-    { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 5240, z: -3520, r: 26 },
-    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 5200, z: 3000, r: 26 },
-    { name: 'THE FROZEN MERE', sub: 'a knight keeps vigil on the ice', x: 240, z: -4940, r: 40 },
-    { name: "THE HAG'S POOL", sub: 'green light under the water', x: -4100, z: 3120, r: 22 },
-    { name: 'THE WARLORD\'S CROWN', sub: 'he never stopped ruling', x: 4940, z: -3040, r: 22 },
-    { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 4500, z: -2600, r: 30 },
-    { name: 'EMBERFALL', sub: 'they rebuild between the fires', x: 4500, z: 2648, r: 30 },
-    { name: 'SALTREACH', sub: 'water is worth more than gold', x: 0, z: 5200, r: 30 },
-    { name: 'BOGWATER', sub: 'houses on stilts, people on edge', x: -4500, z: 2600, r: 30 },
-    { name: 'DIMMERING', sub: 'lamps lit at noon', x: -4500, z: -2600, r: 30 },
+    { name: 'HEARTHWICK', sub: 'the crossroads village', x: 1500, z: -1500, r: 30 },
+    { name: 'CINDER WATCH', sub: 'it never stopped burning', x: 6750, z: 3900, r: 24 },
+    { name: 'RIMEGLASS ABBEY', sub: 'the bells are frozen', x: -450, z: -7800, r: 24 },
+    { name: 'THE STILL MERE', sub: 'ice that remembers the sky', x: 360, z: -7410, r: 70 },
+    { name: 'RIMEHOLD', sub: 'warm hearths under the snow', x: -450, z: -7728, r: 30 },
+    { name: 'CASTLE DUNMAER', sub: 'three floors of old crowns and older ghosts', x: 7860, z: -5280, r: 26 },
+    { name: 'THE CINDER FIELD', sub: 'where the Colossus walks', x: 7800, z: 4500, r: 26 },
+    { name: 'THE FROZEN MERE', sub: 'a knight keeps vigil on the ice', x: 360, z: -7410, r: 40 },
+    { name: "THE HAG'S POOL", sub: 'green light under the water', x: -6150, z: 4680, r: 22 },
+    { name: 'THE WARLORD\'S CROWN', sub: 'he never stopped ruling', x: 7410, z: -4560, r: 22 },
+    { name: 'CRAGMOOR', sub: 'the last village before the crowns', x: 6750, z: -3900, r: 30 },
+    { name: 'EMBERFALL', sub: 'they rebuild between the fires', x: 6750, z: 3972, r: 30 },
+    { name: 'SALTREACH', sub: 'water is worth more than gold', x: 0, z: 7800, r: 30 },
+    { name: 'BOGWATER', sub: 'houses on stilts, people on edge', x: -6750, z: 3900, r: 30 },
+    { name: 'DIMMERING', sub: 'lamps lit at noon', x: -6750, z: -3900, r: 30 },
   ];
   // regions (biomes): name, subtitle, banner colour
   const REGIONS = {
@@ -584,31 +584,19 @@
     const flowerG = new THREE.OctahedronGeometry(0.11, 0);
 
     const rock = (x, z, s, flatK) => {
-      const y = W.heightAt(x, z);
-      batch.add('rock' + (Math.floor(rnd() * 3)), rockGeos[Math.floor(rnd() * 3)], stoneM, place(x, y + s * 0.15, z, rnd() * 6.28, s, s * (flatK || (0.55 + rnd() * 0.35)), s * (0.8 + rnd() * 0.4)), new THREE.Color().setHSL(0.6, 0.02, 0.38 + rnd() * 0.18));
+      const k = ['kit_rock_a', 'kit_rock_b', 'kit_rock_c'][Math.floor(rnd() * 3)], f = flatK || (0.6 + rnd() * 0.35);
+      kitAt(k, x, z, s * 0.75, s * 0.75 * f, s * 0.75);
       W.addCollider(x, z, s * 0.85, 'rock');
     };
-    const tree = (x, z, s, dark) => {
-      const y = W.heightAt(x, z);
-      batch.add('trunk', trunkG, woodM, place(x, y, z, rnd() * 6, s, s, s));
-      const tint = new THREE.Color().setHSL(0.42 + rnd() * 0.06, 0.4, (dark ? 0.12 : 0.18) + rnd() * 0.08);
-      for (let k = 0; k < 3; k++) batch.add('cone', coneG, leafM, place(x, y + s * (1.6 + k * 1.05), z, rnd() * 6, s * (1.05 - k * 0.24)), tint);
-      W.addCollider(x, z, 0.55 * s, 'tree');
-    };
+    const tree = (x, z, s) => kitTree(rnd() < 0.5 ? 'kit_pine_a' : 'kit_pine_b', x, z, s * 0.9);
     const deadTree = (x, z, s) => {
-      const y = W.heightAt(x, z);
-      batch.add('dtrunk', trunkG, deadM, place(x, y, z, rnd() * 6, s * 0.8, s * 1.5, s * 0.8));
-      for (let k = 0; k < 3; k++) {
-        const a = rnd() * 6.28; q.setFromEuler(new THREE.Euler(0.9 + rnd() * 0.4, a, 0, 'YXZ'));
-        m4.compose(v3.set(x, y + s * (2 + k * 0.6), z), q, s3.set(s * 0.35, s * 0.7, s * 0.35)); batch.add('dtrunk', trunkG, deadM, m4);
-      }
+      kitAt('kit_deadtree_' + 'abc'[Math.floor(rnd() * 3)], x, z, s * 0.85, s * 0.85, s * 0.85, undefined, new THREE.Color(0.8, 0.76, 0.72).multiplyScalar(0.85 + rnd() * 0.3));
       W.addCollider(x, z, 0.5 * s, 'tree');
     };
-    const pillar = (x, z, h, r) => {
-      const y = W.heightAt(x, z);
-      batch.add('pillar', pillarG, ruinM, place(x, y - 0.2, z, rnd() * 6, r || 1, h, r || 1), new THREE.Color().setHSL(0.62, 0.15, 0.55 + rnd() * 0.15));
-      if (h > 0.6) { batch.add('box', boxG0, ruinM, place(x, y + h - 0.2, z, rnd() * 6, 1.6 * (r || 1), 0.35, 1.6 * (r || 1))); }
-      W.addCollider(x, z, 0.75 * (r || 1), 'ruin');
+    const pillar = (x, z, h, r) => {   // a broken kit pillar, stretched to the wanted height
+      const R2 = r || 1;
+      kitAt(h > 2.2 ? 'kit_pillar_a' : 'kit_pillar_b', x, z, 0.75 * R2, Math.max(0.35, h / 2.6), 0.75 * R2, undefined, new THREE.Color().setHSL(0.62, 0.1, 0.62 + rnd() * 0.15));
+      W.addCollider(x, z, 0.75 * R2, 'ruin');
     };
     const wallSeg = (x0, z0, x1, z1, h) => {
       const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0), n = Math.max(1, Math.round(len / 1.2));
@@ -628,6 +616,7 @@
     const free = (x, z, r) => {
       if (W.riverAt(x, z) < RIVER_W + 1.5 + r) return false;
       if (W.pathAt(x, z) < 2.5 + r) return false;
+      for (const q of W.valePois()) if (Math.hypot(x - q.x, z - q.z) < (q.type === 'camp' || q.type === 'elite' || q.type === 'cave' ? 22 : 15) + r) return false;
       for (const k of ['village', 'start', 'arena', 'castle', 'chapel', 'tower', 'lair']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 * BS : k === 'chapel' ? 13 * BS : k === 'tower' ? 8 * BS : k === 'lair' ? 17 : 18) + r) return false;
       return !W.blocked(x, z, r + 0.6);
     };
@@ -801,6 +790,16 @@
     return (kitCache[name] = parts);
   }
   let _kitBatch = null, _kitPlace = null, _kitRnd = null;
+  function kitAt(name, x, z, sx, sy, sz, ry, tint) {
+    if (!_kitBatch) return;
+    const y = W.heightAt(x, z) - 0.05;
+    kitParts(name).forEach((p, i) => _kitBatch.add('kit_' + name + i, p.geo, kitMat(p.mn), _kitPlace(x, y, z, ry === undefined ? _kitRnd() * 6.28 : ry, sx, sy, sz), tint || new THREE.Color(1, 1, 1).multiplyScalar(0.82 + _kitRnd() * 0.3)));
+  }
+  function kitGroup(name, s, tint) {
+    const g = new THREE.Group();
+    kitParts(name).forEach(p => { const m = new THREE.Mesh(p.geo, kitMat(p.mn)); m.scale.setScalar(s); g.add(m); });
+    return g;
+  }
   function kitTree(name, x, z, s) {
     if (!_kitBatch) return;
     const y = W.heightAt(x, z) - 0.05, ry = _kitRnd() * 6.28;
@@ -832,6 +831,18 @@
       const t = { type: 'tomb', id: 'tomb' + i, x: fx, z: fz, r: 2.8, label: 'Descend into ' + name.toLowerCase().replace(/^the /, 'the '), name, floors, quest };
       W.interact.push(t); W.tombs.push(t); if (quest) L.tombQ = { x: fx, z: fz };
     });
+    // the Vale's tutorial finds (see VALE_PLAN)
+    for (const p of W.valePois()) {
+      if (p.type === 'vein') {
+        const F = GW.Forge, ore = 'iron_ore', id = 'v:vale', y = W.heightAt(p.x, p.z), g = new THREE.Group(), cm = crystalMat(F.ORES[ore].color);
+        put('kit_rock_b', p.x, p.z, 0.85, rnd() * 6.28, 1.1, new THREE.Color(0.8, 0.8, 0.82)); put('kit_rock_c', p.x + 3, p.z - 1.5, 0.6, rnd() * 6.28, 0.8); put('kit_rock_a', p.x - 2.6, p.z + 1.2, 0.5, rnd() * 6.28, 0.6);
+        for (let q = 0; q < 6; q++) { const a = q / 6 * Math.PI * 2 + rnd(), r = 0.5 + rnd() * 0.9, m = new THREE.Mesh(CRYSTAL_G, cm);
+          m.position.set(p.x + Math.cos(a) * r, y + 0.6 + rnd() * 0.9, p.z + Math.sin(a) * r); m.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); m.scale.set(0.8 + rnd() * 0.6, 1.3 + rnd() * 1.2, 0.8 + rnd() * 0.6); g.add(m); }
+        scene.add(g); W.interact.push({ type: 'vein', id, ore, x: p.x, z: p.z, r: 2.8, label: 'Mine the ' + F.ORES[ore].name.toLowerCase(), crystals: g, lvl: 1 });
+        continue;
+      }
+      const inter = []; buildPOI(p, (n, x, z, s, col, bio, tint) => put(n, x, z, s, rnd() * 6.28, col, tint), [], inter); inter.forEach(it => W.interact.push(it));
+    }
     // the quiet graves: crypt, rows of graves, shrine, dead trees, lanterns, fence
     const GX = -36 * VS, GZ = 64 * VS;
     put('kit_crypt', GX, GZ - 6, 1.1, 0, 2.0);
@@ -949,10 +960,7 @@
     for (const h of HUBS) {
       const c = L[h.at]; campfire(scene, c.x, c.z, h.name);
       // a smith's anvil in every village
-      const ax = c.x + 7, az = c.z + 6, ay = W.heightAt(ax, az), metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a4a30 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
-      const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
-      W.addCollider(ax, az, 0.8, 'anvil'); W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
+      anvil(scene, c.x + 7, c.z + 6);
     }
     // Cinder Watch: the watchtower model, charred, with fires
     const tg = GW.Assets.gltf.tower;
@@ -961,7 +969,7 @@
       mergeByMat(tg, {
         cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x6a625c, fill: 0.08 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x3a3532, fill: 0.06 }),
         moss: GW.mat({ id: ID.FIRE, color: 0, emissive: 0x7a2a08, unlit: true }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x3a2a20 }),
-        woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x2a2018 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+        woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x2a2018 }), iron: GW.mat({ id: ID.METAL, color: 0x4a4e58, rim: 0.35 }),
         gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
       }, null, C.x, base, C.z, scene, BS);
       W.addCollider(C.x, C.z, 3.6 * BS, 'tower');
@@ -974,7 +982,7 @@
       const A = L.abbey, base = W.heightAt(A.x, A.z) - 0.05;
       mergeByMat(cg, {
         cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0xa8b4c4, fill: 0.14 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x6a7686, fill: 0.08 }),
-        moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0xc8d8e8, fill: 0.12 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+        moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0xc8d8e8, fill: 0.12 }), iron: GW.mat({ id: ID.METAL, color: 0x4a4e58, rim: 0.35 }),
       }, null, A.x, base, A.z, scene, BS);
       const tw = (lx, ly) => [A.x + lx * BS, A.z - ly * BS];
       const seg = (x0, y0, x1, y1, r) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r * 1.1)));
@@ -1020,7 +1028,7 @@
     return !W.blocked(x, z, r + 0.6);
   }
   // ---------- points of interest: one per 150 m cell (most cells), seeded, typed by region ----------
-  const POI_CELL = 150, poiCache = new Map();
+  const POI_CELL = 75 * WS, poiCache = new Map();
   const POI_W = {
     vale: { puzzle: 0.1, cave: 0.05, camp: 0.15, ruin: 0.14, chest: 0.1, shrine: 0.1, waystone: 0.07, vista: 0.07, wanderer: 0.06, ambush: 0.08, elite: 0.08},
     frost: { puzzle: 0.1, cave: 0.05, camp: 0.19, ruin: 0.12, chest: 0.08, shrine: 0.1, waystone: 0.07, vista: 0.08, wanderer: 0.04, ambush: 0.08, elite: 0.09},
@@ -1034,16 +1042,16 @@
     const key = i + ',' + j; if (poiCache.has(key)) return poiCache.get(key);
     let p = null;
     const r0 = hsh(i * 3.1 + 0.7, j * 1.7 - 2.3);
-    let x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * 70, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * 70;
+    let x = (i + 0.5) * POI_CELL + (hsh(i + 11.3, j - 4.1) - 0.5) * POI_CELL * 0.45, z = (j + 0.5) * POI_CELL + (hsh(i - 7.7, j + 9.9) - 0.5) * POI_CELL * 0.45;
     // steep ground: slide to the flattest spot within 40 m (props on a slope float on one side and sink on the other)
     const hh = (a, b) => rawHeight(a, b, biomeW(a, b)), slopeAt = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 10, b + Math.sin(t) * 10) - h0)); } return m; };
     let slope = slopeAt(x, z);
-    if (slope > 2.4) {
+    if (slope > 1.9) {
       // neighbours' un-nudged spots: a slid point must not crowd them
-      const nb = []; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (di || dj) { const a2 = i + di, b2 = j + dj; nb.push([(a2 + 0.5) * POI_CELL + (hsh(a2 + 11.3, b2 - 4.1) - 0.5) * 70, (b2 + 0.5) * POI_CELL + (hsh(a2 - 7.7, b2 + 9.9) - 0.5) * 70]); }
+      const nb = []; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (di || dj) { const a2 = i + di, b2 = j + dj; nb.push([(a2 + 0.5) * POI_CELL + (hsh(a2 + 11.3, b2 - 4.1) - 0.5) * POI_CELL * 0.45, (b2 + 0.5) * POI_CELL + (hsh(a2 - 7.7, b2 + 9.9) - 0.5) * POI_CELL * 0.45]); }
       const x1 = x, z1 = z;
-      for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2 + hsh(i, j), cx = x1 + Math.cos(t) * 40, cz = z1 + Math.sin(t) * 40;
-        if (nb.some(q => Math.hypot(q[0] - cx, q[1] - cz) < 85)) continue;
+      for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2 + hsh(i, j), cx = x1 + Math.cos(t) * 55, cz = z1 + Math.sin(t) * 55;
+        if (nb.some(q => Math.hypot(q[0] - cx, q[1] - cz) < 120)) continue;
         const s2 = slopeAt(cx, cz); if (s2 < slope) { slope = s2; x = cx; z = cz; } }
     }
     const ok = r0 < 0.84 && Math.hypot(x, z) > 640 && Math.max(Math.abs(x), Math.abs(z)) < HALF - 350
@@ -1054,7 +1062,7 @@
       const bwp = biomeW(x, z); let region = 'vale', rbv = 0.5; bwp.forEach((v, q) => { if (v > rbv) { rbv = v; region = BIOMES[q]; } });   // straight from the formula: no data chunk needed
       const w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
       for (const k in w) { if (roll < w[k]) { type = k; break; } roll -= w[k]; }
-      if (slope > 2.4 && type !== 'ambush') type = 'vista';   // still a crag: make it a lookout
+      if (slope > 2.4 && type !== 'ambush') type = 'vista';   // still a crag after the nudge: make it a lookout
       const lvl = 1 + Math.floor(Math.hypot(x, z) / LVLD);
       p = { id: key, i, j, x, z, type, region, lvl, seed: Math.floor(hsh(i + 0.3, j + 0.9) * 1e6) };
       if (type === 'puzzle') p.pz = ['runes', 'lanterns', 'plates', 'bells'][Math.floor(hsh(i * 2.7 - 1.1, j * 0.9 + 4.4) * 4)];
@@ -1067,10 +1075,47 @@
     for (let i = Math.floor((x - r) / POI_CELL) - 1; i <= Math.floor((x + r) / POI_CELL) + 1; i++) for (let j = Math.floor((z - r) / POI_CELL) - 1; j <= Math.floor((z + r) / POI_CELL) + 1; j++) {
       const p = W.poiAt(i, j); if (p && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     }
+    if (Math.hypot(x, z) < 700 + r) for (const p of W.valePois()) if (p.type !== 'vein' && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     return out;
   };
   W.POI_CELL = POI_CELL;
   // props + interactables for one point of interest (built with the chunk that contains it)
+
+  // ---------- the Vale as a quiet tutorial: one of everything the world holds, laid along the roads and the river ----------
+  // easy finds near Emberhold and the Waking Stone, harder ones (ambush, elite, cave) out toward the Vale's edges.
+  // Each spot is nudged to flat, dry ground clear of roads, the river, the hand-made sites and each other.
+  const VALE_PLAN = [
+    ['shrine', -95, 262], ['waystone', 36, 18], ['chest', 168, 150], ['puzzle', -330, 340, 'runes'], ['vein', -430, 40],
+    ['camp', 440, 300], ['puzzle', 290, 350, 'lanterns'], ['vista', 190, 450], ['wanderer', 372, -372], ['ambush', -165, -95],
+    ['puzzle', -395, -170, 'plates'], ['puzzle', 175, -135, 'bells'], ['elite', 395, -125], ['cave', -440, -440],
+  ];
+  let VALE_POIS = null;
+  W.valePois = function () {
+    if (VALE_POIS) return VALE_POIS;
+    VALE_POIS = [];
+    const hh = (a, b) => rawHeight(a, b, biomeW(a, b));
+    const slope = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 9, b + Math.sin(t) * 9) - h0)); } return m; };
+    const SITE_R = { village: 70, start: 45, ruins: 120, arena: 70, castle: 75, chapel: 55, tower: 50, lair: 60, meadow: 70, grove: 70, bridge: 40, ruinFire: 35, meadowFire: 35 };
+    const sites = Object.keys(SITE_R).map(k => [L[k].x, L[k].z, SITE_R[k]]).concat([[-36 * VS, 64 * VS, 45]]);   // + the quiet graves
+    const bad = (x, z, minD) => {
+      let pen = 0;
+      const rv = nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0], pa = nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0];
+      if (rv < 30) pen += 30 - rv; if (pa < 15) pen += 15 - pa;
+      for (const [sx, sz, r] of sites) { const d = Math.hypot(x - sx, z - sz); if (d < r) pen += r - d; }
+      for (const q of VALE_POIS) { const d = Math.hypot(x - q.x, z - q.z); if (d < minD) pen += minD - d; }
+      const sl = slope(x, z); if (sl > 1.6) pen += (sl - 1.6) * 8;
+      if (Math.hypot(x, z) > 560) pen += Math.hypot(x, z) - 560;
+      return pen;
+    };
+    VALE_PLAN.forEach(([type, x0, z0, pz], k) => {
+      let best = [x0, z0], bp = bad(x0, z0, 85);
+      for (let r = 6; r <= 72 && bp > 0; r += 6) for (let q = 0; q < 12; q++) { const a = q / 12 * Math.PI * 2 + r, x = x0 + Math.cos(a) * r, z = z0 + Math.sin(a) * r, pn = bad(x, z, 85); if (pn < bp) { bp = pn; best = [x, z]; } }
+      const p = { id: 'vale' + k, vale: true, x: best[0], z: best[1], type, region: 'vale', lvl: type === 'elite' || type === 'cave' ? 2 : 1, seed: 4100 + k * 977 };
+      if (pz) p.pz = pz; if (type === 'vista') p.cache = true;
+      VALE_POIS.push(p);
+    });
+    return VALE_POIS;
+  };
   // ---------- puzzles: one shared layout so the world (props) and the game (logic) agree ----------
   W.puzzleLayout = function (p) {
     const R = GW.rand(p.seed + 77), o = { kind: p.pz || (p.cache ? 'dig' : null) };
@@ -1146,7 +1191,7 @@
     };
     const x0 = ci * CHK, z0 = cj * CHK, inter = [];
     // points of interest whose centre lies in this chunk
-    for (const p of W.poisNear(x0 + CHK / 2, z0 + CHK / 2, CHK)) if (p.x >= x0 && p.x < x0 + CHK && p.z >= z0 && p.z < z0 + CHK) buildPOI(p, (n, x, z, s, col, bio, tint) => kit(n, x, z, s, col, bio, tint), cols, inter);
+    for (const p of W.poisNear(x0 + CHK / 2, z0 + CHK / 2, CHK)) if (!p.vale && p.x >= x0 && p.x < x0 + CHK && p.z >= z0 && p.z < z0 + CHK) buildPOI(p, (n, x, z, s, col, bio, tint) => kit(n, x, z, s, col, bio, tint), cols, inter);
     // ore veins: a boulder studded with glowing crystals in the ore's colour (own RNG, so the scatter below is unchanged)
     const veinGroups = [];
     { const vr = GW.rand(((ci * 3571 + cj * 92821) >>> 0) % 2147483646 + 7), F = GW.Forge;
@@ -1279,7 +1324,7 @@
     const C = L.chapel, base = W.heightAt(C.x, C.z) - 0.05;
     const mats = {
       cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x929396, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x58595c, fill: 0.08 }),
-      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+      moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x3e5a36 }), iron: GW.mat({ id: ID.METAL, color: 0x4a4e58, rim: 0.35 }),
     };
     mergeByMat(g, mats, mats.cobble, C.x, base, C.z, scene, BS);
     const tw = (lx, ly) => [C.x + lx * BS, C.z - ly * BS];
@@ -1293,6 +1338,11 @@
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }));
     f.position.set(fx, fy, fz); scene.add(f); W.flames.push({ m: f, s: 3.3, base: 1 });
     W.lights.add(fx, fy + 0.3, fz - 0.6, new THREE.Color(1.0, 0.56, 0.24), 9.5, 0.9);
+    // the churchyard: lanterns at the steps, a few old graves and fallen stones (kit pieces, same look as the rest of the vale)
+    const yard = [['kit_lantern', -2.6, -3.2, 1.1, 0], ['kit_lantern', 2.6, -3.2, 1.1, Math.PI], ['kit_grave_cross', -8.5, 2, 1.05, 0.2], ['kit_grave_round', -8.8, 5, 1, -0.1],
+      ['kit_grave_slab', -8.4, 8, 1, 0.1], ['kit_grave_obelisk', 8.6, 3, 1.05, 0], ['kit_grave_cross', 8.8, 6.5, 1, -0.2], ['kit_pillar_b', 7.8, -4.5, 0.7, 1.2], ['kit_rock_a', -7.2, -4.8, 0.45, 2]];
+    for (const [n, lx, ly, sc, ry] of yard) { const [x, z] = tw(lx, ly); kitAt(n, x, z, sc, sc, sc, ry); W.addCollider(x, z, 0.35 * sc, 'kit'); }
+    { const [lx, lz] = tw(-2.6, -3.2), [rx, rz] = tw(2.6, -3.2); [[lx, lz], [rx, rz]].forEach(([x, z]) => W.lights.add(x, W.heightAt(x, z) + 1.9, z, new THREE.Color(1.0, 0.62, 0.28), 7, 0.5)); }
   }
 
   // ----- The Ivy Watch (tools/blender/build_tower.py): walk in the door, come out on the roof -----
@@ -1305,7 +1355,7 @@
     const mats = {
       cobble: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8e8f92, fill: 0.12 }), cobbleDark: GW.mat({ id: ID.MASONRY, tex: 8, color: 0x5c5d60, fill: 0.08 }),
       moss: GW.mat({ id: ID.MOSS, tex: 5, color: 0x6a9a4a, fill: 0.12 }), wood: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x8a6440, fill: 0.1 }),
-      woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), iron: GW.mat({ id: ID.STONE, color: 0x3a3a40 }),
+      woodDark: GW.mat({ id: ID.PLANKS, tex: 2, color: 0x5a4030, fill: 0.06 }), iron: GW.mat({ id: ID.METAL, color: 0x4a4e58, rim: 0.35 }),
       gold: GW.mat({ id: ID.RUNE, color: 0, emissive: 0xd8a040, unlit: true }), void: GW.mat({ id: ID.VOID, color: 0, unlit: true }),
     };
     mergeByMat(g, mats, mats.cobble, T.x, base, T.z, scene, BS);
@@ -1424,7 +1474,7 @@
     const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
     const wood = GW.mat({ id: ID.BARK, tex: 3, color: 0x7a5636 }), stone = GW.mat({ id: ID.ROCK, tex: 6, color: 0x84868c });
     for (let k = 0; k < 4; k++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 5), wood); l.rotation.z = Math.PI / 2; l.rotation.y = k * Math.PI / 4; l.position.y = 0.12; g.add(l); }
-    for (let k = 0; k < 9; k++) { const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.27, 0), stone); const a = k / 9 * 6.28; s.position.set(Math.cos(a) * 0.95, 0.08, Math.sin(a) * 0.95); g.add(s); }
+    for (let k = 0; k < 9; k++) { const s = kitGroup(['kit_rock_a', 'kit_rock_c'][k % 2], 0.16 + (k % 3) * 0.03); const a = k / 9 * 6.28; s.position.set(Math.cos(a) * 1.0, -0.02, Math.sin(a) * 1.0); s.rotation.y = a * 3.1; g.add(s); }
     const flames = [];
     const fm = GW.mat({ id: ID.FIRE, color: 0x000000, emissive: 0xff8a2a, unlit: true });
     const fm2 = GW.mat({ id: ID.FIRE, color: 0x000000, emissive: 0xffd070, unlit: true });
@@ -1447,6 +1497,8 @@
     const y = W.heightAt(x, z);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, h, 6), GW.mat({ id: ID.BARK, tex: 3, color: 0x6e4e30 }));
     pole.position.set(x, y + h / 2, z); scene.add(pole);
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.1, 0.28, 6, 1, true), GW.mat({ id: ID.METAL, color: 0x4a4e58, rim: 0.4, side: THREE.DoubleSide })); cup.position.set(x, y + h + 0.02, z); scene.add(cup);
+    [0, 2.1, 4.2].forEach(a => { const st = kitGroup('kit_rock_a', 0.14); st.position.set(x + Math.cos(a) * 0.28, y - 0.03, z + Math.sin(a) * 0.28); st.rotation.y = a; scene.add(st); });
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.55, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffa040, unlit: true }));
     f.position.set(x, y + h + 0.25, z); scene.add(f);
     W.flames.push({ m: f, s: Math.random() * 10, base: 1 });
@@ -1456,11 +1508,10 @@
 
   function buildShrine(scene, x, z, s, glow) {
     const y = W.heightAt(x, z);
-    const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
-    const st = new THREE.Mesh(new THREE.BoxGeometry(1.2 * s, 4.2 * s, 0.8 * s, 2, 6, 2), GW.mat({ id: ID.MASONRY, tex: 1, color: 0x8c94aa, rim: 0.25 }));
-    st.position.y = 2.0 * s; st.rotation.y = Math.atan2(x, z); st.rotation.z = (Math.random() - 0.5) * 0.12; g.add(st);
-    const band = new THREE.Mesh(new THREE.BoxGeometry(1.25 * s, 1.6 * s, 0.84 * s), GW.mat({ id: ID.RUNE, color: 0, emissive: glow ? 0x4fb8ff : 0x203040, unlit: true }));
-    band.position.y = 2.5 * s; st.add(band); band.position.set(0, 0.5 * s, 0);
+    const g = new THREE.Group(); g.position.set(x, y - 0.05, z); scene.add(g);
+    const st = kitGroup('kit_pillar_a', 1, null); st.scale.set(0.9 * s, 1.45 * s, 0.9 * s); st.rotation.y = Math.atan2(x, z); st.rotation.z = (Math.random() - 0.5) * 0.08; g.add(st);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.98 * s, 0.98 * s, 0.5 * s, 8, 1, true), GW.mat({ id: ID.RUNE, color: 0, emissive: glow ? 0x4fb8ff : 0x203040, unlit: true, side: THREE.DoubleSide }));
+    band.position.y = 2.3 * s; g.add(band);
     W.addCollider(x, z, 0.9 * s, 'stone');
     const light = glow ? W.lights.add(x, y + 2.5, z, new THREE.Color(0.25, 0.6, 1.0), 10, 0.15) : null;
     return { g, band, light };
@@ -1491,13 +1542,7 @@
     // torches at gates
     [[-2.4, -15.8], [2.4, -15.8], [-2.4, 15.8], [2.4, 15.8], [14.4, -2.5], [-14.4, -2.5]].forEach(([dx, dz]) => torch(scene, vx + dx, vz + dz, 2.2));
     // anvil + brazier
-    const ax = L.anvil.x, az = L.anvil.z, ay = W.heightAt(ax, az);
-    const metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.5), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x6a4a30 })); base.position.set(ax, ay + 0.3, az); scene.add(base);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
-    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 6), metal); horn.rotation.z = Math.PI / 2; horn.position.set(ax - 0.85, ay + 0.8, az); scene.add(horn);
-    W.addCollider(ax, az, 0.8, 'anvil');
-    W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
+    const ax = L.anvil.x, az = L.anvil.z; anvil(scene, ax, az);
     // forge brazier
     const bx = ax + 2.4, bz = az - 1.2, by = W.heightAt(bx, bz);
     const br = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.6, 0.9, 8, 2), GW.mat({ id: ID.MASONRY, tex: 8, color: 0x7a7b80, fill: 0.08 })); br.position.set(bx, by + 0.45, bz); scene.add(br);
@@ -1505,6 +1550,14 @@
     W.flames.push({ m: coals, s: 3, base: 1, flat: true });
     W.lights.add(bx, by + 1.6, bz, new THREE.Color(1.0, 0.38, 0.1).multiplyScalar(1.3), 9, 0.5);
     W.addCollider(bx, bz, 0.9, 'brazier');
+  }
+
+  function anvil(scene, ax, az) {
+    const ay = W.heightAt(ax, az), metal = GW.mat({ id: ID.METAL, color: 0x555a66, rim: 0.4 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.62, 7), GW.mat({ id: ID.BARK, tex: 3, color: 0x6a4a30 })); base.position.set(ax, ay + 0.31, az); scene.add(base);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.55), metal); top.position.set(ax, ay + 0.78, az); scene.add(top);
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 6), metal); horn.rotation.z = Math.PI / 2; horn.position.set(ax - 0.85, ay + 0.8, az); scene.add(horn);
+    W.addCollider(ax, az, 0.8, 'anvil'); W.interact.push({ type: 'forge', x: ax, z: az, r: 2.6, label: 'Use the anvil' });
   }
 
   function buildWater(scene) {
@@ -1769,7 +1822,7 @@
   let MAPD = null;
   W.mapData = function () {
     if (MAPD) return MAPD;
-    const N = 768, cell = SIZE / N, n = N * N, f = {};
+    const N = 1024, cell = SIZE / N, n = N * N, f = {};
     const H = new Float32Array(n), R = new Float32Array(n), Pd = new Float32Array(n), Gr = new Float32Array(n), B = new Uint8Array(n), BW = new Float32Array(n), Lk = new Uint8Array(n);
     const cen = BIOMES.map(() => [0, 0, 0]).concat([[0, 0, 0]]);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {

@@ -226,11 +226,11 @@
     if (this.state !== 'move' && this.mvel && this.state !== 'roll') this.mvel.multiplyScalar(0.5);
     const wading = W.inWater(this.pos.x, this.pos.z);
     if (this.webbed > 0) this.webbed -= dt;
-    let speed = 6.2 * (this.moveMul || 1) * (this.buffMove || 1) * (wading ? 0.55 : 1) * (this.webbed > 0 ? 0.45 : 1);
+    let speed = 6.2 * (W.pathAt(this.pos.x, this.pos.z) < 2.5 ? 1.12 : 1) * (this.moveMul || 1) * (this.buffMove || 1) * (wading ? 0.55 : 1) * (this.webbed > 0 ? 0.45 : 1);
     // ---- riding: the horse carries you; steer with the move keys, faster on roads ----
     if (this.horse && this.horse.ridden) {
       const H = this.horse, onRoad = W.pathAt(this.pos.x, this.pos.z) < 3;
-      const maxS = (onRoad ? 17 : 13) * (wading ? 0.45 : 1) * (this.buffMove || 1);
+      const maxS = (onRoad ? 24 : 18) * (wading ? 0.45 : 1) * (this.buffMove || 1);
       const want = ml > 0.1 ? maxS * ml : 0;
       H.speed += (want - H.speed) * Math.min(1, dt * (want > H.speed ? 1.5 : 3.2));
       if (ml > 0.1) H.yaw += GW.angDiff(H.yaw, Math.atan2(mv.x, mv.z)) * Math.min(1, dt * (H.speed > 9 ? 2.4 : 3.6));

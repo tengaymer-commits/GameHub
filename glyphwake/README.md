@@ -157,7 +157,11 @@ The hand-made Vale is laid out at `VS` = 2.2× its original spacing (`js/world.j
 Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise and all scatter follow.
 
 ## World scale and buildings
-- The **world** is 16 km across (`WS` = 2 in `js/world.js`). The six regions ring the Vale at about 5.2 km, and enemy levels rise one per 560 m, so each region keeps its difficulty.
+- The **world** is 24 km across (`WS` = 3 in `js/world.js`). The six region hubs ring the Vale at about 7.8 km, and enemy levels rise one per 840 m, so each region keeps its difficulty.
+- **Wilderness sites** sit on a 225 m grid (`POI_CELL` = 75·`WS`), so there are as many as before over 2.25× the land: roughly one find every 45–60 s on foot. Sites on slopes slide up to 55 m to flatter ground and keep 120 m from their neighbours.
+- **Travel:** the horse runs at 18 m/s off road and 24 m/s on roads (1.4× faster); on foot, roads give a 12% brisker step.
+- **The Vale as a tutorial:** one of each thing the world holds is placed along its roads and river, the easy ones near Emberhold and the harder ones (ambush, elite, cave) toward the edges. That's a shrine, a waystone, a chest, an ore vein, a camp, a vista with a buried cache, a trader, an ambush, an elite and a cave, plus one of each puzzle: rune vault, lantern shrine, pressure crypt and echo bells. Each is nudged to flat, dry ground at least 85 m from the others (`VALE_PLAN` in `js/world.js`).
+- **One look everywhere:** the Vale's rocks, dead trees, ruin pillars, standing stones (the Waking Stone and Warden Circle), campfire stones and torch footings are built from the kit. Every village anvil matches Emberhold's, and the Pale Chapel has a churchyard with lanterns and graves.
 - **Enterable buildings** (Greymoss Keep, the Pale Chapel, the Ivy Watch, Rimeglass Abbey, Cinder Watch and Castle Dunmaer's gate) are drawn at `BS` = 1.6× with their colliders, doors, roofs and upper floors. Interiors come later.
 - **Hollow Ruins** is 1.7× wider, with five walls, 20 pillars, six arches and 12 Hollows. **Points of interest** are bigger too: camps have 4 huts and a cart with 4–6 enemies, ruins have wider rings, and caves sit in a big rock mound with a 1.45× arch.
 - **Three tombs** surround Hollow Ruins: *the Nameless*, *the Scribe's* (2 floors) and *the Sexton's*. Walk to the lanterns and press **E** to go underground. A new quest step, **Beneath the Scriptorium**, sends you to find **the Scribe's Seal** on the Scribe's Tomb's second floor, which introduces dungeons early.
