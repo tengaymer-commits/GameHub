@@ -1155,7 +1155,7 @@
           Z.lanterns.forEach((l, k) => { kit('kit_lantern', l.x, l.z, 1.4, 0, bio); push('lantern', l, 'Turn the lantern', k); });
           push('vault', toward(Z.vault), 'A sealed chest'); }
         if (p.pz === 'plates') { kit('kit_crypt', Z.vault.x, Z.vault.z, 1.2, 1.5, bio); kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.1, 0.4, bio);
-          Z.plates.forEach(pl => kit('kit_grave_slab', pl.x, pl.z, 0.95, 0, bio, new THREE.Color(0.8, 0.8, 0.85)));
+          Z.plates.forEach(pl => kit('kit_grave_slab', pl.x, pl.z, 0.95, 0, bio, new THREE.Color(1.35, 1.35, 1.4)));
           push('tablet', Z.tablet, 'Study the worn mosaic'); push('vault', toward(Z.vault), 'A sealed crypt'); }
         if (p.pz === 'bells') { kit('kit_grave_obelisk', Z.tablet.x, Z.tablet.z, 1.2, 0.4, bio, tint); kit('kit_crate', Z.vault.x, Z.vault.z, 1.0, 0.4, bio, new THREE.Color(0.9, 0.75, 0.45));
           Z.bells.forEach((bl, k) => { kit('kit_pillar_b', bl.x, bl.z, 0.5, 0.45, bio); kit('kit_lantern', bl.x, bl.z, 0.9, 0, bio); push('bell', bl, 'Strike the bell', k); });
@@ -1510,8 +1510,8 @@
     const y = W.heightAt(x, z);
     const g = new THREE.Group(); g.position.set(x, y - 0.05, z); scene.add(g);
     const st = kitGroup('kit_pillar_a', 1, null); st.scale.set(0.9 * s, 1.45 * s, 0.9 * s); st.rotation.y = Math.atan2(x, z); st.rotation.z = (Math.random() - 0.5) * 0.08; g.add(st);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.98 * s, 0.98 * s, 0.5 * s, 8, 1, true), GW.mat({ id: ID.RUNE, color: 0, emissive: glow ? 0x4fb8ff : 0x203040, unlit: true, side: THREE.DoubleSide }));
-    band.position.y = 2.3 * s; g.add(band);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(1.5 * s, 0.38 * s, 1.0 * s), GW.mat({ id: ID.RUNE, color: 0, emissive: glow ? 0x4fb8ff : 0x2a4a70, unlit: true }));
+    band.position.y = 2.2 * s; band.rotation.y = st.rotation.y; g.add(band);
     W.addCollider(x, z, 0.9 * s, 'stone');
     const light = glow ? W.lights.add(x, y + 2.5, z, new THREE.Color(0.25, 0.6, 1.0), 10, 0.15) : null;
     return { g, band, light };

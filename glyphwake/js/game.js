@@ -423,7 +423,7 @@
             else { const pl = s.Z.plates[on], y = GW.World.heightAt(pl.x, pl.z); G.glyphRing(pl.x, y + 0.2, pl.z, 0.3, 10, '^Λ', '#ff6050', 4, 0.4, 16); G.hurtPlayer(12, new V3(pl.x, y, pl.z), { dot: true }); pzFail(s, 'Spikes! The plates reset.'); }
           }
           s.on = on;
-          if (d < 14) s.Z.plates.forEach((pl, k) => { if (s.down[k]) UI.label(key + 'p' + k, '◆', gy(pl.x, pl.z, 0.35), 'name', '#ffd860'); });
+          if (d < 16) s.Z.plates.forEach((pl, k) => UI.label(key + 'p' + k, s.down[k] ? '◆' : '□', gy(pl.x, pl.z, 0.35), 'name', s.down[k] ? '#ffd860' : '#8a94a8'));
         }
         if (p.pz === 'lanterns') {   // the beams: glyph lines from each lantern, gold when they meet the shrine
           s.Z.lanterns.forEach((l, k) => {
