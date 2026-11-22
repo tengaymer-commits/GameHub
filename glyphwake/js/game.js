@@ -742,7 +742,43 @@
     for (const e of G.enemies) if (e.alive && e.T.boss) out.push({ x: e.pos.x, z: e.pos.z, g: 'Ω', col: '#ff5040', range: 260 });
     if (G.waypoint && Math.hypot(G.player.pos.x - G.waypoint.x, G.player.pos.z - G.waypoint.z) < 8) { G.waypoint = null; UI.toast('<span style="color:#6ae8ff">✚</span> You reached your mark', 2); }
     if (G.waypoint) out.push({ x: G.waypoint.x, z: G.waypoint.z, g: '✚', col: '#6ae8ff', range: 99999 });
+    // landmarks you'd notice from a distance (smoke over a camp, a waystone's glow...) pull you toward places you haven't found
+    const P = G.player;
+    if (!G.dungeon) for (const p of W.poisNear(P.pos.x, P.pos.z, 560)) {
+      const S = LM_SIGN[p.type]; if (!S || G.cleared[p.id] || G.opened['poi:' + p.id] || G.solved[p.id]) continue;
+      out.push({ x: p.x, z: p.z, g: S[0], col: G.poiSeen[p.id] ? S[1] : S[1] + '99', range: G.poiSeen[p.id] ? 220 : S[2] });
+    }
     return out;
+  };
+  // [compass glyph, colour, how far away you'd notice it]
+  const LM_SIGN = { camp: ['≈', '#c8b8a0', 520], ruin: ['∩', '#a8b0c8', 360], cave: ['◘', '#c8b08a', 260], elite: ['☠', '#ff7060', 320], puzzle: ['?', '#c8a0ff', 300],
+    waystone: ['◊', '#8ad0ff', 480], shrine: ['✧', '#9fd8ff', 420], vista: ['△', '#d8d0b0', 380], wanderer: ['♦', '#ffcf6a', 280] };
+  // world-side signs: smoke rising from unbroken camps, a slow glow over waystones and shrines
+  G.landmarkFx = function (dt) {
+    const P = G.player; if (G.dungeon) return;
+    G._lmT = (G._lmT || 0) - dt; if (G._lmT > 0) return; G._lmT = 0.12;
+    for (const p of GW.World.poisNear(P.pos.x, P.pos.z, 150)) {
+      const y = GW.World.heightAt(p.x, p.z);
+      if (p.type === 'camp' && !G.cleared[p.id] && Math.random() < 0.8)
+        G.hitGlyphs.push({ x: p.x + (Math.random() - 0.5) * 1.2, y: y + 2.2, z: p.z + (Math.random() - 0.5) * 1.2, vx: 0.5 + Math.random() * 0.4, vy: 2.2 + Math.random(), vz: -0.2, ng: true, t: 0, life: 3.2, ch: '~≈°∘'[Math.floor(Math.random() * 4)], col: '#9a948c', size: 15 + Math.random() * 8 });
+      if ((p.type === 'waystone' || p.type === 'shrine') && Math.random() < 0.5)
+        G.hitGlyphs.push({ x: p.x + (Math.random() - 0.5) * 0.8, y: y + 1.5, z: p.z + (Math.random() - 0.5) * 0.8, vy: 1.6, ng: true, t: 0, life: 1.8, ch: '·✧'[Math.floor(Math.random() * 2)], col: '#8ad0ff', size: 12 });
+    }
+    if (G.hitGlyphs.length > 240) G.hitGlyphs.splice(0, G.hitGlyphs.length - 240);
+  };
+  // a vista names the three closest places you haven't found yet, and marks them on the map
+  const LM_NAME = { camp: 'a camp', ruin: 'old ruins', cave: 'a cave mouth', elite: 'something strong', shrine: 'a shrine', waystone: 'a waystone', vista: 'another lookout', wanderer: "a trader's lantern", chest: 'a stash',
+    runes: 'a rune vault', lanterns: 'a lantern shrine', plates: 'a pressure crypt', bells: 'a ring of bells' };
+  const DIRS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+  G.vistaReport = function (it) {
+    const W = GW.World, list = W.poisNear(it.x, it.z, 1100).filter(p => p !== it.poi && p.type !== 'ambush' && !G.poiSeen[p.id])
+      .sort((a, b) => Math.hypot(a.x - it.x, a.z - it.z) - Math.hypot(b.x - it.x, b.z - it.z)).slice(0, 3);
+    if (!list.length) return;
+    const lines = list.map(p => { G.poiSeen[p.id] = p.type; const d = Math.hypot(p.x - it.x, p.z - it.z), a = Math.atan2(p.x - it.x, -(p.z - it.z)), k = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
+      const S = LM_SIGN[p.type] || ['·', '#c8ccd8'];
+      return `<span style="color:${S[1]}">${S[0]}</span> ${LM_NAME[p.pz || p.type] || p.type}, ${Math.round(d / 10) * 10} m ${DIRS[k]}`; });
+    setTimeout(() => UI.toast('From up here you can see:<br>' + lines.join('<br>') + '<br><span style="color:#8a90a0">marked on your map</span>', 6), 900);
+    save();
   };
   const fogPack = () => { let s = ''; for (let k = 0; k < G.fog.length; k += 8) { let b = 0; for (let t = 0; t < 8; t++) if (G.fog[k + t]) b |= 1 << t; s += String.fromCharCode(b); } return btoa(s); };
   const fogUnpack = str => { try { const s = atob(str); for (let k = 0; k < s.length; k++) { const b = s.charCodeAt(k); for (let t = 0; t < 8; t++) G.fog[k * 8 + t] = (b >> t) & 1; } } catch (e) { /* ignore */ } };
@@ -1097,7 +1133,7 @@
     else if (it.type === 'waystone') { const p = it.poi, nm = GW.World.REGIONS[p.region].name.replace('THE ', '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' waystone ' + p.id;
       if (!G.waystones[p.id]) { G.waystones[p.id] = { x: p.x, z: p.z + 2.6, name: nm }; UI.toast('<span style="color:#9fd8ff">◊</span> Waystone attuned', 2.5); save(); }
       const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
-    else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest');
+    else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); G.vistaReport(it);
       if (it.poi.cache && !G.solved[it.poi.id]) { const D = GW.World.puzzleLayout(it.poi).dig; G.pzKnown = G.pzKnown || {}; G.pzKnown[it.poi.id] = 1; G.waypoint = { x: D.x, z: D.z };
         setTimeout(() => UI.toast('<span style="color:#ffc870">✕</span> Something glints below: three stones over loose earth. Marked on your map.', 3.5), 1600); save(); } }
     else if (it.type === 'pz') G.pzUse(it);
@@ -1664,7 +1700,7 @@
         // tutorial hints + boss trigger + zones
         world(sdt);
         // respawn timers
-        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.pzUpdate();
+        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.pzUpdate(); G.landmarkFx(sdt);
         if (frame % 15 === 0) explore();
         if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));
