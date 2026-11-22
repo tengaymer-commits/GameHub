@@ -672,7 +672,7 @@
       const dx = this.pos.x - o.pos.x, dz = this.pos.z - o.pos.z, rr = this.radius + o.radius, d2 = dx * dx + dz * dz;
       if (d2 < rr * rr && d2 > 1e-5) { const d = Math.sqrt(d2), k = (rr - d) / d * 0.5; this.pos.x += dx * k; this.pos.z += dz * k; }
     }
-    if (!this.T.flying) W.collide(this.pos, this.radius * 0.8);
+    W.collide(this.pos, this.radius * 0.8);   // floating foes too: walls, doors and dungeon rock stop them
     const gy = W.groundY(this.pos.x, this.pos.z);
     this.pos.y += (gy - this.pos.y) * Math.min(1, dt * 15);
     this.model.position.copy(this.pos); this.model.rotation.y = this.yaw;
@@ -958,10 +958,13 @@
           const a = Math.atan2(e.pos.x - P.pos.x, e.pos.z - P.pos.z) + (e.offset > Math.PI ? 1 : -1) * dt * 0.5;
           e.moveTo(P.pos.x + Math.sin(a) * want, P.pos.z + Math.cos(a) * want, TYPES.wisp.speed * slow * (dP < 4 ? 1.8 : 1), dt);
           if (dP < 3 && (e.blinkCd || 0) <= 0) { // blink away
-            const b = a + (Math.random() - 0.5); e.blinkCd = 4;
-            G.parts.spark.burst(e.pos.x, e.pos.y + 1.6, e.pos.z, 14, 4, 0xa070ff, 0.5, 1, 0);
-            e.pos.x = P.pos.x + Math.sin(b) * 8; e.pos.z = P.pos.z + Math.cos(b) * 8; GW.World.collide(e.pos, 0.6);
-            GWAudio.sfx('zap');
+            e.blinkCd = 4;
+            const dest = G.clearSpot(P.pos, a, 8);   // only a spot in plain sight: never through a wall
+            if (dest) {
+              G.parts.spark.burst(e.pos.x, e.pos.y + 1.6, e.pos.z, 14, 4, 0xa070ff, 0.5, 1, 0);
+              e.pos.x = dest.x; e.pos.z = dest.z; GW.World.collide(e.pos, 0.6);
+              GWAudio.sfx('zap');
+            }
           }
           if (e.cool <= 0 && dP < 15) e.setState('cast');
         }
@@ -1212,7 +1215,7 @@
           const a = Math.atan2(e.pos.x - P.pos.x, e.pos.z - P.pos.z) + dt * 0.6;
           e.moveTo(P.pos.x + Math.sin(a) * 10, P.pos.z + Math.cos(a) * 10, T.speed * slow, dt);
           if (dP < 3.5 && (e.blinkCd || 0) <= 0) { const b = a + (Math.random() - 0.5) * 1.5; e.blinkCd = 3.5;
-            G.parts.spark.burst(e.pos.x, e.pos.y + 1.6, e.pos.z, 24, 5, 0x6aff4a, 0.6, 1.2, 0); e.pos.x = P.pos.x + Math.sin(b) * 11; e.pos.z = P.pos.z + Math.cos(b) * 11; GWAudio.sfx('zap'); }
+            G.parts.spark.burst(e.pos.x, e.pos.y + 1.6, e.pos.z, 24, 5, 0x6aff4a, 0.6, 1.2, 0); const dest = G.clearSpot(P.pos, b, 11); if (dest) { e.pos.x = dest.x; e.pos.z = dest.z; } GWAudio.sfx('zap'); }
           if (e.cool <= 0 && dP < 18) e.setState('cast');
         }
       }

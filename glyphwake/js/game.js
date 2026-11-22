@@ -447,6 +447,16 @@
       if (it.role === 'dig' && (d < 8 || (G.pzKnown && G.pzKnown[p.id]))) UI.label(key, '✕', gy(it.x, it.z, 0.9), 'name', '#ffc870');
     }
   };
+  // a free spot about `dist` from `from`, roughly along angle `a`, with a clear line to it (no collider on the way)
+  G.clearSpot = function (from, a, dist) {
+    const W = GW.World, fl = G.player.floor || 0;
+    for (const off of [0, 0.5, -0.5, 1, -1, 1.6, -1.6]) for (const d of [dist, dist * 0.65, dist * 0.4]) {
+      const b = a + off, x = from.x + Math.sin(b) * d, z = from.z + Math.cos(b) * d; let ok = true;
+      for (let t = 0.15; t <= 1.001 && ok; t += 0.6 / d) if (W.blocked(from.x + (x - from.x) * t, from.z + (z - from.z) * t, 0.45, fl)) ok = false;
+      if (ok) return { x, z };
+    }
+    return null;
+  };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
