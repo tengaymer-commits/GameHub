@@ -1143,7 +1143,7 @@
     else if (it.type === 'waystone') { const p = it.poi, nm = GW.World.REGIONS[p.region].name.replace('THE ', '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' waystone ' + p.id;
       if (!G.waystones[p.id]) { G.waystones[p.id] = { x: p.x, z: p.z + 2.6, name: nm }; UI.toast('<span style="color:#9fd8ff">◊</span> Waystone attuned', 2.5); save(); }
       const list = travelList(p.x, p.z, null); if (list.length) { G.state = 'travel'; UI.showTravel(list, f => { G.state = 'play'; if (f) travelTo(f); }); } }
-    else if (it.type === 'vista') { revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest'); G.vistaReport(it);
+    else if (it.type === 'vista') { G.vistaReport(it); revealFog(it.x, it.z, 650); UI.banner('the land opens before you', 'VISTA', 2.4); GWAudio.sfx('quest');
       if (it.poi.cache && !G.solved[it.poi.id]) { const D = GW.World.puzzleLayout(it.poi).dig; G.pzKnown = G.pzKnown || {}; G.pzKnown[it.poi.id] = 1; G.waypoint = { x: D.x, z: D.z };
         setTimeout(() => UI.toast('<span style="color:#ffc870">✕</span> Something glints below: three stones over loose earth. Marked on your map.', 3.5), 1600); save(); } }
     else if (it.type === 'pz') G.pzUse(it);
