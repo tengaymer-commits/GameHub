@@ -204,6 +204,8 @@
         g.globalAlpha = ta; g.font = `600 ${Math.round(GW.clamp(15 + WM.zoom * 4, 16, 30))}px ui-monospace, Menlo, monospace`;
         halo(g, spaced(R.name.replace(/^THE /, '')), x, y, R.col, 6);
         g.font = `italic ${Math.round(GW.clamp(10 + WM.zoom, 11, 14))}px Georgia, serif`; halo(g, '— ' + R.sub + ' —', x, y + 22, 'rgba(230,224,206,.75)', 4);
+        { const lv = W.regionLevels(k), me = G.player.level; g.font = `600 ${Math.round(GW.clamp(11 + WM.zoom, 12, 15))}px ui-monospace, Menlo, monospace`;
+          halo(g, 'lv ' + (lv[0] === lv[1] ? lv[0] : lv[0] + '–' + lv[1]), x, y + 40, W.dangerCol(lv[0], me), 4); }
         g.globalAlpha = 1; });
     }
     // named places (zones) and villages
@@ -241,11 +243,11 @@
         const ic = POI_ICON[p.type], done = (G.cleared && G.cleared[p.id]) || (G.opened && G.opened['poi:' + p.id]);
         g.globalAlpha = done ? 0.4 : 1;
         g.fillStyle = 'rgba(6,7,10,.75)'; g.beginPath(); g.arc(x, y, big ? 9 : 7.5, 0, Math.PI * 2); g.fill();
-        g.strokeStyle = ic[1]; g.lineWidth = 1; g.globalAlpha *= 0.6; g.stroke(); g.globalAlpha = done ? 0.4 : 1;
+        g.strokeStyle = W.dangerCol(p.lvl, G.player.level); g.lineWidth = 1.6; g.globalAlpha *= 0.85; g.stroke(); g.globalAlpha = done ? 0.4 : 1;   // ring = danger for your level
         g.fillStyle = ic[1]; g.fillText(ic[0], x, y + 0.5);
-        if (big) { g.font = '10px ui-monospace, Menlo, monospace'; halo(g, 'lv ' + p.lvl, x, y + 15, 'rgba(200,200,210,.8)', 3); g.font = 'bold 14px ui-monospace, Menlo, monospace'; }
+        if (big) { g.font = '10px ui-monospace, Menlo, monospace'; halo(g, 'lv ' + p.lvl, x, y + 15, W.dangerCol(p.lvl, G.player.level), 3); g.font = 'bold 14px ui-monospace, Menlo, monospace'; }
         g.globalAlpha = 1;
-        feats.push({ x, y, name: ic[2].replace(/^./, s => s.toUpperCase()) + (p.name ? ': ' + p.name : ''), sub: (W.REGIONS[p.region] || {}).name.toLowerCase() + ' · level ' + p.lvl + (done ? ' · cleared' : ''), wx: p.x, wz: p.z });
+        feats.push({ x, y, name: ic[2].replace(/^./, s => s.toUpperCase()) + (p.name ? ': ' + p.name : ''), sub: (W.REGIONS[p.region] || {}).name.toLowerCase() + ' · level ' + p.lvl + ' (you: ' + G.player.level + ')' + (done ? ' · cleared' : ''), wx: p.x, wz: p.z });
       }
     }
     // fires, forges, chests from the hand-placed world
@@ -286,6 +288,11 @@
       g.fillStyle = 'rgba(6,6,8,.7)'; g.beginPath(); g.arc(cx, cy, 34, 0, Math.PI * 2); g.fill(); g.strokeStyle = 'rgba(214,196,150,.5)'; g.stroke();
       g.fillStyle = '#ffcf6a'; g.fillText('N', cx, cy - 25); g.fillStyle = col; g.fillText('S', cx, cy + 25); g.fillText('W', cx - 25, cy); g.fillText('E', cx + 25, cy);
       g.fillStyle = '#ffcf6a'; g.fillText('▲', cx, cy - 12); g.fillStyle = col; g.fillText('▼', cx, cy + 12); g.fillText('◄', cx - 12, cy); g.fillText('►', cx + 12, cy); g.fillText('✦', cx, cy); }
+    // danger key: ring and level colours compare a place's level with yours
+    { const cx = w - M - 58, y0 = M + 112, me = G.player.level; g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left';
+      halo(g, 'you: lv ' + me, cx - 40, y0, '#e8d8a8', 3);
+      [['easy', me], ['fair', me + 2], ['hard', me + 4], ['deadly', me + 5]].forEach(([t, l], k) => { g.fillStyle = W.dangerCol(l, me); g.fillText('●', cx - 40, y0 + 16 + k * 14); halo(g, t, cx - 26, y0 + 16 + k * 14, 'rgba(232,216,170,.85)', 3); });
+      g.textAlign = 'center'; }
     // scale bar
     { const nice = [25, 50, 100, 250, 500, 1000, 2000, 4000]; let m = nice[0]; for (const n of nice) if (n * px <= 150) m = n;
       const bx = M + 24, by = h - M - 30, L = m * px; g.strokeStyle = ink; g.lineWidth = 2; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + L, by); g.moveTo(bx, by - 5); g.lineTo(bx, by + 5); g.moveTo(bx + L, by - 5); g.lineTo(bx + L, by + 5); g.moveTo(bx + L / 2, by - 3); g.lineTo(bx + L / 2, by + 3); g.stroke();

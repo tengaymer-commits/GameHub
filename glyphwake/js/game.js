@@ -742,7 +742,7 @@
       if (Math.hypot((i + 0.5) * FC - S / 2 - P.pos.x, (j + 0.5) * FC - S / 2 - P.pos.z) < R) { if (!G.fog[j * FN + i]) G.fogVer = (G.fogVer || 0) + 1; G.fog[j * FN + i] = 1; }
     for (const f of GW.World.fires) if (!f.rest.own && !G.discovered[f.rest.name] && Math.hypot(f.x - P.pos.x, f.z - P.pos.z) < 16) { G.discovered[f.rest.name] = true; UI.toast(`<span style="color:#ff9a40">▲</span> Found a fire: ${f.rest.name}`, 3); }
     const r = GW.World.regionAt(P.pos.x, P.pos.z);
-    if (r !== G.region) { const R0 = GW.World.REGIONS[r]; if (G.region) UI.banner(R0.sub, R0.name, 3.6, R0.col); G.region = r; }
+    if (r !== G.region) { const R0 = GW.World.REGIONS[r], lv = GW.World.regionLevels(r); if (G.region) UI.banner(R0.sub + '  ·  lv ' + lv[0] + '–' + lv[1], R0.name, 3.6, R0.col); G.region = r; }
   }
   G.compassPOIs = function () {
     const W = GW.World, out = [];

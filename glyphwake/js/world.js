@@ -1817,6 +1817,10 @@
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
+  W.levelAt = (x, z) => 1 + Math.floor(Math.hypot(x, z) / LVLD);
+  W.regionLevels = key => { const D = W.mapData(), i = key === 'vale' ? 0 : BIOMES.indexOf(key) + 1; return D.levels[i] || [1, 1]; };
+  // how dangerous a level is for the hero: green (easy) → gold → orange → red (deadly)
+  W.dangerCol = (lvl, me) => { const d = lvl - me; return d <= 0 ? '#8ad08a' : d <= 2 ? '#e8d070' : d <= 4 ? '#ff9a50' : '#ff5040'; };
   W.ARENAS = ARENAS; W.VS = VS; W.WS = WS; W.LVLD = LVLD; W.HALF = HALF;
   W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
@@ -1824,7 +1828,7 @@
     if (MAPD) return MAPD;
     const N = 1024, cell = SIZE / N, n = N * N, f = {};
     const H = new Float32Array(n), R = new Float32Array(n), Pd = new Float32Array(n), Gr = new Float32Array(n), B = new Uint8Array(n), BW = new Float32Array(n), Lk = new Uint8Array(n);
-    const cen = BIOMES.map(() => [0, 0, 0]).concat([[0, 0, 0]]);
+    const cen = BIOMES.map(() => [0, 0, 0]).concat([[0, 0, 0]]), lh = BIOMES.map(() => new Uint32Array(64)).concat([new Uint32Array(64)]);
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const x = (i + 0.5) * cell - HALF, z = (j + 0.5) * cell - HALF, k = j * N + i;
       fieldsAt(x, z, segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), f);
@@ -1832,10 +1836,13 @@
       let bi = 0, bv = 0.5; for (let q = 0; q < 6; q++) if (f.bw[q] > bv) { bv = f.bw[q]; bi = q + 1; }
       B[k] = bi; BW[k] = bi ? bv : 1 - Math.max(...f.bw);
       Lk[k] = Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72 ? 1 : 0;
-      if (Math.max(Math.abs(x), Math.abs(z)) < HALF - 200) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; }
+      if (Math.max(Math.abs(x), Math.abs(z)) < HALF - 200) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; lh[bi][Math.min(63, W.levelAt(x, z))]++; }
     }
     const centroids = cen.map(c => c[2] ? { x: c[0] / c[2], z: c[1] / c[2] } : null);
-    MAPD = { N, cell, H, R, Pd, Gr, B, BW, Lk, centroids };
+    // each region's level band: the 5th to 95th percentile of the land it covers
+    const levels = lh.map(hst => { const tot = hst.reduce((a, b) => a + b, 0); if (!tot) return null; let acc = 0, lo = 1, hi = 1;
+      for (let l = 0; l < 64; l++) { acc += hst[l]; if (acc < tot * 0.05) lo = l + 1; if (acc <= tot * 0.95) hi = l + 1; } return [Math.max(1, lo), Math.max(lo, hi)]; });
+    MAPD = { N, cell, H, R, Pd, Gr, B, BW, Lk, centroids, levels };
     return MAPD;
   };
   W.mapCanvas = function () {
