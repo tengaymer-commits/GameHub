@@ -289,7 +289,7 @@
       g.fillStyle = '#ffcf6a'; g.fillText('N', cx, cy - 25); g.fillStyle = col; g.fillText('S', cx, cy + 25); g.fillText('W', cx - 25, cy); g.fillText('E', cx + 25, cy);
       g.fillStyle = '#ffcf6a'; g.fillText('▲', cx, cy - 12); g.fillStyle = col; g.fillText('▼', cx, cy + 12); g.fillText('◄', cx - 12, cy); g.fillText('►', cx + 12, cy); g.fillText('✦', cx, cy); }
     // danger key: ring and level colours compare a place's level with yours
-    { const cx = w - M - 58, y0 = M + 112, me = G.player.level; g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left';
+    { const cx = w - M - 78, y0 = M + 112, me = G.player.level; g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left';
       halo(g, 'you: lv ' + me, cx - 40, y0, '#e8d8a8', 3);
       [['easy', me], ['fair', me + 2], ['hard', me + 4], ['deadly', me + 5]].forEach(([t, l], k) => { g.fillStyle = W.dangerCol(l, me); g.fillText('●', cx - 40, y0 + 16 + k * 14); halo(g, t, cx - 26, y0 + 16 + k * 14, 'rgba(232,216,170,.85)', 3); });
       g.textAlign = 'center'; }

@@ -174,6 +174,10 @@ About one wilderness site in ten is a puzzle (a purple **?** on the map). Each g
 - **Echo bells:** the humming stone sings a four-note melody. Strike the bells in the same order. A sour note resets.
 - **Buried caches:** some vistas hide one. After **Look out**, a ✕ waypoint marks three stones over loose earth. Press **E** three times to dig it up.
 
+## Region levels and danger
+- Each region's map label shows its level band (the 5th–95th percentile of its land): the Vale is lv 2–6, the outer regions about lv 6–18, rising toward the world's edge. Crossing into a region shows its band in the banner.
+- The ring around every place on the map, and its level, are coloured against your level: **green** easy, **gold** fair (+1–2), **orange** hard (+3–4), **red** deadly (+5). A key sits under the map's compass rose.
+
 ## World map (M)
 A live glyph chart drawn on top of a coloured relief. The relief gives each region its own ground tint, then lightens with elevation through rock to snow, with hillshading and contour lines.
 - **V** cycles four styles: *Touring map*, *ASCII relief* (the whole map in the game's brightness ramp), *Explorer's ink* (parchment and sepia) and *Glyph mosaic* (colour tiles with shade blocks).
