@@ -174,6 +174,15 @@ About one wilderness site in ten is a puzzle (a purple **?** on the map). Each g
 - **Echo bells:** the humming stone sings a four-note melody. Strike the bells in the same order. A sour note resets.
 - **Buried caches:** some vistas hide one. After **Look out**, a ✕ waypoint marks three stones over loose earth. Press **E** three times to dig it up.
 
+## The main quest
+- **Act I, the Vale:** the Waking Stone, Mara, Hesk's anvil, the Thornwolves, the Hollow Ruins, the Scribe's Tomb, Wispwood, then the Mire Warden in the stone circle.
+- **Act II, the unwritten lands:**
+  1. **The Starfall Blade:** smelt the Warden's starfall and forge it into any weapon.
+  2. **The Crossroads:** walk to Hearthwick, where Oswin the Waywarden tells you about the four guardians.
+  3. **Four Seals of the Unwritten:** defeat the Ash Colossus, the Rime Knight, the Mire Hag and the Crag Warlord. The marker points to the nearest one still standing.
+  4. **The Crown of Dunmaer:** climb Castle Dunmaer. The Crowned Guardian waits in the last hall of the Crown Tower.
+  5. **The Ninefold, Rewritten:** free roam.
+
 ## Region levels and danger
 - Each region's map label shows its level band (the 5th–95th percentile of its land): the Vale is lv 2–6, the outer regions about lv 6–18, rising toward the world's edge. Crossing into a region shows its band in the banner.
 - The ring around every place on the map, and its level, are coloured against your level: **green** easy, **gold** fair (+1–2), **orange** hard (+3–4), **red** deadly (+5). A key sits under the map's compass rose.

@@ -12100,8 +12100,41 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     { id: 'wisps', title: 'LANTERNS THAT BITE', text: c => `Snuff the Lantern Wisps in Wispwood (${c.wisp || 0}/3)`, target: () => L().grove, need: { wisp: 3 } },
     { id: 'return', title: 'WHAT THE STONES SAID', text: () => 'Return to Mara at Emberhold', target: () => L().elder },
     { id: 'boss', title: 'THE WARDEN CIRCLE', text: () => 'Face the Mire Warden in the stone circle, far north', target: () => L().arena },
-    { id: 'free', title: 'THE VALE IS QUIET', text: () => 'Forge the Starfall blade at Hesk\'s anvil.\nThe vale is yours to roam.', target: () => L().anvil },
+    // ---- act II: the unwritten lands ----
+    { id: 'free', title: 'THE STARFALL BLADE', text: () => 'Smelt the Warden\'s starfall and forge it into a blade at any anvil', target: () => L().anvil },
+    { id: 'hearth', title: 'THE CROSSROADS', text: () => 'Follow the road north-east to Hearthwick', target: () => L().hearth },
+    { id: 'seals', title: 'FOUR SEALS OF THE UNWRITTEN', text: () => `Break the four guardians of the outer lands (${G.sealsBroken()}/4)`, target: () => G.nextSeal() },
+    { id: 'dunmaer', title: 'THE CROWN OF DUNMAER', text: () => 'Climb Castle Dunmaer to the Crown Tower and face what wears the crown', target: () => L().dunmaer },
+    { id: 'end', title: 'THE NINEFOLD, REWRITTEN', text: () => 'The land is yours to roam.\nFind every vault, cave and crypt.', target: () => null },
   ];
+  // the four region guardians: progress and the nearest one still standing
+  const SEAL_KEYS = ['colossus', 'rimeknight', 'mirehag', 'cragwarlord'];
+  G.sealsBroken = () => SEAL_KEYS.filter(k => G.bossesDead && G.bossesDead[k]).length;
+  G.nextSeal = function () { const P = G.player; let best = null, bd = 1e9;
+    for (const a of GW.World.ARENAS) if (SEAL_KEYS.includes(a.key) && !(G.bossesDead && G.bossesDead[a.key])) { const d = Math.hypot(a.x - P.pos.x, a.z - P.pos.z); if (d < bd) { bd = d; best = { x: a.x, z: a.z }; } }
+    return best; };
+  // checks that don't come from kills: arriving somewhere, forging something, a guardian falling
+  G.questTick = function () {
+    const id = QUESTS[G.stage].id, P = G.player;
+    if (id === 'free') { const fg = (P.inv.arms && P.inv.arms.forge) || {}; if (Object.values(fg).some(w => w && w.metal === 'starfall') || (P.weapon && P.weapon.metal === 'starfall')) {
+        gainXP(300); advance(); whisper('Starfall sings in your hand. Hearthwick waits at the crossroads, north-east along the road. Ask after the old wardens.'); } }
+    else if (id === 'hearth' && !G.dungeon && Math.hypot(P.pos.x - L().hearth.x, P.pos.z - L().hearth.z) < 40) {
+      gainXP(200); advance(); UI.dialog([
+        { who: 'OSWIN · WAYWARDEN', text: 'Another one from the Waking Stone. You have the Warden\'s light on you: so it really fell.' },
+        { who: 'OSWIN · WAYWARDEN', text: 'The vale was only the first page. Four guardians hold the outer lands: the Ash Colossus, the Rime Knight, the Mire Hag and the Crag Warlord.' },
+        { who: 'OSWIN · WAYWARDEN', text: 'Each keeps a seal on the old writing. Break all four, and the crown in Castle Dunmaer will have nothing left to hide behind.' },
+        { who: 'OSWIN · WAYWARDEN', text: 'Mind the map: the further out, the older the glyphs, and the harder they bite. Touch every waystone you pass.' }]); }
+    else if (id === 'seals') { if (G.sealsBroken() >= 4) { gainXP(800); advance(); whisper('All four seals are broken. In the far north-east, Castle Dunmaer has started to burn. Climb it.'); }
+      else if (G._sealN !== G.sealsBroken()) { G._sealN = G.sealsBroken(); refreshQuest(); } }
+  };
+  function crownFallen(e) {
+    G.items = G.items || {}; G.items.crown = true;
+    G.flashWhite = 1; G.shake(1.2); GWAudio.sfx('boom'); GWAudio.sfx('quest');
+    give('shards', 1200); spawnPickup('ingot', 'starfall', e.pos); spawnPickup('rune', 'thirst', e.pos);
+    setTimeout(() => UI.banner('the ninefold is rewritten', 'THE CROWN FALLS', 6), 800);
+    if (QUESTS[G.stage].id === 'dunmaer') { gainXP(1500); setTimeout(() => advance(), 6500); }
+    save();
+  }
   G.quest = () => QUESTS[G.stage];
   G.objective = function () { const q = QUESTS[G.stage]; return q && q.target ? q.target() : null; };
   function refreshQuest() { const q = QUESTS[G.stage]; UI.quest(q.title, q.text(G.counters)); G.questShownT = G.t; }
@@ -12182,7 +12215,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         { who: MARA, text: 'The Warden was set there to keep the vale\'s writing still. Now it only keeps it broken. It slams the ground: when the circle reddens, be elsewhere.' },
         { who: MARA, text: 'Temper your blade. Fill your flask. Then go.' },
       ], () => advance());
-      if (id === 'free') return UI.dialog([{ who: MARA, text: 'Listen. The grass is only grass again. Rest a while, wanderer. Or walk. The vale is yours.' }]);
+      if (id === 'free') return UI.dialog([{ who: MARA, text: 'Listen. The grass is only grass again.' }, { who: MARA, text: 'The Warden left you starfall. Smelt it at an anvil and forge it into your blade: you will need its edge out there.' }, { who: MARA, text: 'Then take the road north-east to Hearthwick. The vale was only the first page.' }]);
+      if (id === 'hearth') return UI.dialog([{ who: MARA, text: 'Hearthwick. North-east, where the roads cross. Oswin keeps the waystones there; he will know what comes next.' }]);
+      if (id === 'seals') return UI.dialog([{ who: MARA, text: `Four guardians, four seals. ${G.sealsBroken()} broken. Each land has its own bite: read the map before you walk into it.` }]);
+      if (id === 'dunmaer') return UI.dialog([{ who: MARA, text: 'The castle in the north-east is burning from the inside. Whatever wears that crown wrote the Warden, and the wolves, and the grass. Unwrite it.' }]);
+      if (id === 'end') return UI.dialog([{ who: MARA, text: 'Listen. The grass is only grass again, all the way to the mountains. Rest a while, wanderer. Or walk. It is yours.' }]);
       if (id === 'boss') return UI.dialog([{ who: MARA, text: 'North. Past the meadow, to the circle of stones. Watch the ground, not its face.' }]);
       return UI.dialog([{ who: MARA, text: ['The fire holds. Go do what you must.', 'When in doubt, roll. The glyphs cannot hold what moves.', 'Hesk has opinions about runes. Let him have them.'][Math.floor(Math.random() * 3)] }]);
     }
@@ -13041,6 +13078,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     GWAudio.sfx('die');
     G.parts.spark.burst(e.pos.x, e.pos.y + 1, e.pos.z, 18, 5, e.T.kind === 'undead' ? 0x80c0ff : 0xffb060, 0.8, 1, -4, 2);
     if (e.T.onDeath) e.T.onDeath(e);
+    if (e.crown) crownFallen(e);
     if (e.type === 'husk') { count('husk'); if (QUESTS[G.stage].id !== 'wake') gainXP(1); else gainXP(e.T.xp); return; }
     gainXP(e.T.xp * (1 + P.ws.xp) * (1 + 0.15 * ((e.lvl || 1) - 1)) * (e.elite ? 3 : 1));
     count(e.type);
@@ -13167,7 +13205,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     for (let k = 0; k < 80; k++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 9; G.parts.spark.emit(e.pos.x, e.pos.y + 3, e.pos.z, Math.cos(a) * s, 3 + Math.random() * 8, Math.sin(a) * s, 2, 1.4, Math.random() < 0.5 ? 0x60d0ff : 0xffd060, -6); }
     GW.World.arenaStones.forEach(s => { s.band.material.uniforms.uEmissive.value.setRGB(0.3, 0.8, 1.0); });
     spawnPickup('ingot', 'starfall', e.pos); spawnPickup('armor', 'horned', e.pos); spawnPickup('armor', 'ember', e.pos); spawnPickup('rune', 'thirst', e.pos); spawnPickup('rune', 'venom', e.pos);
-    setTimeout(() => { UI.banner('VERTICAL SLICE COMPLETE', 'THE WARDEN FALLS', 6); }, 1200);
+    setTimeout(() => { UI.banner('the vale is free · smelt the starfall it left you', 'THE WARDEN FALLS', 6); }, 1200);
     setTimeout(() => { if (QUESTS[G.stage].id === 'boss') advance(); }, 7000);
     save();
   }
@@ -13274,6 +13312,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (top && d.quest && !(G.items && G.items.seal)) {   // the quest's relic waits on the last floor
       const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), GW.mat({ id: ID.RUNE, color: 0, emissive: 0x9a7aff, unlit: true })); m.position.set(ex - 2, 1.3, ez); G.scene.add(m); lv.meshes.push(m);
       W.flames.push({ m, s: 2, base: 1 }); add({ type: 'relic', x: ex - 2, z: ez, r: 2.0, label: "Take the Scribe's Seal", mesh: m });
+    }
+    if (top && d.kind === 'castle' && !(G.items && G.items.crown)) {   // the crown's keeper waits in the last hall
+      const [cx, cz] = lv.end, e = G.spawnEnemy('highguard', cx - 3, cz, { x: cx - 3, z: cz }, false, d.lvl + f + 1, true);
+      e.maxHp = e.hp = Math.round(e.maxHp * 2.5); e.crown = true; e.title = 'THE CROWNED GUARDIAN'; e.model.scale.setScalar(1.7); e.dungeon = true; d.enemies.push(e);
+      UI.hint('Something heavy stirs in the last hall.', 3);
     }
     if (top) { const id = d.id + ':chest'; if (!G.opened[id]) { add({ type: 'chest', x: ex, z: ez, r: 1.8, label: 'Open the chest', id, poi: { seed: d.seed + 5, lvl: d.lvl + f, type: 'elite' } });
         const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.65), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x9a7040 })); box.position.set(ex, 0.3, ez); G.scene.add(box); lv.meshes.push(box); } }
@@ -13787,7 +13830,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         // tutorial hints + boss trigger + zones
         world(sdt);
         // respawn timers
-        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.pzUpdate(); G.landmarkFx(sdt);
+        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.questTick(); G.pzUpdate(); G.landmarkFx(sdt);
         if (frame % 15 === 0) explore();
         if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));
@@ -13823,7 +13866,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         const tg = TELE[e.state];
         if (tg) { const tp = top.clone(); tp.y += 0.6; UI.label('w' + idx, tg, tp, 'name', tg === '!' ? '#ff4030' : '#ffd040'); }
       }
-      for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), (e.elite ? 'Elite ' : '') + e.T.name + ((e.lvl || 1) > 1 ? ' · lv ' + e.lvl : ''), lp, 'name', e.elite ? '#ffb040' : e.aggro ? '#ff9a8a' : '#c8ccd8'); }
+      for (const e of G.enemies) if (e.alive && !e.T.boss && e.type !== 'husk' && (e.aggro || e.distTo(P.pos) < 14)) { const lp = e.pos.clone(); lp.y += e.T.radius * 2 + (e.T.flying ? 2.2 : 1.55); UI.label('n' + G.enemies.indexOf(e), e.title || (e.elite ? 'Elite ' : '') + e.T.name + ((e.lvl || 1) > 1 ? ' · lv ' + e.lvl : ''), lp, 'name', e.elite ? '#ffb040' : e.aggro ? '#ff9a8a' : '#c8ccd8'); }
       for (const n of G.npcs) if (n.pos.distanceTo(P.pos) < 12) { const lp = n.pos.clone(); lp.y += 2.6; UI.label(n, n.name, lp, 'name', '#ffcf6a'); }
       { const B = G.curBoss || G.boss; if (G.bossActive && B.alive) UI.boss(true, B.T.name, B.hp, B.maxHp); }
       G.saveT += dt; if (G.saveT > 20) { G.saveT = 0; save(); UI.saveSettings(); }

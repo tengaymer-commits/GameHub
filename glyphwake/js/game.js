@@ -1238,8 +1238,8 @@
       W.flames.push({ m, s: 2, base: 1 }); add({ type: 'relic', x: ex - 2, z: ez, r: 2.0, label: "Take the Scribe's Seal", mesh: m });
     }
     if (top && d.kind === 'castle' && !(G.items && G.items.crown)) {   // the crown's keeper waits in the last hall
-      const [cx, cz] = lv.end, e = G.spawnEnemy('highguard', cx - 3, cz, { x: cx - 3, z: cz }, false, d.lvl + f + 2, true);
-      e.maxHp = e.hp = e.maxHp * 4; e.crown = true; e.title = 'THE CROWNED GUARDIAN'; e.model.scale.setScalar(1.7); e.dungeon = true; d.enemies.push(e);
+      const [cx, cz] = lv.end, e = G.spawnEnemy('highguard', cx - 3, cz, { x: cx - 3, z: cz }, false, d.lvl + f + 1, true);
+      e.maxHp = e.hp = Math.round(e.maxHp * 2.5); e.crown = true; e.title = 'THE CROWNED GUARDIAN'; e.model.scale.setScalar(1.7); e.dungeon = true; d.enemies.push(e);
       UI.hint('Something heavy stirs in the last hall.', 3);
     }
     if (top) { const id = d.id + ':chest'; if (!G.opened[id]) { add({ type: 'chest', x: ex, z: ez, r: 1.8, label: 'Open the chest', id, poi: { seed: d.seed + 5, lvl: d.lvl + f, type: 'elite' } });
