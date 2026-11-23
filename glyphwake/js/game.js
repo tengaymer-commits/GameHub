@@ -1487,6 +1487,7 @@
       const bx = (_fv.x * 0.5 + 0.5) * Wd, by = (-_fv.y * 0.5 + 0.5) * Hd;
       _fv.set(sp.x, base + 1, sp.z).project(C); const ppm = Math.max(4, Math.hypot((_fv.x * 0.5 + 0.5) * Wd - bx, (-_fv.y * 0.5 + 0.5) * Hd - by));
       const fs = GW.clamp(ppm * (big ? 0.38 : 0.26), 8 * dpr, 36 * dpr), cw = fs * 0.62;
+      if (!isFinite(bx + by + fs)) continue;   // a flame with no valid position yet: skip it rather than break the frame
       // glow
       cx.globalCompositeOperation = 'lighter';
       const gr = cx.createRadialGradient(bx, by - fs, 0, bx, by - fs, fs * (big ? 6 : 3.5));
