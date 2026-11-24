@@ -704,7 +704,10 @@
           P.gear = Object.assign({}, GW.Knight.DEFAULT, d.gear || {}); GW.Knight.dress(P);
           if (d.tod !== undefined) G.tod = d.tod;
           G.castleLooted = !!d.castleLooted; G.items = d.items || {};
-          G.stage = d.stage; G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
+          G.stage = Math.max(0, Math.min(QUESTS.length - 1, d.stage | 0)); G.counters = d.counters || {}; G.respawn = d.respawn; G.bossDead = d.bossDead;
+          // a respawn point that's underground (dungeons live far outside the map), off the map, or broken falls back to the Waking Stone
+          { const r = G.respawn, H = GW.World.HALF - 150; if (!r || !isFinite(r.x) || !isFinite(r.z) || Math.abs(r.x) > H || Math.abs(r.z) > H) G.respawn = null; }
+          if (G.waypoint && (!isFinite(G.waypoint.x) || Math.abs(G.waypoint.x) > GW.World.HALF)) G.waypoint = null;
           if (G.bossDead) killSilently(G.boss);
           G.widowDead = !!d.widowDead; if (G.widowDead) killSilently(G.widow);
           G.bossesDead = d.bossesDead || {}; G.regionBosses.forEach(b => { if (G.bossesDead[b.key]) killSilently(b.e); });
