@@ -185,6 +185,12 @@
     s.dmg *= 1 + 0.06 * SK('b_edge'); s.crit += 0.04 * SK('b_keen'); s.focusRegen *= 1 + 0.15 * SK('y_well');
     this.maxFlasks = 3 + (this.extraFlasks || 0) + SK('g_flask'); this.flasks = Math.min(this.flasks, this.maxFlasks);
     this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
+    // a save from an older build can leave a stat undefined: never let one poison movement or combat
+    const fin = (v, d) => (Number.isFinite(v) ? v : d);
+    this.moveMul = fin(this.moveMul, 1); this.stMul = fin(this.stMul, 1);
+    for (const [k, d] of [['dmg', 10], ['crit', 0.05], ['speed', 1], ['focusRegen', 1], ['burn', 0], ['slow', 0], ['chain', 0], ['poison', 0], ['ward', 0], ['vigor', 0], ['steal', 0], ['xp', 0], ['undead', 0]]) s[k] = fin(s[k], d);
+    for (const k in gs) gs[k] = fin(gs[k], 0);
+    if (!(this.level >= 1)) this.level = 1;
     const vig = (s.vigor || 0) + gs.hp + 15 * SK('g_vigor');
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);

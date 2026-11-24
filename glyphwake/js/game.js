@@ -716,6 +716,9 @@
       G.castleLoot();
       GW.Abil.ensure(P); GW.Arms.ensure(P); GW.Knight.dress(P); UI.refreshAbil && UI.refreshAbil(); UI.refreshArms && UI.refreshArms();
       P.recalc(); P.hp = P.maxHp;
+      // start from a clean stance whatever the save held
+      P.state = 'move'; P.t = 0; P.floor = 0; P.iframe = 0; P.queued = null; if (P.kb) P.kb.set(0, 0, 0); if (P.vel && P.vel.set) P.vel.set(0, 0, 0); if (P.horse) P.horse.ridden = false;
+      if (!Number.isFinite(P.st)) P.st = 100; if (!Number.isFinite(P.fo)) P.fo = 60; if (!Number.isFinite(P.yaw)) P.yaw = Math.PI;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
       G.state = 'play'; $('hud').classList.remove('hidden'); UI.showTouch(true); UI.applyControl();
@@ -1753,6 +1756,10 @@
         P.update(sdt, input, G);
         if (!isFinite(P.pos.x + P.pos.y + P.pos.z)) {   // safety net: a bad position puts the hero back where they last stood
           console.warn('hero position went invalid', JSON.stringify(G._lastGood), P.state);
+          if (!G._nanReported) { G._nanReported = true;   // say once, on screen, which value was bad (helps track down old-save problems)
+            const bad = Object.entries({ moveMul: P.moveMul, buffMove: P.buffMove, speed: P.ws && P.ws.speed, hp: P.hp, maxHp: P.maxHp, st: P.st, yaw: P.yaw, kbx: P.kb && P.kb.x, velx: P.vel && P.vel.x, mvx: P.mvel && P.mvel.x, floor: P.floor, state: P.state })
+              .filter(([k, v]) => typeof v === 'number' ? !Number.isFinite(v) : k === 'state').map(([k, v]) => k + '=' + v).join(' ');
+            UI.toast('<span style="color:#ff8a7a">debug</span> movement reset · ' + bad, 12); }
           const g = G._lastGood || G.respawn || GW.World.L.start; P.pos.set(g.x, GW.World.heightAt(g.x, g.z), g.z); if (P.vel) P.vel.set(0, 0, 0); if (P.mvel) { P.mvel.x = 0; P.mvel.z = 0; } P.state = 'move'; G.snapCam = true;
         } else G._lastGood = { x: P.pos.x, z: P.pos.z };
         for (const e of G.enemies) e.update(sdt, G);
