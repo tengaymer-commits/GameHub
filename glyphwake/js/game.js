@@ -1625,6 +1625,7 @@
     const po = portrait ? 2.6 : 0;
     camT.set(P.pos.x + mvv.x * 0.16 + sy * po, P.pos.y, P.pos.z + mvv.z * 0.16 + cy * po);
     camLook.lerp(camT, Math.min(1, dt * (S.follow ? 7 : 11)));
+    if (!isFinite(camLook.x + camLook.y + camLook.z) && isFinite(camT.x + camT.y + camT.z)) G.snapCam = true;   // never let one bad frame strand the camera
     if (camLook.lengthSq() === 0 || G.snapCam) { camLook.copy(camT); G.snapCam = false; G._camJump = true; }
     const Dc = D * lensK;
     C.position.set(camLook.x + sy * Math.cos(pitch) * Dc, camLook.y + Math.sin(pitch) * Dc, camLook.z + cy * Math.cos(pitch) * Dc);
@@ -1747,6 +1748,10 @@
         GW.Abil.update(G, sdt);
         for (const u of GW.World.grass.push) u.z = 0;
         P.update(sdt, input, G);
+        if (!isFinite(P.pos.x + P.pos.y + P.pos.z)) {   // safety net: a bad position puts the hero back where they last stood
+          console.warn('hero position went invalid', JSON.stringify(G._lastGood), P.state);
+          const g = G._lastGood || G.respawn || GW.World.L.start; P.pos.set(g.x, GW.World.heightAt(g.x, g.z), g.z); if (P.vel) P.vel.set(0, 0, 0); if (P.mvel) { P.mvel.x = 0; P.mvel.z = 0; } P.state = 'move'; G.snapCam = true;
+        } else G._lastGood = { x: P.pos.x, z: P.pos.z };
         for (const e of G.enemies) e.update(sdt, G);
         for (const n of G.npcs) n.update(sdt, G);
         updateProjectiles(sdt); updateBoulders(sdt); updatePickups(sdt);
