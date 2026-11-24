@@ -469,6 +469,13 @@
     const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const ms = $('o-mapstyle'); if (ms) { ms.value = S.mapStyle || 'tour'; ms.onchange = () => { S.mapStyle = ms.value; UI.saveSettings(); }; }
+    const cs = $('o-copysave'); if (cs) cs.onclick = () => {
+      let txt = ''; try { txt = localStorage.getItem('glyphwake.save.v1') || ''; } catch (e) { /* storage blocked */ }
+      if (!txt) { UI.toast('No save found', 2); return; }
+      const done = () => UI.toast('Save copied: paste it into the chat', 3);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { prompt('Copy your save:', txt); });
+      else prompt('Copy your save:', txt);
+    };
     const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };

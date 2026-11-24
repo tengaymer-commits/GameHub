@@ -419,6 +419,7 @@ body.touch #hotbar { display: none; }
   <label>Enemies respawn when you rest (souls-like) <input type="checkbox" id="o-respawn" /></label>
   <label>Night hunts (packs roam after dark) <input type="checkbox" id="o-hunts" /></label>
   <label>Reveal the whole map (testing; off = fog of war) <input type="checkbox" id="o-reveal" /></label>
+  <label>Copy your save (to send for a bug report) <button class="btn sm ghost" id="o-copysave" type="button">Copy save</button></label>
   <label>Map style <select id="o-mapstyle"><option value="tour">Touring map</option><option value="ascii">ASCII relief</option><option value="ink">Explorer's ink</option><option value="mosaic">Glyph mosaic</option></select></label>
   <label>Time of day
     <select id="o-time"><option value="cycle">Day / night cycle</option><option value="day">Always day</option><option value="night">Always night</option></select>
@@ -9249,6 +9250,12 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     s.dmg *= 1 + 0.06 * SK('b_edge'); s.crit += 0.04 * SK('b_keen'); s.focusRegen *= 1 + 0.15 * SK('y_well');
     this.maxFlasks = 3 + (this.extraFlasks || 0) + SK('g_flask'); this.flasks = Math.min(this.flasks, this.maxFlasks);
     this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
+    // a save from an older build can leave a stat undefined: never let one poison movement or combat
+    const fin = (v, d) => (Number.isFinite(v) ? v : d);
+    this.moveMul = fin(this.moveMul, 1); this.stMul = fin(this.stMul, 1);
+    for (const [k, d] of [['dmg', 10], ['crit', 0.05], ['speed', 1], ['focusRegen', 1], ['burn', 0], ['slow', 0], ['chain', 0], ['poison', 0], ['ward', 0], ['vigor', 0], ['steal', 0], ['xp', 0], ['undead', 0]]) s[k] = fin(s[k], d);
+    for (const k in gs) gs[k] = fin(gs[k], 0);
+    if (!(this.level >= 1)) this.level = 1;
     const vig = (s.vigor || 0) + gs.hp + 15 * SK('g_vigor');
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);
@@ -11643,6 +11650,13 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const vd = $('o-viewdist'); vd.value = String(S.viewDist || 1); vd.onchange = () => { S.viewDist = +vd.value; UI.saveSettings(); };
     const fpsEl = $('o-fps'); fpsEl.checked = S.showFps !== false; fpsEl.onchange = () => { S.showFps = fpsEl.checked; UI.saveSettings(); };
     const ms = $('o-mapstyle'); if (ms) { ms.value = S.mapStyle || 'tour'; ms.onchange = () => { S.mapStyle = ms.value; UI.saveSettings(); }; }
+    const cs = $('o-copysave'); if (cs) cs.onclick = () => {
+      let txt = ''; try { txt = localStorage.getItem('glyphwake.save.v1') || ''; } catch (e) { /* storage blocked */ }
+      if (!txt) { UI.toast('No save found', 2); return; }
+      const done = () => UI.toast('Save copied: paste it into the chat', 3);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { prompt('Copy your save:', txt); });
+      else prompt('Copy your save:', txt);
+    };
     const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };
@@ -12792,6 +12806,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       G.castleLoot();
       GW.Abil.ensure(P); GW.Arms.ensure(P); GW.Knight.dress(P); UI.refreshAbil && UI.refreshAbil(); UI.refreshArms && UI.refreshArms();
       P.recalc(); P.hp = P.maxHp;
+      // start from a clean stance whatever the save held
+      P.state = 'move'; P.t = 0; P.floor = 0; P.iframe = 0; P.queued = null; if (P.kb) P.kb.set(0, 0, 0); if (P.vel && P.vel.set) P.vel.set(0, 0, 0); if (P.horse) P.horse.ridden = false;
+      if (!Number.isFinite(P.st)) P.st = 100; if (!Number.isFinite(P.fo)) P.fo = 60; if (!Number.isFinite(P.yaw)) P.yaw = Math.PI;
       const sp = G.respawn || { x: Lw.start.x, z: Lw.start.z + 5 };
       P.place(sp.x, sp.z + (G.respawn ? 2.2 : 0)); P.yaw = Math.PI; P.visYaw = Math.PI;
       G.state = 'play'; $('hud').classList.remove('hidden'); UI.showTouch(true); UI.applyControl();
@@ -13829,6 +13846,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         P.update(sdt, input, G);
         if (!isFinite(P.pos.x + P.pos.y + P.pos.z)) {   // safety net: a bad position puts the hero back where they last stood
           console.warn('hero position went invalid', JSON.stringify(G._lastGood), P.state);
+          if (!G._nanReported) { G._nanReported = true;   // say once, on screen, which value was bad (helps track down old-save problems)
+            const bad = Object.entries({ moveMul: P.moveMul, buffMove: P.buffMove, speed: P.ws && P.ws.speed, hp: P.hp, maxHp: P.maxHp, st: P.st, yaw: P.yaw, kbx: P.kb && P.kb.x, velx: P.vel && P.vel.x, mvx: P.mvel && P.mvel.x, floor: P.floor, state: P.state })
+              .filter(([k, v]) => typeof v === 'number' ? !Number.isFinite(v) : k === 'state').map(([k, v]) => k + '=' + v).join(' ');
+            UI.toast('<span style="color:#ff8a7a">debug</span> movement reset · ' + bad, 12); }
           const g = G._lastGood || G.respawn || GW.World.L.start; P.pos.set(g.x, GW.World.heightAt(g.x, g.z), g.z); if (P.vel) P.vel.set(0, 0, 0); if (P.mvel) { P.mvel.x = 0; P.mvel.z = 0; } P.state = 'move'; G.snapCam = true;
         } else G._lastGood = { x: P.pos.x, z: P.pos.z };
         for (const e of G.enemies) e.update(sdt, G);
