@@ -1817,7 +1817,7 @@
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
-  W.levelAt = (x, z) => 1 + Math.floor(Math.hypot(x, z) / LVLD);
+  W.enemyLevelAt = (x, z) => 1 + Math.floor(Math.hypot(x, z) / LVLD);
   W.regionLevels = key => { const D = W.mapData(), i = key === 'vale' ? 0 : BIOMES.indexOf(key) + 1; return D.levels[i] || [1, 1]; };
   // how dangerous a level is for the hero: green (easy) → gold → orange → red (deadly)
   W.dangerCol = (lvl, me) => { const d = lvl - me; return d <= 0 ? '#8ad08a' : d <= 2 ? '#e8d070' : d <= 4 ? '#ff9a50' : '#ff5040'; };
@@ -1836,7 +1836,7 @@
       let bi = 0, bv = 0.5; for (let q = 0; q < 6; q++) if (f.bw[q] > bv) { bv = f.bw[q]; bi = q + 1; }
       B[k] = bi; BW[k] = bi ? bv : 1 - Math.max(...f.bw);
       Lk[k] = Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72 ? 1 : 0;
-      if (Math.max(Math.abs(x), Math.abs(z)) < HALF - 200) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; lh[bi][Math.min(63, W.levelAt(x, z))]++; }
+      if (Math.max(Math.abs(x), Math.abs(z)) < HALF - 200) { const c = cen[bi]; c[0] += x; c[1] += z; c[2]++; lh[bi][Math.min(63, W.enemyLevelAt(x, z))]++; }
     }
     const centroids = cen.map(c => c[2] ? { x: c[0] / c[2], z: c[1] / c[2] } : null);
     // each region's level band: the 5th to 95th percentile of the land it covers
