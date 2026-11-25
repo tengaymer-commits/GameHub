@@ -1375,6 +1375,7 @@
     for (let k = 0; k < 3; k++) {
       if (!idx[k].length) continue;
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P[k], 3)); g.setIndex(idx[k]); g.computeVertexNormals();
+      { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }   // always face the sky
       const m = new THREE.Mesh(g, roadMat(k)); m.renderOrder = -5; m.receiveShadow = true; scene.add(m); out.push(m);
     }
   }
