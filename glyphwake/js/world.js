@@ -309,7 +309,7 @@
     return out;
   }
   const PATHP = PATHS.map((p, i) => catmull(PATH_KIND[i] ? relaxRoad(p) : p, PATH_KIND[i] ? 3 : 8));
-  W.lakeAt = (x, z) => LAKES.find(Lk => Math.hypot(x - Lk.x, z - Lk.z) < Lk.r + 4) || null;
+
   // rivers and lakes share one index: each segment knows its water level and how much wider (or narrower) than the Glass River it is
   const waterPolys = RIVERS.map(R => R.pts).concat(LAKES.map(Lk => [[Lk.x, Lk.z], [Lk.x + 0.01, Lk.z]]));
   const waterYs = RIVERS.map(R => R.ys).concat(LAKES.map(Lk => [Lk.y, Lk.y]));
@@ -419,7 +419,6 @@
     for (const p of W.poisNear(cx, cz, 480)) footFor(p);
     return segsNear(FIDX, x0, z0, x1, z1);
   }
-  W.footFor = footFor;
   const dcache = new Map(); let _lk = null, _lc = null;
   function computeChunk(ci, cj) {
     const n = DN * DN, c = { K: new Uint8Array(n), H: new Float32Array(n), G: new Float32Array(n), R: new Float32Array(n), P: new Float32Array(n), RY: new Float32Array(n), B: new Uint8Array(n * 6) };
@@ -2004,6 +2003,7 @@
   W.dangerCol = (lvl, me) => { const d = lvl - me; return d <= 0 ? '#8ad08a' : d <= 2 ? '#e8d070' : d <= 4 ? '#ff9a50' : '#ff5040'; };
   W.ARENAS = ARENAS; W.VS = VS; W.WS = WS; W.LVLD = LVLD; W.HALF = HALF;
   findBridges();
+  W.lakeAt = (x, z) => LAKES.find(Lk => Math.hypot(x - Lk.x, z - Lk.z) < Lk.r + 4) || null; W.footFor = footFor;
   W.RIVER_LINE = RIVER; W.RIVER_LINES = RIVERS; W.LAKES = LAKES; W.BRIDGES = BRIDGES; W.ROAD_KINDS = PATH_KIND; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {
