@@ -1846,6 +1846,7 @@
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
           float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           keep *= step(-0.3, m.g);   // burnt ground: no grass
+          keep *= max(smoothstep(0.9, 2.2, m.a) > fract(sd * 2.9) ? 1.0 : 0.0, step(0.93, fract(sd * 3.7)));   // roads and paths: worn bare, a few stray blades
           // dark earth patches (matching the ground shader's o 0 8 letters): only a few straws survive there
           float thr = 1.0 - 0.32 * uGroundO, pv = vn(wp * 0.11 + 5.0) * 0.7 + vn(wp * 0.37 + 1.7) * 0.3;
           float patchK = smoothstep(thr - 0.05, thr + 0.03, pv) * step(0.01, uGroundO);
