@@ -417,9 +417,11 @@
       if (bp && bd > 30) {
         const dx = (bp[0] - p.x) / bd, dz = (bp[1] - p.z) / bd, bend = (hsh(p.x * 0.01, p.z * 0.01) - 0.5) * 0.35 * bd;
         const R0 = { camp: 17, ruin: 18, elite: 13, puzzle: 12, cave: 0, vista: 7, shrine: 4, waystone: 4, wanderer: 5 }[p.type] || 9;
-        const a = p.type === 'cave' ? [p.x, p.z + 7.5] : [p.x + dx * R0, p.z + dz * R0], m = [p.x + dx * bd * 0.5 - dz * bend, p.z + dz * bd * 0.5 + dx * bend];
-        const pts = catmull([a, m, bp], 6);
-        let wet = false; for (const q of pts) if (nearest(segsNear(RIDX, q[0] - 1, q[1] - 1, q[0] + 1, q[1] + 1), q[0], q[1], 60)[0] < RIVER_W + 2) { wet = true; break; }
+        const a = p.type === 'cave' ? [p.x, p.z + 9.5] : [p.x + dx * R0, p.z + dz * R0], m = [p.x + dx * bd * 0.5 - dz * bend, p.z + dz * bd * 0.5 + dx * bend];
+        // a cave's trail leaves from its mouth (+z); if the road lies behind the mound, step round its side first
+        const via = p.type === 'cave' && dz < 0.2 ? [[p.x + (dx >= 0 ? 15 : -15), p.z + 6]] : [];
+        const pts = catmull([a].concat(via, [m, bp]), 6);
+        let wet = false; for (const q of pts) if (nearest(segsNear(RIDX, q[0] - 1, q[1] - 1, q[0] + 1, q[1] + 1), q[0], q[1], 60)[0] < RIVER_W + 2 || STOPS.some(st => Math.hypot(q[0] - st[0], q[1] - st[1]) < st[2] + 14)) { wet = true; break; }   // no wading, and never through a village
         if (!wet) path = pts;
       }
     }
