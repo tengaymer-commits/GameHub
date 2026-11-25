@@ -640,8 +640,8 @@
       const pf = 1 - ss(0.8, 2.6, pd), dm = Math.max(pf, (1 - Math.max(0, g)) * 0.6), kd = ch.K ? ch.K[k] : 0;
       if (kd === 2 && pf > 0.05) {   // the King's roads: grey cobbles
         const cb = 0.78 + 0.22 * ((Math.floor(x * 1.3) + Math.floor(z * 1.3)) & 1) * (0.7 + 0.3 * Math.sin(x * 3.1 + z * 2.3));
-        c0 = GW.lerp(c0, 0.23 * cb, pf); c1 = GW.lerp(c1, 0.22 * cb, pf); c2 = GW.lerp(c2, 0.21 * cb, pf);
-      } else { const t = kd === 1 ? [0.22, 0.17, 0.11] : [0.2, 0.16, 0.11]; c0 = GW.lerp(c0, t[0], dm); c1 = GW.lerp(c1, t[1], dm); c2 = GW.lerp(c2, t[2], dm); }
+        c0 = GW.lerp(c0, 0.46 * cb, pf); c1 = GW.lerp(c1, 0.44 * cb, pf); c2 = GW.lerp(c2, 0.41 * cb, pf);
+      } else { const t = kd === 1 ? [0.42, 0.33, 0.22] : [0.36, 0.29, 0.19], k2 = pf > 0.05 ? pf : dm; c0 = GW.lerp(c0, t[0], k2); c1 = GW.lerp(c1, t[1], k2); c2 = GW.lerp(c2, t[2], k2); }
       for (let q = 0; q < 6; q++) if (bwT[q] > 0.01) { const w = bwT[q] * (1 - pf * 0.5), B = BIO_GROUND[q]; c0 = GW.lerp(c0, B[0] * n, w); c1 = GW.lerp(c1, B[1] * n, w); c2 = GW.lerp(c2, B[2] * n, w); }
       if (g < -1) { c0 = 0.085; c1 = 0.06; c2 = 0.045; }
       if (Math.abs(x - L.frostLake.x) < 80 && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 74) { c0 = 0.32; c1 = 0.42; c2 = 0.52; }
