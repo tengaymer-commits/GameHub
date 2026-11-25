@@ -90,7 +90,7 @@
   const PATHS = [
     [[3, 326], [4.4, 264], [-4.4, 202.4], [0, 149]],
     [[0, 115], [-13.2, 17.6], [-17.6, -57.2], [8.8, -132], [35.2, -198], [52.8, -255.2], [35.2, -352], [13.2, -422.4], [10, -436]],
-    [[-17, 132], [-132, 149.6], [-211.2, 132], [-262, 162], [-290, 174]],
+    [[-17, 132], [-132, 149.6], [-206, 121], [-262, 162], [-290, 174]],
     [[17, 132], [140.8, 118.8], [228.8, 145.2], [334.4, 158.4]],
     [[61.6, -255.2], [132, -237.6], [193.6, -224.4], [242, -224.4], [242, -246.4]],
     // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
@@ -100,7 +100,7 @@
     [[1500, -1477.5], [2100, -750], [2850, 300], [3900, 1350], [5100, 2550], [6720, 3855]],
     [[1500, -1522.5], [1050, -2400], [600, -3450], [360, -4500], [120, -5700], [-180, -6900], [-435, -7740]],
     // the Vale to the Mire and Duskwood (west) and the Salt Wastes (south)
-    [[-211.2, 132], [-262, 238], [-1050, 495], [-2100, 1050], [-3600, 1800], [-5100, 2850], [-6720, 3870]],
+    [[-262, 162], [-262, 238], [-1050, 495], [-2100, 1050], [-3600, 1800], [-5100, 2850], [-6720, 3870]],
     [[10, -436], [-60, -430], [-400, -560], [-1500, -1200], [-3000, -1950], [-4500, -2700], [-5400, -3240], [-6720, -3885]],
     [[14, 330], [24, 362], [40, 640], [-30, 1800], [180, 3600], [-90, 5400], [0, 7755]],
     // the old ring road between the region hubs
@@ -308,7 +308,24 @@
     }
     return out;
   }
-  const PATHP = PATHS.map((p, i) => catmull(PATH_KIND[i] ? relaxRoad(p) : p, PATH_KIND[i] ? 3 : 8));
+  const PATHP0 = PATHS.map((p, i) => catmull(PATH_KIND[i] ? relaxRoad(p) : p, PATH_KIND[i] ? 3 : 8));
+  const STOPS = ['hearth', 'abbey', 'vfrost', 'high', 'cinder', 'vash', 'salt', 'mire', 'dusk'].map(k => [L[k].x, L[k].z, 29]).concat([[L.dunmaer.x, L.dunmaer.z, 34]]);
+  const PATHP = [], PK = [];
+  PATHP0.forEach((poly, i) => {
+    let run = [];
+    const flush = () => { if (run.length > 1) { PATHP.push(run); PK.push(PATH_KIND[i]); } run = []; };
+    for (let k = 0; k < poly.length; k++) {
+      const q = poly[k], inStop = STOPS.find(s => Math.hypot(q[0] - s[0], q[1] - s[1]) < s[2]);
+      if (inStop) { if (run.length) { const s0 = inStop, a = run[run.length - 1], d = Math.hypot(q[0] - s0[0], q[1] - s0[1]); void d; run.push([s0[0] + (a[0] - s0[0]) * s0[2] / Math.hypot(a[0] - s0[0], a[1] - s0[1]), s0[1] + (a[1] - s0[1]) * s0[2] / Math.hypot(a[0] - s0[0], a[1] - s0[1])]); } flush();
+        // start the next run on the village edge, toward the next point outside
+        const nx = poly.slice(k + 1).find(q2 => Math.hypot(q2[0] - inStop[0], q2[1] - inStop[1]) >= inStop[2]); if (nx) { const L0 = Math.hypot(nx[0] - inStop[0], nx[1] - inStop[1]); run = [[inStop[0] + (nx[0] - inStop[0]) * inStop[2] / L0, inStop[1] + (nx[1] - inStop[1]) * inStop[2] / L0]]; }
+        while (k + 1 < poly.length && STOPS.find(s => s === inStop && Math.hypot(poly[k + 1][0] - s[0], poly[k + 1][1] - s[1]) < s[2])) k++;
+        continue; }
+      run.push(q);
+    }
+    flush();
+  });
+  PATH_KIND.length = 0; PK.forEach(k => PATH_KIND.push(k));
 
   // rivers and lakes share one index: each segment knows its water level and how much wider (or narrower) than the Glass River it is
   const waterPolys = RIVERS.map(R => R.pts).concat(LAKES.map(Lk => [[Lk.x, Lk.z], [Lk.x + 0.01, Lk.z]]));
@@ -1236,7 +1253,7 @@
     const ok = r0 < 0.84 && Math.hypot(x, z) > 640 && Math.max(Math.abs(x), Math.abs(z)) < HALF - 350
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
       && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
-      && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 16;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
+      && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 26;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
     if (ok) {
       const bwp = biomeW(x, z); let region = 'vale', rbv = 0.5; bwp.forEach((v, q) => { if (v > rbv) { rbv = v; region = BIOMES[q]; } });   // straight from the formula: no data chunk needed
       const w = POI_W[region] || POI_W.vale; let roll = hsh(i * 1.3 + 5.5, j * 2.9 + 1.1), type = 'camp';
