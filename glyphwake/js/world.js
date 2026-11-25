@@ -673,6 +673,7 @@
 
     // ---- water ----
     W.waterMat = buildWater(scene);
+    roadStrips(-CHK * 3, -CHK * 3, CHK * 3, CHK * 3, scene, []);   // the hand-made Vale's chunks aren't streamed: lay its paths once
 
     // ---- grass ----
     W.grass = buildGrass(scene, tMap, opts.grassCount || 26000);
@@ -1351,6 +1352,33 @@
   }
   const CRYSTAL_G = new THREE.OctahedronGeometry(0.22, 0), crystalMats = {};
   const crystalMat = c => crystalMats[c] || (crystalMats[c] = GW.mat({ id: ID.RUNE, color: 0, emissive: c, unlit: true }));
+  // ---- road surfaces: a strip of glyph-textured ground laid along each road inside a box (bare earth alone reads as black) ----
+  const ROAD_HW = [1.45, 3.0, 4.45], roadMats = {};
+  const roadMat = k => roadMats[k] || (roadMats[k] = GW.mat(k === 2 ? { id: ID.ROCK, tex: 6, color: 0x9a948a, fill: 0.08 } : k === 1 ? { id: ID.ROCK, tex: 6, color: 0x8a7458, fill: 0.06 } : { id: ID.ROCK, tex: 6, color: 0x7e6c54, fill: 0.05 }));
+  function roadStrips(x0, z0, x1, z1, scene, out) {
+    const P = [[], [], []], idx = [[], [], []];
+    const lay = (seg, kind, hw) => {
+      const L0 = Math.sqrt(seg.l2), n = Math.max(1, Math.ceil(L0 / 3)), nx = -seg.dz / L0, nz = seg.dx / L0;
+      let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, x = seg.ax + seg.dx * t, z = seg.az + seg.dz * t;
+        const inside = x > x0 - 2 && x < x1 + 2 && z > z0 - 2 && z < z1 + 2 && !W.onBridge(x, z) && sample('R', x, z) > RIVER_W + 0.3;
+        if (!inside) { prev = null; continue; }
+        const y = W.heightAt(x, z) + 0.07, A = P[kind], base = A.length / 3;
+        A.push(x - nx * hw, W.heightAt(x - nx * hw, z - nz * hw) + 0.07, z - nz * hw, x + nx * hw, W.heightAt(x + nx * hw, z + nz * hw) + 0.07, z + nz * hw);
+        if (prev !== null) idx[kind].push(prev, base, prev + 1, prev + 1, base, base + 1);
+        prev = base; void y;
+      }
+    };
+    for (const sg of segsNear(PIDX, x0, z0, x1, z1)) lay(sg, sg.k, ROAD_HW[sg.k]);
+    for (const sg of segsNear(FIDX, x0, z0, x1, z1)) lay(sg, 0, 1.15);
+    for (let k = 0; k < 3; k++) {
+      if (!idx[k].length) continue;
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P[k], 3)); g.setIndex(idx[k]); g.computeVertexNormals();
+      const m = new THREE.Mesh(g, roadMat(k)); m.renderOrder = -5; m.receiveShadow = true; scene.add(m); out.push(m);
+    }
+  }
+  W.roadStrips = roadStrips;
   function genChunk(ci, cj, scene) {
     const rnd = GW.rand(((ci * 7919 + cj * 104729) >>> 0) % 2147483646 + 1);
     const batch = new Batch(), cols = [];
@@ -1413,6 +1441,7 @@
       }
     }
     const meshes = veinGroups.slice(); batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
+    roadStrips(x0, z0, x0 + CHK, z0 + CHK, scene, meshes);
     return { meshes, cols, inter };
   }
   W.stream = function (px, pz, scene, budget) {
