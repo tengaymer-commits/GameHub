@@ -1356,7 +1356,7 @@
   const ROAD_HW = [1.45, 3.0, 4.45], roadMats = {};
   const roadMat = k => roadMats[k] || (roadMats[k] = GW.mat(k === 2 ? { id: ID.ROCK, tex: 6, color: 0x9a948a, fill: 0.08 } : k === 1 ? { id: ID.ROCK, tex: 6, color: 0x8a7458, fill: 0.06 } : { id: ID.ROCK, tex: 6, color: 0x7e6c54, fill: 0.05 }));
   function roadStrips(x0, z0, x1, z1, scene, out) {
-    const P = [[], [], []], idx = [[], [], []];
+    const P = [[], [], []], UV = [[], [], []], idx = [[], [], []];
     const lay = (seg, kind, hw) => {
       const L0 = Math.sqrt(seg.l2), n = Math.max(1, Math.ceil(L0 / 3)), nx = -seg.dz / L0, nz = seg.dx / L0;
       let prev = null;
@@ -1366,6 +1366,7 @@
         if (!inside) { prev = null; continue; }
         const y = W.heightAt(x, z) + 0.07, A = P[kind], base = A.length / 3;
         A.push(x - nx * hw, W.heightAt(x - nx * hw, z - nz * hw) + 0.07, z - nz * hw, x + nx * hw, W.heightAt(x + nx * hw, z + nz * hw) + 0.07, z + nz * hw);
+        const along = (seg.ax * 0.37 + seg.az * 0.61 + L0 * t) * 0.5; UV[kind].push(0, along, hw, along);   // letters run along the road
         if (prev !== null) idx[kind].push(prev, base, prev + 1, prev + 1, base, base + 1);
         prev = base; void y;
       }
@@ -1374,7 +1375,7 @@
     for (const sg of segsNear(FIDX, x0, z0, x1, z1)) lay(sg, 0, 1.15);
     for (let k = 0; k < 3; k++) {
       if (!idx[k].length) continue;
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P[k], 3)); g.setIndex(idx[k]); g.computeVertexNormals();
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P[k], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV[k], 2)); g.setIndex(idx[k]); g.computeVertexNormals();
       { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }   // always face the sky
       const m = new THREE.Mesh(g, roadMat(k)); m.renderOrder = -5; m.receiveShadow = true; scene.add(m); out.push(m);
     }
