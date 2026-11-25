@@ -1354,7 +1354,7 @@
   const crystalMat = c => crystalMats[c] || (crystalMats[c] = GW.mat({ id: ID.RUNE, color: 0, emissive: c, unlit: true }));
   // ---- road surfaces: a strip of glyph-textured ground laid along each road inside a box (bare earth alone reads as black) ----
   const ROAD_HW = [1.45, 3.0, 4.45], roadMats = {};
-  const roadMat = k => roadMats[k] || (roadMats[k] = GW.mat(k === 2 ? { id: ID.ROCK, tex: 6, color: 0x9a948a, fill: 0.08 } : k === 1 ? { id: ID.ROCK, tex: 6, color: 0x8a7458, fill: 0.06 } : { id: ID.ROCK, tex: 6, color: 0x7e6c54, fill: 0.05 }));
+  const roadMat = k => roadMats[k] || (roadMats[k] = GW.mat(Object.assign({ side: THREE.DoubleSide }, k === 2 ? { id: ID.ROCK, tex: 6, color: 0x9a948a, fill: 0.08 } : k === 1 ? { id: ID.ROCK, tex: 6, color: 0x8a7458, fill: 0.06 } : { id: ID.ROCK, tex: 6, color: 0x7e6c54, fill: 0.05 })));
   function roadStrips(x0, z0, x1, z1, scene, out) {
     const P = [[], [], []], UV = [[], [], []], idx = [[], [], []];
     const lay = (seg, kind, hw) => {
