@@ -156,15 +156,35 @@
     const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
     const poly = (pts, style, width, dash) => { g.strokeStyle = style; g.lineWidth = width; g.setLineDash(dash || []); g.beginPath(); pts.forEach((p, i) => { const [a, b] = to(p[0], p[1]); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); };
     g.lineCap = 'round'; g.lineJoin = 'round';
+    const roadSeen = r => r.some(p => seen(p[0], p[1]));
+    const onScr = (x, y, m) => x > -m && y > -m && x < w + m && y < h + m;
+    const RK = W.ROAD_KINDS || [];
+    const lakeFill = (Lk, fill, edge) => { const [cx, cy] = to(Lk.x, Lk.z); g.fillStyle = fill; g.beginPath(); g.arc(cx, cy, Math.max(2.5, Lk.r * px), 0, Math.PI * 2); g.fill(); if (edge) { g.strokeStyle = edge; g.lineWidth = 1; g.stroke(); } };
     if (ST === 'ink') {
-      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(90,50,24,.8)', Math.max(1.2, 1.6 * px), [6, 3, 1, 3]); }
-      poly(W.RIVER_LINE, 'rgba(42,78,114,.85)', Math.max(2, W.RIVER_W * 1.6 * px), []); poly(W.RIVER_LINE, 'rgba(205,187,144,.9)', Math.max(0.6, W.RIVER_W * 0.5 * px), []);
+      W.ROAD_LINES.forEach((r, i) => { if (!roadSeen(r)) return; const k = RK[i] || 0;
+        poly(r, 'rgba(90,50,24,.85)', Math.max(k === 2 ? 2.2 : k ? 1.4 : 0.9, (k === 2 ? 3 : k ? 2 : 1.2) * px), k === 2 ? [] : k ? [6, 3] : [2, 3]); });
+      for (const R of W.RIVER_LINES) { poly(R.pts, 'rgba(42,78,114,.85)', Math.max(R.w > 3 ? 2 : 1.3, R.w * 1.6 * px), []); if (R.w > 3) poly(R.pts, 'rgba(205,187,144,.9)', Math.max(0.6, R.w * 0.5 * px), []); }
+      for (const Lk of W.LAKES) if (seen(Lk.x, Lk.z)) lakeFill(Lk, 'rgba(42,78,114,.8)', 'rgba(90,50,24,.6)');
     } else {
-      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,200,120,.9)' : 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), ST === 'ascii' ? [1, 4] : [5, 4]); }
-      poly(W.RIVER_LINE, 'rgba(10,24,48,.9)', Math.max(4, W.RIVER_W * 2.6 * px), []);
-      poly(W.RIVER_LINE, 'rgba(96,160,240,.95)', Math.max(2, W.RIVER_W * 1.7 * px), []);
-      poly(W.RIVER_LINE, 'rgba(200,228,255,.55)', 1, [2, 6]);
+      // King's roads: wide and bright; roads: a solid line; paths: a dotted trail
+      W.ROAD_LINES.forEach((r, i) => { if (!roadSeen(r)) return; const k = RK[i] || 0;
+        if (k === 2) { poly(r, 'rgba(20,14,8,.85)', Math.max(4.5, 7 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,214,150,.95)' : 'rgba(236,200,140,.92)', Math.max(2, 3 * px), []); }
+        else if (k === 1) { poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,200,120,.9)' : 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), ST === 'ascii' ? [1, 3] : [6, 4]); }
+        else poly(r, 'rgba(214,176,120,.7)', Math.max(1, 1.1 * px), [1.5, 3]); });
+      for (const R of W.RIVER_LINES) {
+        poly(R.pts, 'rgba(10,24,48,.9)', Math.max(R.w > 3 ? 4 : 2.6, R.w * 2.6 * px), []);
+        poly(R.pts, 'rgba(96,160,240,.95)', Math.max(R.w > 3 ? 2 : 1.3, R.w * 1.7 * px), []);
+        if (R.w > 3) poly(R.pts, 'rgba(200,228,255,.55)', 1, [2, 6]);
+      }
+      for (const Lk of W.LAKES) if (seen(Lk.x, Lk.z)) lakeFill(Lk, 'rgba(70,130,215,.9)', 'rgba(10,24,48,.9)');
     }
+    // bridges: a small plank mark where a road crosses water
+    if (px > 0.25) for (const bdg of (W.BRIDGES || [])) { if (!seen(bdg.x, bdg.z)) continue; const [bx, by] = to(bdg.x, bdg.z); g.save(); g.translate(bx, by); g.rotate(Math.atan2(bdg.dz, bdg.dx));
+      g.fillStyle = bdg.kind === 2 ? '#d8d4cc' : '#c89a60'; g.fillRect(-Math.max(4, bdg.len * px / 2), -2, Math.max(8, bdg.len * px), 4); g.restore(); }
+    // water names once you're close enough to read them
+    if (WM.zoom > 1.6 && WM.zoom < 9) { g.font = `italic ${Math.round(GW.clamp(9 + WM.zoom, 11, 15))}px Georgia, serif`;
+      for (const R of W.RIVER_LINES) { const m = R.pts[Math.floor(R.pts.length * 0.42)]; if (!seen(m[0], m[1])) continue; const [lx, ly] = to(m[0], m[1]); if (onScr(lx, ly, 40)) halo(g, R.name.toLowerCase(), lx, ly - 10, 'rgba(160,200,255,.9)', 3); }
+      for (const Lk of W.LAKES) { if (!seen(Lk.x, Lk.z) || Lk.r < 50) continue; const [lx, ly] = to(Lk.x, Lk.z); if (onScr(lx, ly, 40)) halo(g, Lk.name.toLowerCase(), lx, ly + Math.max(10, Lk.r * px) + 10, 'rgba(160,200,255,.9)', 3); } }
     g.setLineDash([]);
     // the old-chart grid: 1 km squares, lettered and numbered at the frame
     g.strokeStyle = ST === 'ink' ? 'rgba(60,40,20,.18)' : 'rgba(220,210,180,.07)'; g.lineWidth = 1;
