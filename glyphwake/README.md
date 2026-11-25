@@ -166,6 +166,13 @@ Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise
 - **Hollow Ruins** is 1.7× wider, with five walls, 20 pillars, six arches and 12 Hollows. **Points of interest** are bigger too: camps have 4 huts and a cart with 4–6 enemies, ruins have wider rings, and caves sit in a big rock mound with a 1.45× arch.
 - **Three tombs** surround Hollow Ruins: *the Nameless*, *the Scribe's* (2 floors) and *the Sexton's*. Walk to the lanterns and press **E** to go underground. A new quest step, **Beneath the Scriptorium**, sends you to find **the Scribe's Seal** on the Scribe's Tomb's second floor, which introduces dungeons early.
 
+## Roads, rivers and lakes
+- **Three kinds of road.** The **King's roads** run from the Vale and Hearthwick to every region hub: wide grey cobbles, with stone bridges. The **roads** are packed dirt with timber bridges; they include the ring road between the hubs and the castle road up to Dunmaer. **Paths** are the Vale's footpaths, the trails from each hub to its guardian's grounds and to the water, and worn trails from the roads out to nearby camps, ruins, caves, shrines and puzzles. Roads are drawn as glyph-textured strips on the ground, grass wears away on them, and long roads bend around steep ground and lakes.
+- **Rivers run downhill.** The Glass River crosses the world west to east. Four tributaries feed it from the high ground: **the Rimerun** (from the northern mountains, past Frostmere), **Cragwater** (out of the Highlands), **the Dimwater** (through Duskwood) and **Cinderbrook** (across the Ashen Barrens). **The Sallow** runs down from the southern rim into **Bogwater Mere** in the Mire. Water levels only ever fall downstream, and tributaries meet the Glass River at its level.
+- **Twelve lakes and ponds**, from Bogwater Mere and the High Tarn to small springs and oases in the Salt Wastes and a millpond by Hearthwick.
+- **Bridges** stand wherever a road or trail crosses a river; you walk over them instead of wading.
+- **The world map** draws the road kinds differently, every river at its width, the lakes and bridges, and names the waters as you zoom in.
+
 ## Puzzles that hide loot
 About one wilderness site in ten is a puzzle (a purple **?** on the map). Each guards an elite-quality cache, gives XP when solved, and stays solved in your save.
 - **Rune vault:** read the tablet (it shows four runes, e.g. `◇ ✕ △ ○`), then touch the rune stones in that order. A wrong stone resets the sequence.

@@ -6909,6 +6909,33 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     { id: 'dusk', name: 'Dimmering', at: 'dusk' },
   ];
   const RIVER_CP = [[-11850, 780], [-10200, 360], [-8400, 660], [-6600, 180], [-4800, 360], [-3300, -60], [-1716, -198], [-616, -8.8], [-418, -61.6], [-242, -13.2], [-96.8, -26.4], [-17.6, -57.2], [88, -114.4], [242, -88], [396, -132], [616, -193.6], [1716, -726], [3300, -780], [4800, -540], [6300, -1260], [8100, -1140], [9900, -1680], [11850, -1500]];
+  // ---- waters: everything runs downhill from the rim and the Highlands into the Glass River, or pools in the low Mire ----
+  // w = half-width of the water. Tributaries end on the Glass River; the Sallow ends in Bogwater Mere.
+  const RIVER_DEFS = [
+    { name: 'THE GLASS RIVER', w: 4.2, cp: RIVER_CP },
+    { name: 'THE RIMERUN', w: 3.0, cp: [[-1800, -11650], [-1550, -10500], [-1350, -9300], [-1250, -8250], [-1450, -7000], [-1950, -5600], [-2450, -4200], [-2850, -2800], [-3150, -1500], [-3300, -400], [-3300, -60]] },
+    { name: 'CRAGWATER', w: 3.2, cp: [[9800, -10600], [8700, -9200], [7600, -8100], [6350, -6900], [5450, -5600], [4800, -4300], [4250, -3150], [3750, -2000], [3400, -1200], [3300, -780]] },
+    { name: 'THE DIMWATER', w: 2.6, cp: [[-10600, -9700], [-9700, -8300], [-8800, -6900], [-7900, -5500], [-7300, -4500], [-7250, -3200], [-7500, -2000], [-7900, -800], [-8300, 200], [-8400, 660]] },
+    { name: 'CINDERBROOK', w: 2.0, cp: [[11600, 2300], [10500, 1900], [9500, 1300], [8700, 500], [8300, -300], [8100, -1140]] },
+    { name: 'THE SALLOW', w: 2.4, cp: [[-5000, 11650], [-5300, 10300], [-5750, 8900], [-6150, 7500], [-6250, 6300], [-6150, 5480]] },
+  ];
+  // lakes and ponds (a point with a radius: the same water rules as the rivers)
+  const LAKES = [
+    { name: 'BOGWATER MERE', x: -6150, z: 5300, r: 170 },
+    { name: 'THE HIGH TARN', x: 8700, z: -7000, r: 95 },
+    { name: 'DIMMERING POOL', x: -5200, z: -6300, r: 85 },
+    { name: 'THE ASH POOL', x: 9300, z: 3300, r: 60 },
+    { name: 'SALT SPRING', x: 1400, z: 9300, r: 42 },
+    { name: 'THE OASIS', x: -2300, z: 8700, r: 36 },
+    { name: 'MILLPOND', x: 2000, z: -1150, r: 40 },
+    { name: 'REEDWATER', x: -2400, z: 2700, r: 55 },
+    { name: 'STILLWATER', x: 2700, z: 2300, r: 48 },
+    { name: 'GREYPOOL', x: -1900, z: -3400, r: 50 },
+    { name: 'FROSTGLASS TARN', x: -3600, z: -9300, r: 70 },
+    { name: 'THE SUNK POND', x: 4200, z: 6200, r: 45 },
+  ];
+  // road kinds: 2 = the King's roads (wide, cobbled, stone bridges), 1 = roads (packed dirt, timber bridges), 0 = paths
+  const ROAD_W = [0, 1.6, 3.0];   // extra half-width over a footpath
   const PATHS = [
     [[0, 343.2], [4.4, 264], [-4.4, 202.4], [0, 149]],
     [[0, 115], [-13.2, 17.6], [-17.6, -57.2], [8.8, -132], [35.2, -198], [52.8, -255.2], [35.2, -352], [13.2, -422.4], [8.8, -457.6]],
@@ -6928,7 +6955,17 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // the old ring road between the region hubs
     [[-435, -7740], [2100, -6900], [4800, -5550], [6720, -3870], [7800, -900], [7800, 1200], [6720, 3855], [4500, 5850], [2100, 7200], [0, 7755],
      [-2100, 7200], [-4500, 5850], [-6720, 3870], [-7800, 1200], [-7800, -900], [-6720, -3885], [-4800, -5550], [-2400, -7050], [-435, -7740]],
+    // the castle road: from Cragmoor up to Dunmaer's gate, swinging west of the Warlord's field
+    [[6720, -3870], [6800, -4500], [7300, -5000], [7840, -5230]],
+    // trails from the hubs to the guardians' grounds and the water
+    [[-400, -7700], [0, -7560], [280, -7450]],
+    [[6800, 3950], [7300, 4250], [7660, 4420]],
+    [[-6700, 3960], [-6420, 4300], [-6250, 4560]],
+    [[6780, -3950], [7080, -4240], [7300, -4460]],
+    [[60, 7820], [700, 8500], [1340, 9240]],
+    [[1500, -1477.5], [1760, -1300], [1960, -1185]],
   ];
+  const PATH_KIND = [0, 1, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0];
   const ZONES = [
     { name: 'THE WAKING STONE', sub: 'the vale of ninefold', x: 0, z: 343.2, r: 14 },
     { name: 'EMBERHOLD', sub: 'last fire of the vale', x: 0, z: 132, r: 17 },
@@ -6999,7 +7036,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     return { d: Math.sqrt(best), along };
   }
   const RIVER = catmull(RIVER_CP, 24);
-  const PATHP = PATHS.map(p => catmull(p, 8));
+  const RIVERS = RIVER_DEFS.map(d => Object.assign({}, d, { pts: catmull(d.cp, 24) }));
   const RIVER_W = 4.2;
   const WATER_Y = -0.55;
 
@@ -7065,13 +7102,15 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
   // ---------- terrain data: computed per 128 m chunk, cached ----------
   // river surface height follows the land: each river vertex gets a smoothed ground height
+  const smoothY = pts => { const raw = pts.map(p => rawHeight0(p[0], p[1]) - 0.55); return raw.map((_, i) => { let s = 0, n = 0; for (let k = -6; k <= 6; k++) { s += raw[Math.max(0, Math.min(raw.length - 1, i + k))]; n++; } return s / n; }); };
   const RIVER_Y = (() => { const raw = RIVER.map(p => rawHeight0(p[0], p[1]) - 0.55); return raw.map((_, i) => { let s = 0, n = 0; for (let k = -6; k <= 6; k++) { const v = raw[Math.max(0, Math.min(raw.length - 1, i + k))]; s += v; n++; } return Math.min(s / n, raw[i] + 0.2); }); })();
   // segment index (256 m cells) so each chunk only measures nearby river/road segments
   const SEGC = 256;
-  function segIndex(polys, band, ys) {
+  function segIndex(polys, band, ys, wos, extra, kinds) {
     const idx = new Map();
-    polys.forEach((poly, pi) => { for (let s = 0; s < poly.length - 1; s++) {
-      const a = poly[s], b = poly[s + 1], seg = { ax: a[0], az: a[1], dx: b[0] - a[0], dz: b[1] - a[1], ya: ys ? ys[s] : 0, yb: ys ? ys[s + 1] : 0 };
+    band += extra || 0;
+    polys.forEach((poly, pi) => { const Y = ys ? ys[pi] : null; for (let s = 0; s < poly.length - 1; s++) {
+      const a = poly[s], b = poly[s + 1], seg = { ax: a[0], az: a[1], dx: b[0] - a[0], dz: b[1] - a[1], ya: Y ? Y[s] : 0, yb: Y ? Y[s + 1] : 0, wo: wos ? wos[pi] : 0, k: kinds ? kinds[pi] : 0 };
       seg.l2 = seg.dx * seg.dx + seg.dz * seg.dz || 1e-6;
       const i0 = Math.floor((Math.min(a[0], b[0]) - band) / SEGC), i1 = Math.floor((Math.max(a[0], b[0]) + band) / SEGC);
       const j0 = Math.floor((Math.min(a[1], b[1]) - band) / SEGC), j1 = Math.floor((Math.max(a[1], b[1]) + band) / SEGC);
@@ -7079,8 +7118,83 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     } });
     return idx;
   }
-  const RIDX = segIndex([RIVER], 64, RIVER_Y), PIDX = segIndex(PATHP, 32);
+  RIVERS[0].ys = RIVER_Y;
+  for (let r = 1; r < RIVERS.length; r++) {
+    const R = RIVERS[r], ys = smoothY(R.pts);
+    for (let i = 1; i < ys.length; i++) ys[i] = Math.min(ys[i], ys[i - 1]);   // water only runs downhill
+    const end = R.pts[R.pts.length - 1];
+    let joinY = null;
+    if (r !== 5) { let bd = 1e9; RIVER.forEach((p, i) => { const d = Math.hypot(p[0] - end[0], p[1] - end[1]); if (d < bd) { bd = d; joinY = RIVER_Y[i]; } }); }
+    const lake = LAKES[0]; if (r === 5) joinY = null;
+    if (joinY !== null) { const n = Math.min(40, ys.length); for (let i = 0; i < n; i++) { const k = ys.length - n + i, t = i / (n - 1); ys[k] = Math.max(joinY, GW.lerp(ys[k], joinY, t * t)); } }
+    R.ys = ys;
+  }
+  // lakes sit level, a little under the lowest ground around them
+  LAKES.forEach(Lk => { let m = 1e9; for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; m = Math.min(m, rawHeight0(Lk.x + Math.cos(a) * Lk.r * 1.15, Lk.z + Math.sin(a) * Lk.r * 1.15)); } Lk.y = Math.min(m, rawHeight0(Lk.x, Lk.z)) - 0.6; });
+  // the Sallow pours into Bogwater Mere: meet the lake's level
+  { const R = RIVERS[5], n = Math.min(30, R.ys.length); for (let i = 0; i < n; i++) { const k = R.ys.length - n + i, t = i / (n - 1); R.ys[k] = Math.max(LAKES[0].y, GW.lerp(R.ys[k], LAKES[0].y, t * t)); } }
+
+  // ---- placeholder (bridges are found once the roads exist) ----
+  // ---- roads bend around steep ground and keep out of lakes; the Vale's paths stay as laid out ----
+  function relaxRoad(poly) {
+    const out = [poly[0]];
+    for (let i = 0; i < poly.length - 1; i++) { const a = poly[i], b = poly[i + 1], n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 110)); for (let s = 1; s <= n; s++) out.push([GW.lerp(a[0], b[0], s / n), GW.lerp(a[1], b[1], s / n)]); }
+    const H = (x, z) => rawHeight0(x, z), orig = out.map(p => p.slice());
+    const cost = (x, z, pv, nx, o) => {
+      let c = (Math.abs(H(x, z) - H(pv[0], pv[1])) + Math.abs(H(nx[0], nx[1]) - H(x, z))) * 4;
+      c += Math.hypot(x - (pv[0] + nx[0]) / 2, z - (pv[1] + nx[1]) / 2) * 0.12 + Math.hypot(x - o[0], z - o[1]) * 0.03;
+      for (const Lk of LAKES) { const d = Math.hypot(x - Lk.x, z - Lk.z) - Lk.r; if (d < 40) c += (40 - d) * 20; }
+      if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 130) c += 600;
+      for (const a of ARENAS) if (Math.hypot(x - a.x, z - a.z) < 150) c += 300;
+      return c;
+    };
+    for (let it = 0; it < 3; it++) for (let i = 1; i < out.length - 1; i++) {
+      const p = out[i]; if (Math.hypot(p[0], p[1]) < 760) continue;
+      const pv = out[i - 1], nx = out[i + 1]; let dx = nx[0] - pv[0], dz = nx[1] - pv[1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+      let best = p, bc = cost(p[0], p[1], pv, nx, orig[i]);
+      for (let o = -60; o <= 60; o += 15) { if (!o) continue; const x = p[0] - dz * o, z = p[1] + dx * o, c = cost(x, z, pv, nx, orig[i]); if (c < bc) { bc = c; best = [x, z]; } }
+      out[i] = best;
+    }
+    return out;
+  }
+  const PATHP = PATHS.map((p, i) => catmull(PATH_KIND[i] ? relaxRoad(p) : p, PATH_KIND[i] ? 3 : 8));
+
+  // rivers and lakes share one index: each segment knows its water level and how much wider (or narrower) than the Glass River it is
+  const waterPolys = RIVERS.map(R => R.pts).concat(LAKES.map(Lk => [[Lk.x, Lk.z], [Lk.x + 0.01, Lk.z]]));
+  const waterYs = RIVERS.map(R => R.ys).concat(LAKES.map(Lk => [Lk.y, Lk.y]));
+  const waterWo = RIVERS.map(R => R.w - RIVER_W).concat(LAKES.map(Lk => Lk.r - RIVER_W));
+  const RIDX_ = null;
+  const RIDX = segIndex(waterPolys, 64, waterYs, waterWo, LAKES.reduce((m, Lk) => Math.max(m, Lk.r), 0)), PIDX = segIndex(PATHP, 32, null, PATHP.map((_, i) => ROAD_W[PATH_KIND[i]]), 4, PATHP.map((_, i) => PATH_KIND[i]));
   const EMPTY = [];
+  // bridges: every crossing of a road or path with a river; the King's roads get stone, the rest timber
+  const BRIDGES = [];
+  function findBridges() {
+    const HW = [1.7, 2.4, 3.3];
+    PATHP.forEach((poly, pi) => { const kind = PATH_KIND[pi];
+      for (let s = 0; s < poly.length - 1; s++) {
+        const a = poly[s], b = poly[s + 1];
+        for (const r of segsNear(RIDX, Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]))) {
+          if (r.l2 < 1) continue;   // a lake, not a river
+          const ex = b[0] - a[0], ez = b[1] - a[1], den = ex * r.dz - ez * r.dx; if (Math.abs(den) < 1e-9) continue;
+          const t = ((r.ax - a[0]) * r.dz - (r.az - a[1]) * r.dx) / den, u = ((r.ax - a[0]) * ez - (r.az - a[1]) * ex) / den;
+          if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+          const x = a[0] + ex * t, z = a[1] + ez * t;
+          if (Math.hypot(x - L.bridge.x, z - L.bridge.z) < 40 || BRIDGES.some(q => Math.hypot(q.x - x, q.z - z) < 30)) continue;
+          const l = Math.hypot(ex, ez), wr = RIVER_W + r.wo;
+          BRIDGES.push({ x, z, dx: ex / l, dz: ez / l, y: r.ya + (r.yb - r.ya) * u, len: 2 * (wr + 3.2), half: HW[kind], kind });
+        }
+      }
+    });
+  }
+  function bridgeAt(x, z) {
+    for (const b of BRIDGES) {
+      const px = x - b.x, pz = z - b.z; if (px * px + pz * pz > (b.len * b.len) / 4 + b.half * b.half + 1) continue;
+      const along = px * b.dx + pz * b.dz, across = -px * b.dz + pz * b.dx;
+      if (Math.abs(along) < b.len / 2 && Math.abs(across) < b.half) return { b, along };
+    }
+    return null;
+  }
+  const bridgeDeckY = (b, along) => b.y + 0.8 + 0.4 * (1 - Math.min(1, (along / (b.len / 2)) ** 2));
   function segsNear(idx, x0, z0, x1, z1) {
     const ia = Math.floor(x0 / SEGC), ib = Math.floor(x1 / SEGC), ja = Math.floor(z0 / SEGC), jb = Math.floor(z1 / SEGC);
     if (ia === ib && ja === jb) return idx.get(ia * 4096 + ja) || EMPTY;   // single cell: no copy
@@ -7088,18 +7202,22 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     for (let i = Math.floor(x0 / SEGC); i <= Math.floor(x1 / SEGC); i++) for (let j = Math.floor(z0 / SEGC); j <= Math.floor(z1 / SEGC); j++) { const l = idx.get(i * 4096 + j); if (l) l.forEach(s => out.add(s)); }
     return [...out];
   }
+  // distance to the nearest segment's edge, measured as if it were a Glass-River-wide river / a footpath (so one set of thresholds fits all)
+  let _nk = 0;
   function nearest(segs, x, z, cap) {
-    let best = cap, y = 0;
+    let best = cap, y = 0; _nk = 0;
     for (const s of segs) {
       let t = ((x - s.ax) * s.dx + (z - s.az) * s.dz) / s.l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
-      const px = s.ax + s.dx * t - x, pz = s.az + s.dz * t - z, d = Math.sqrt(px * px + pz * pz);
-      if (d < best) { best = d; y = s.ya + (s.yb - s.ya) * t; }
+      const px = s.ax + s.dx * t - x, pz = s.az + s.dz * t - z, d = Math.max(0, Math.sqrt(px * px + pz * pz) - s.wo);
+      if (d < best) { best = d; y = s.ya + (s.yb - s.ya) * t; _nk = s.k; }
     }
     return [best, y];
   }
   // every field for one point (used by chunks and the world map)
   function fieldsAt(x, z, rsegs, psegs, out) {
-    const [rd, ry] = nearest(rsegs, x, z, 60), pd = nearest(psegs, x, z, 30)[0];
+    const [rd, ry] = nearest(rsegs, x, z, 60);
+    let pd = nearest(psegs, x, z, 30)[0], pk = _nk;
+    if (out.fsegs && out.fsegs.length) { const fd = nearest(out.fsegs, x, z, 30)[0]; if (fd < pd) { pd = fd; pk = 0; } }
     const bw = biomeW(x, z);
     let h = rawHeight(x, z, bw);
     const carve = GW.clamp(1 - rd / (RIVER_W + 1.6), 0, 1);
@@ -7108,7 +7226,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (pd < 2.2) h -= 0.06 * (1 - pd / 2.2);
     let g = 0.95;
     g *= ss(RIVER_W - 0.15, RIVER_W + 0.25, rd);
-    g *= GW.lerp(0.32, 1, ss(0.6, 2.4, pd));
+    g *= GW.lerp(pk === 2 ? 0.04 : pk === 1 ? 0.14 : 0.32, 1, ss(0.6, 2.4, pd));
     g *= GW.lerp(0.6, 1, ss(6, 14, Math.hypot(x - L.village.x, z - L.village.z)));
     g *= GW.lerp(0.35, 1, ss(10, 18, Math.hypot(x - L.arena.x, z - L.arena.z)));
     g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
@@ -7116,18 +7234,49 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - L[k].x, z - L[k].z)));
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;
     for (const b of (W.burns || [])) if (Math.hypot(x - b[0], z - b[1]) < b[2]) g = -2;
-    out.h = h; out.g = GW.clamp(g, -2, 1); out.rd = rd; out.ry = ry; out.pd = pd; out.bw = bw;
+    out.h = h; out.g = GW.clamp(g, -2, 1); out.rd = rd; out.ry = ry; out.pd = pd; out.pk = pk; out.bw = bw;
     return out;
+  }
+  // footpaths: a worn trail from a find to the nearest road, if one passes within 380 m and no river is in the way (made on demand, then kept)
+  const FOOT_TYPES = { camp: 1, ruin: 1, cave: 1, shrine: 1, waystone: 1, vista: 1, wanderer: 1, puzzle: 1, elite: 1 };
+  const footCache = new Map(), FIDX = new Map();
+  function footFor(p) {
+    if (footCache.has(p.id)) return footCache.get(p.id);
+    let path = null;
+    if (FOOT_TYPES[p.type] && !p.vale) {
+      const segs = segsNear(PIDX, p.x - 380, p.z - 380, p.x + 380, p.z + 380); let bd = 380, bp = null;
+      for (const sg of segs) { if (sg.k === 0) continue; let t = ((p.x - sg.ax) * sg.dx + (p.z - sg.az) * sg.dz) / sg.l2; t = t < 0 ? 0 : t > 1 ? 1 : t; const qx = sg.ax + sg.dx * t, qz = sg.az + sg.dz * t, d = Math.hypot(qx - p.x, qz - p.z); if (d < bd) { bd = d; bp = [qx, qz]; } }
+      if (bp && bd > 30) {
+        const dx = (bp[0] - p.x) / bd, dz = (bp[1] - p.z) / bd, bend = (hsh(p.x * 0.01, p.z * 0.01) - 0.5) * 0.35 * bd;
+        const a = [p.x + dx * 9, p.z + dz * 9], m = [p.x + dx * bd * 0.5 - dz * bend, p.z + dz * bd * 0.5 + dx * bend];
+        const pts = catmull([a, m, bp], 6);
+        let wet = false; for (const q of pts) if (nearest(segsNear(RIDX, q[0] - 1, q[1] - 1, q[0] + 1, q[1] + 1), q[0], q[1], 60)[0] < RIVER_W + 2) { wet = true; break; }
+        if (!wet) path = pts;
+      }
+    }
+    footCache.set(p.id, path);
+    if (path) for (let s = 0; s < path.length - 1; s++) {
+      const a = path[s], b = path[s + 1], seg = { ax: a[0], az: a[1], dx: b[0] - a[0], dz: b[1] - a[1], ya: 0, yb: 0, wo: -0.3, k: 0 }; seg.l2 = seg.dx * seg.dx + seg.dz * seg.dz || 1e-6;
+      const i0 = Math.floor((Math.min(a[0], b[0]) - 32) / SEGC), i1 = Math.floor((Math.max(a[0], b[0]) + 32) / SEGC), j0 = Math.floor((Math.min(a[1], b[1]) - 32) / SEGC), j1 = Math.floor((Math.max(a[1], b[1]) + 32) / SEGC);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = i * 4096 + j; let l = FIDX.get(k); if (!l) FIDX.set(k, l = []); l.push(seg); }
+    }
+    return path;
+  }
+  function footSegs(x0, z0, x1, z1) {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    if (Math.hypot(cx, cz) < 600) return EMPTY;
+    for (const p of W.poisNear(cx, cz, 480)) footFor(p);
+    return segsNear(FIDX, x0, z0, x1, z1);
   }
   const dcache = new Map(); let _lk = null, _lc = null;
   function computeChunk(ci, cj) {
-    const n = DN * DN, c = { H: new Float32Array(n), G: new Float32Array(n), R: new Float32Array(n), P: new Float32Array(n), RY: new Float32Array(n), B: new Uint8Array(n * 6) };
+    const n = DN * DN, c = { K: new Uint8Array(n), H: new Float32Array(n), G: new Float32Array(n), R: new Float32Array(n), P: new Float32Array(n), RY: new Float32Array(n), B: new Uint8Array(n * 6) };
     const x0 = ci * DCH, z0 = cj * DCH;
     const rs = segsNear(RIDX, x0 - 64, z0 - 64, x0 + DCH + 64, z0 + DCH + 64), ps = segsNear(PIDX, x0 - 32, z0 - 32, x0 + DCH + 32, z0 + DCH + 32);
-    const f = {};
+    const f = { fsegs: footSegs(x0 - 32, z0 - 32, x0 + DCH + 32, z0 + DCH + 32) };
     for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) {
       fieldsAt(x0 + (i + 0.5) * CELLM, z0 + (j + 0.5) * CELLM, rs, ps, f);
-      const k = j * DN + i; c.H[k] = f.h; c.G[k] = f.g; c.R[k] = f.rd; c.P[k] = f.pd; c.RY[k] = f.ry;
+      const k = j * DN + i; c.H[k] = f.h; c.G[k] = f.g; c.R[k] = f.rd; c.P[k] = f.pd; c.RY[k] = f.ry; c.K[k] = f.pk;
       for (let b = 0; b < 6; b++) c.B[k * 6 + b] = Math.round(f.bw[b] * 255);
     }
     return c;
@@ -7202,13 +7351,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   W.pathAt = (x, z) => x > 9000 ? 99 : sample('P', x, z);
   W.inWater = (x, z) => x < 9000 && sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
   W.onBridge = (x, z) => {
+    if (bridgeAt(x, z)) return true;
     const b = W.bridge; if (!b) return false;
     const dx = x - b.x, dz = z - b.z;
     const u = dx * b.c + dz * b.s, v = -dx * b.s + dz * b.c;
     return Math.abs(u) < 1.6 && Math.abs(v) < b.len / 2;
   };
-  W.groundY = (x, z) => W.onBridge(x, z) ? Math.max(W.heightAt(x, z), 0.35) : W.heightAt(x, z);
-  W.riverDist = (x, z) => polyDist(RIVER, x, z).d;
+  W.groundY = (x, z) => { const q = bridgeAt(x, z); if (q) return Math.max(W.heightAt(x, z), bridgeDeckY(q.b, q.along)); return W.onBridge(x, z) ? Math.max(W.heightAt(x, z), 0.35) : W.heightAt(x, z); };
+  W.riverDist = (x, z) => x > 9000 ? 99 : nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0];
   W.nearestRiver = function (x, z) {
     let best = null, bd = 1e9;
     for (let i = 0; i < RIVER.length - 1; i++) {
@@ -7336,8 +7486,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       for (let q = 0; q < 6; q++) bwT[q] = ch.B[k * 6 + q] / 255;
       const n = 0.8 + 0.4 * Math.sin(x * 0.7) * Math.sin(z * 0.9);
       let c0 = 0.07 * n, c1 = 0.12 * n, c2 = 0.065 * n;
-      const pf = 1 - ss(0.8, 2.6, pd), dm = Math.max(pf, (1 - Math.max(0, g)) * 0.6);
-      c0 = GW.lerp(c0, 0.2, dm); c1 = GW.lerp(c1, 0.16, dm); c2 = GW.lerp(c2, 0.11, dm);
+      const pf = 1 - ss(0.8, 2.6, pd), dm = Math.max(pf, (1 - Math.max(0, g)) * 0.6), kd = ch.K ? ch.K[k] : 0;
+      if (kd === 2 && pf > 0.05) {   // the King's roads: grey cobbles
+        const cb = 0.78 + 0.22 * ((Math.floor(x * 1.3) + Math.floor(z * 1.3)) & 1) * (0.7 + 0.3 * Math.sin(x * 3.1 + z * 2.3));
+        c0 = GW.lerp(c0, 0.46 * cb, pf); c1 = GW.lerp(c1, 0.44 * cb, pf); c2 = GW.lerp(c2, 0.41 * cb, pf);
+      } else { const t = kd === 1 ? [0.42, 0.33, 0.22] : [0.36, 0.29, 0.19], k2 = pf > 0.05 ? pf : dm; c0 = GW.lerp(c0, t[0], k2); c1 = GW.lerp(c1, t[1], k2); c2 = GW.lerp(c2, t[2], k2); }
       for (let q = 0; q < 6; q++) if (bwT[q] > 0.01) { const w = bwT[q] * (1 - pf * 0.5), B = BIO_GROUND[q]; c0 = GW.lerp(c0, B[0] * n, w); c1 = GW.lerp(c1, B[1] * n, w); c2 = GW.lerp(c2, B[2] * n, w); }
       if (g < -1) { c0 = 0.085; c1 = 0.06; c2 = 0.045; }
       if (Math.abs(x - L.frostLake.x) < 80 && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 74) { c0 = 0.32; c1 = 0.42; c2 = 0.52; }
@@ -7369,6 +7522,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
 
     // ---- water ----
     W.waterMat = buildWater(scene);
+    roadStrips(-CHK * 3, -CHK * 3, CHK * 3, CHK * 3, scene, []);   // the hand-made Vale's chunks aren't streamed: lay its paths once
 
     // ---- grass ----
     W.grass = buildGrass(scene, tMap, opts.grassCount || 26000);
@@ -7401,16 +7555,40 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       W.bridge.c = Math.cos(ang); W.bridge.s = Math.sin(ang);
       // recompute in terms of bridge length axis (perpendicular to river)
       const bc = Math.cos(ang + Math.PI / 2), bs = Math.sin(ang + Math.PI / 2);
-      W.onBridge = (x, z) => {
+      const valeOn = (x, z) => {
         const dx = x - W.bridge.x, dz = z - W.bridge.z;
         const along = dx * bc + dz * bs, across = -dx * bs + dz * bc;
         return Math.abs(across) < 1.5 && Math.abs(along) < 6.2;
       };
+      W.onBridge = (x, z) => valeOn(x, z) || !!bridgeAt(x, z);
       W.groundY = (x, z) => {
-        if (!W.onBridge(x, z)) return W.heightAt(x, z);
+        const q = bridgeAt(x, z); if (q) return Math.max(W.heightAt(x, z), bridgeDeckY(q.b, q.along));
+        if (!valeOn(x, z)) return W.heightAt(x, z);
         const dx = x - W.bridge.x, dz = z - W.bridge.z, along = (dx * bc + dz * bs) / 0.62;
         return Math.max(W.heightAt(x, z), 0.4 + 0.35 * (1 - Math.min(1, (along / 9) ** 2)));
       };
+    }
+
+    // ---- bridges over the other rivers: stone on the King's roads, timber elsewhere ----
+    {
+      const wood = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.1 }), stone = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a8a8e, fill: 0.08 }), stoneD = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x606064, fill: 0.06 });
+      for (const b of BRIDGES) {
+        const grp = new THREE.Group(); grp.position.set(b.x, 0, b.z); grp.rotation.y = Math.atan2(b.dx, b.dz);
+        const n = Math.ceil(b.len / 0.62), w = b.half * 2;
+        if (b.kind === 2) {
+          for (let k = 0; k < n; k++) { const al = -b.len / 2 + (k + 0.5) * b.len / n, y = bridgeDeckY(b, al);
+            const sl = new THREE.Mesh(new THREE.BoxGeometry(w, 0.5, b.len / n + 0.05), stone); sl.position.set(0, y - 0.25, al); grp.add(sl);
+            for (const sd of [-1, 1]) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.7, b.len / n + 0.05), stoneD); pa.position.set(sd * (b.half - 0.2), y + 0.35, al); grp.add(pa); } }
+          for (const sd of [-1, 1]) { const pier = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 2.2, 1.2), stoneD); pier.position.set(0, b.y - 0.2, sd * b.len * 0.22); grp.add(pier); }
+        } else {
+          for (let k = 0; k < n; k++) { const al = -b.len / 2 + (k + 0.5) * b.len / n, y = bridgeDeckY(b, al);
+            const pl = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, 0.5), wood); pl.position.set(0, y - 0.06, al); pl.rotation.y = (rnd() - 0.5) * 0.06; grp.add(pl);
+            if (k % 3 === 0) for (const sd of [-1, 1]) { const po = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), wood); po.position.set(sd * (b.half - 0.1), y + 0.45, al); grp.add(po); } }
+          for (const sd of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, b.len), wood); rail.position.set(sd * (b.half - 0.1), bridgeDeckY(b, 0) + 0.95, 0); grp.add(rail); }
+          for (const al of [-b.len * 0.25, b.len * 0.25]) for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 0.3), wood); st.position.set(sd * (b.half - 0.3), b.y - 0.4, al); grp.add(st); }
+        }
+        scene.add(grp);
+      }
     }
 
     // ---- geometries & materials for props ----
@@ -8023,6 +8201,35 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
   const CRYSTAL_G = new THREE.OctahedronGeometry(0.22, 0), crystalMats = {};
   const crystalMat = c => crystalMats[c] || (crystalMats[c] = GW.mat({ id: ID.RUNE, color: 0, emissive: c, unlit: true }));
+  // ---- road surfaces: a strip of glyph-textured ground laid along each road inside a box (bare earth alone reads as black) ----
+  const ROAD_HW = [1.45, 3.0, 4.45], roadMats = {};
+  const roadMat = k => roadMats[k] || (roadMats[k] = GW.mat(Object.assign({ side: THREE.DoubleSide }, k === 2 ? { id: ID.ROCK, tex: 6, color: 0xc4beb2, fill: 0.1 } : k === 1 ? { id: ID.ROCK, tex: 6, color: 0xb0926c, fill: 0.08 } : { id: ID.ROCK, tex: 6, color: 0xa08a6a, fill: 0.07 })));
+  function roadStrips(x0, z0, x1, z1, scene, out) {
+    const P = [[], [], []], UV = [[], [], []], idx = [[], [], []];
+    const lay = (seg, kind, hw) => {
+      const L0 = Math.sqrt(seg.l2), n = Math.max(1, Math.ceil(L0 / 3)), nx = -seg.dz / L0, nz = seg.dx / L0;
+      let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, x = seg.ax + seg.dx * t, z = seg.az + seg.dz * t;
+        const inside = x > x0 - 2 && x < x1 + 2 && z > z0 - 2 && z < z1 + 2 && !W.onBridge(x, z) && sample('R', x, z) > RIVER_W + 0.3;
+        if (!inside) { prev = null; continue; }
+        const y = W.heightAt(x, z) + 0.07, A = P[kind], base = A.length / 3;
+        A.push(x - nx * hw, W.heightAt(x - nx * hw, z - nz * hw) + 0.07, z - nz * hw, x + nx * hw, W.heightAt(x + nx * hw, z + nz * hw) + 0.07, z + nz * hw);
+        const along = (seg.ax * 0.37 + seg.az * 0.61 + L0 * t) * 0.5; UV[kind].push(0, along, hw, along);   // letters run along the road
+        if (prev !== null) idx[kind].push(prev, base, prev + 1, prev + 1, base, base + 1);
+        prev = base; void y;
+      }
+    };
+    for (const sg of segsNear(PIDX, x0, z0, x1, z1)) lay(sg, sg.k, ROAD_HW[sg.k]);
+    for (const sg of segsNear(FIDX, x0, z0, x1, z1)) lay(sg, 0, 1.15);
+    for (let k = 0; k < 3; k++) {
+      if (!idx[k].length) continue;
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P[k], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV[k], 2)); g.setIndex(idx[k]); g.computeVertexNormals();
+      { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }   // always face the sky
+      const m = new THREE.Mesh(g, roadMat(k)); m.renderOrder = -5; m.receiveShadow = true; scene.add(m); out.push(m);
+    }
+  }
+  W.roadStrips = roadStrips;
   function genChunk(ci, cj, scene) {
     const rnd = GW.rand(((ci * 7919 + cj * 104729) >>> 0) % 2147483646 + 1);
     const batch = new Batch(), cols = [];
@@ -8085,6 +8292,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       }
     }
     const meshes = veinGroups.slice(); batch.build(scene, meshes, 1e6);   // one mesh per kind per chunk
+    roadStrips(x0, z0, x0 + CHK, z0 + CHK, scene, meshes);
     return { meshes, cols, inter };
   }
   W.stream = function (px, pz, scene, budget) {
@@ -8410,22 +8618,25 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
 
   function buildWater(scene) {
-    const pts = RIVER, n = pts.length, w = RIVER_W + 1.2;
-    const posA = new Float32Array(n * 2 * 3), uvA = new Float32Array(n * 2 * 2), idx = [];
-    let along = 0;
-    for (let i = 0; i < n; i++) {
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
-      let dx = b[0] - a[0], dz = b[1] - a[1]; const l = Math.hypot(dx, dz); dx /= l; dz /= l;
-      if (i > 0) along += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-      for (let s = 0; s < 2; s++) {
-        const sg = s ? 1 : -1, k = i * 2 + s;
-        posA[k * 3] = pts[i][0] - dz * w * sg; posA[k * 3 + 1] = RIVER_Y[i]; posA[k * 3 + 2] = pts[i][1] + dx * w * sg;
-        uvA[k * 2] = s; uvA[k * 2 + 1] = along;
+    const P = [], U = [], idx = [];
+    for (const R of RIVERS) {
+      const pts = R.pts, n = pts.length, w = R.w + (R.w > 3 ? 1.2 : 0.9), base = P.length / 3;
+      let along = 0;
+      for (let i = 0; i < n; i++) {
+        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+        let dx = b[0] - a[0], dz = b[1] - a[1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+        if (i > 0) along += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        for (let s = 0; s < 2; s++) { const sg = s ? 1 : -1; P.push(pts[i][0] - dz * w * sg, R.ys[i], pts[i][1] + dx * w * sg); U.push(s, along); }
+        if (i < n - 1) { const k = base + i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
       }
-      if (i < n - 1) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+    }
+    for (const Lk of LAKES) {   // a fan: centre in the middle of the "channel" (uv.x 0.5), the shore at its edge (uv.x 0)
+      const base = P.length / 3, N = 48, rr = Lk.r + 1.2; P.push(Lk.x, Lk.y, Lk.z); U.push(0.5, 0);
+      for (let k = 0; k <= N; k++) { const a = k / N * Math.PI * 2; P.push(Lk.x + Math.cos(a) * rr, Lk.y, Lk.z + Math.sin(a) * rr); U.push(0, a * rr); }
+      for (let k = 0; k < N; k++) idx.push(base, base + 1 + k, base + 2 + k);
     }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(posA, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvA, 2)); g.setIndex(idx);
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3)); g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(U), 2)); g.setIndex(idx);
     const m = new THREE.ShaderMaterial({
       uniforms: Object.assign({ uMoonVis: { value: new THREE.Vector3(-0.18, 0.86, -0.48).normalize() }, uMoonSpot: { value: new THREE.Vector2(0, 999) } }, GW.LU),
       side: THREE.DoubleSide,
@@ -8515,6 +8726,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
           float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           keep *= step(-0.3, m.g);   // burnt ground: no grass
+          keep *= max(smoothstep(0.9, 2.2, m.a) > fract(sd * 2.9) ? 1.0 : 0.0, step(0.93, fract(sd * 3.7)));   // roads and paths: worn bare, a few stray blades
           // dark earth patches (matching the ground shader's o 0 8 letters): only a few straws survive there
           float thr = 1.0 - 0.32 * uGroundO, pv = vn(wp * 0.11 + 5.0) * 0.7 + vn(wp * 0.37 + 1.7) * 0.3;
           float patchK = smoothstep(thr - 0.05, thr + 0.03, pv) * step(0.01, uGroundO);
@@ -8671,7 +8883,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // how dangerous a level is for the hero: green (easy) → gold → orange → red (deadly)
   W.dangerCol = (lvl, me) => { const d = lvl - me; return d <= 0 ? '#8ad08a' : d <= 2 ? '#e8d070' : d <= 4 ? '#ff9a50' : '#ff5040'; };
   W.ARENAS = ARENAS; W.VS = VS; W.WS = WS; W.LVLD = LVLD; W.HALF = HALF;
-  W.RIVER_LINE = RIVER; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
+  findBridges();
+  W.lakeAt = (x, z) => LAKES.find(Lk => Math.hypot(x - Lk.x, z - Lk.z) < Lk.r + 4) || null; W.footFor = footFor;
+  W.RIVER_LINE = RIVER; W.RIVER_LINES = RIVERS; W.LAKES = LAKES; W.BRIDGES = BRIDGES; W.ROAD_KINDS = PATH_KIND; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
   W.mapData = function () {
     if (MAPD) return MAPD;
@@ -11870,15 +12084,35 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const to = (x, z) => [w / 2 + (x - WM.cx) * px, h / 2 + (z - WM.cz) * px];
     const poly = (pts, style, width, dash) => { g.strokeStyle = style; g.lineWidth = width; g.setLineDash(dash || []); g.beginPath(); pts.forEach((p, i) => { const [a, b] = to(p[0], p[1]); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); };
     g.lineCap = 'round'; g.lineJoin = 'round';
+    const roadSeen = r => r.some(p => seen(p[0], p[1]));
+    const onScr = (x, y, m) => x > -m && y > -m && x < w + m && y < h + m;
+    const RK = W.ROAD_KINDS || [];
+    const lakeFill = (Lk, fill, edge) => { const [cx, cy] = to(Lk.x, Lk.z); g.fillStyle = fill; g.beginPath(); g.arc(cx, cy, Math.max(2.5, Lk.r * px), 0, Math.PI * 2); g.fill(); if (edge) { g.strokeStyle = edge; g.lineWidth = 1; g.stroke(); } };
     if (ST === 'ink') {
-      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(90,50,24,.8)', Math.max(1.2, 1.6 * px), [6, 3, 1, 3]); }
-      poly(W.RIVER_LINE, 'rgba(42,78,114,.85)', Math.max(2, W.RIVER_W * 1.6 * px), []); poly(W.RIVER_LINE, 'rgba(205,187,144,.9)', Math.max(0.6, W.RIVER_W * 0.5 * px), []);
+      W.ROAD_LINES.forEach((r, i) => { if (!roadSeen(r)) return; const k = RK[i] || 0;
+        poly(r, 'rgba(90,50,24,.85)', Math.max(k === 2 ? 2.2 : k ? 1.4 : 0.9, (k === 2 ? 3 : k ? 2 : 1.2) * px), k === 2 ? [] : k ? [6, 3] : [2, 3]); });
+      for (const R of W.RIVER_LINES) { poly(R.pts, 'rgba(42,78,114,.85)', Math.max(R.w > 3 ? 2 : 1.3, R.w * 1.6 * px), []); if (R.w > 3) poly(R.pts, 'rgba(205,187,144,.9)', Math.max(0.6, R.w * 0.5 * px), []); }
+      for (const Lk of W.LAKES) if (seen(Lk.x, Lk.z)) lakeFill(Lk, 'rgba(42,78,114,.8)', 'rgba(90,50,24,.6)');
     } else {
-      for (const r of W.ROAD_LINES) { if (!r.some(p => seen(p[0], p[1]))) continue; poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,200,120,.9)' : 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), ST === 'ascii' ? [1, 4] : [5, 4]); }
-      poly(W.RIVER_LINE, 'rgba(10,24,48,.9)', Math.max(4, W.RIVER_W * 2.6 * px), []);
-      poly(W.RIVER_LINE, 'rgba(96,160,240,.95)', Math.max(2, W.RIVER_W * 1.7 * px), []);
-      poly(W.RIVER_LINE, 'rgba(200,228,255,.55)', 1, [2, 6]);
+      // King's roads: wide and bright; roads: a solid line; paths: a dotted trail
+      W.ROAD_LINES.forEach((r, i) => { if (!roadSeen(r)) return; const k = RK[i] || 0;
+        if (k === 2) { poly(r, 'rgba(20,14,8,.85)', Math.max(4.5, 7 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,214,150,.95)' : 'rgba(236,200,140,.92)', Math.max(2, 3 * px), []); }
+        else if (k === 1) { poly(r, 'rgba(20,14,8,.8)', Math.max(3, 4.5 * px), []); poly(r, ST === 'ascii' ? 'rgba(255,200,120,.9)' : 'rgba(226,182,112,.85)', Math.max(1.2, 1.6 * px), ST === 'ascii' ? [1, 3] : [6, 4]); }
+        else poly(r, 'rgba(214,176,120,.7)', Math.max(1, 1.1 * px), [1.5, 3]); });
+      for (const R of W.RIVER_LINES) {
+        poly(R.pts, 'rgba(10,24,48,.9)', Math.max(R.w > 3 ? 4 : 2.6, R.w * 2.6 * px), []);
+        poly(R.pts, 'rgba(96,160,240,.95)', Math.max(R.w > 3 ? 2 : 1.3, R.w * 1.7 * px), []);
+        if (R.w > 3) poly(R.pts, 'rgba(200,228,255,.55)', 1, [2, 6]);
+      }
+      for (const Lk of W.LAKES) if (seen(Lk.x, Lk.z)) lakeFill(Lk, 'rgba(70,130,215,.9)', 'rgba(10,24,48,.9)');
     }
+    // bridges: a small plank mark where a road crosses water
+    if (px > 0.25) for (const bdg of (W.BRIDGES || [])) { if (!seen(bdg.x, bdg.z)) continue; const [bx, by] = to(bdg.x, bdg.z); g.save(); g.translate(bx, by); g.rotate(Math.atan2(bdg.dz, bdg.dx));
+      g.fillStyle = bdg.kind === 2 ? '#d8d4cc' : '#c89a60'; g.fillRect(-Math.max(4, bdg.len * px / 2), -2, Math.max(8, bdg.len * px), 4); g.restore(); }
+    // water names once you're close enough to read them
+    if (WM.zoom > 1.6 && WM.zoom < 9) { g.font = `italic ${Math.round(GW.clamp(9 + WM.zoom, 11, 15))}px Georgia, serif`;
+      for (const R of W.RIVER_LINES) { const m = R.pts[Math.floor(R.pts.length * 0.42)]; if (!seen(m[0], m[1])) continue; const [lx, ly] = to(m[0], m[1]); if (onScr(lx, ly, 40)) halo(g, R.name.toLowerCase(), lx, ly - 10, 'rgba(160,200,255,.9)', 3); }
+      for (const Lk of W.LAKES) { if (!seen(Lk.x, Lk.z) || Lk.r < 50) continue; const [lx, ly] = to(Lk.x, Lk.z); if (onScr(lx, ly, 40)) halo(g, Lk.name.toLowerCase(), lx, ly + Math.max(10, Lk.r * px) + 10, 'rgba(160,200,255,.9)', 3); } }
     g.setLineDash([]);
     // the old-chart grid: 1 km squares, lettered and numbered at the frame
     g.strokeStyle = ST === 'ink' ? 'rgba(60,40,20,.18)' : 'rgba(220,210,180,.07)'; g.lineWidth = 1;
