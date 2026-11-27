@@ -179,6 +179,20 @@ Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise
   | Bow | charged shots +25% | +8% crit |
 - **Legendary metals:** each guardian drops one, forgeable into any weapon. **Cinderheart** (Ash Colossus): kills burst into flame. **Rimefang** (Rime Knight): a perfect dodge freezes foes around you. **Mirethorn** (Mire Hag): poisoned foes heal you as they die. **Cragcrown** (Crag Warlord): finishers send out a shockwave.
 
+## Dungeons
+
+Every cave, tomb and castle floor is built from one of seven layouts, with a new seed per floor so rooms, corridors and dressing change each time:
+
+- **Crypt Halls**: burial niches with sarcophagi; some of the dead sleep until you walk close.
+- **The Flooded Cistern**: a teal water channel down the middle, crossed by bridges between heavy pillars.
+- **Pillared halls**: wide rooms on a column grid.
+- **The Sunken Chapel**: pews, an altar and pillar rows.
+- **The Warren**: rounded cave chambers with stalagmites and pools.
+- **The Old Mine**: timber frames, carts and ore veins you can mine.
+- **The Descent**: stairs that drop floor by floor between rooms lit by braziers.
+
+The structure follows the classic delve: the way to the reward room is barred by a portcullis whose lever sits in a side room, there are pressure plates in the corridors, and the reward room (a raised dais with a boss and an elite chest) has a lever that opens a shortcut gate back by the entrance. Each layout is checked when built so the gates can't be walked around. Each layout also has its own cold light (crypt blue, cistern teal, mine amber) under warm torches.
+
 ## Settings worth knowing
 - **Alt** holds the HUD and minimap up for 8 s after you let go.
 - **Minimap turns with your heading** and **Minimap always visible** are in Settings.
