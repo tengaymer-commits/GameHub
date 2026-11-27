@@ -2283,7 +2283,7 @@
   W.dangerCol = (lvl, me) => { const d = lvl - me; return d <= 0 ? '#8ad08a' : d <= 2 ? '#e8d070' : d <= 4 ? '#ff9a50' : '#ff5040'; };
   W.ARENAS = ARENAS; W.VS = VS; W.WS = WS; W.LVLD = LVLD; W.HALF = HALF;
   findBridges();
-  W.WAYSTATIONS = WAYST;
+  W.WAYSTATIONS = WAYST; W.PAVED = (x, z) => VILLAGE_SQ.some(V => Math.hypot(x - V[0], z - V[1]) < V[2] + 1) || (Math.abs(x - L.castle.x) < 11.5 * KS && Math.abs(z - L.castle.z) < 11.5 * KS) || [L.chapel, L.abbey].some(C => Math.abs(x - C.x) < 6.2 * BS && z < C.z + 0.5 * BS && z > C.z - 13.2 * BS);
   W.lakeAt = (x, z) => LAKES.find(Lk => Math.hypot(x - Lk.x, z - Lk.z) < Lk.r + 4) || null; W.footFor = footFor;
   W.RIVER_LINE = RIVER; W.RIVER_LINES = RIVERS; W.LAKES = LAKES; W.BRIDGES = BRIDGES; W.ROAD_KINDS = PATH_KIND; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
