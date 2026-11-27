@@ -166,6 +166,23 @@ Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise
 - **Hollow Ruins** is 1.7× wider, with five walls, 20 pillars, six arches and 12 Hollows. **Points of interest** are bigger too: camps have 4 huts and a cart with 4–6 enemies, ruins have wider rings, and caves sit in a big rock mound with a 1.45× arch.
 - **Three tombs** surround Hollow Ruins: *the Nameless*, *the Scribe's* (2 floors) and *the Sexton's*. Walk to the lanterns and press **E** to go underground. A new quest step, **Beneath the Scriptorium**, sends you to find **the Scribe's Seal** on the Scribe's Tomb's second floor, which introduces dungeons early.
 
+## Weapons in depth: metal traits, mastery, legendaries
+- **Metal traits:** every metal behaves differently in each weapon form. Examples: emberite in a greatsword sets nearby foes burning on heavy hits; rimesteel in daggers makes crits chill; saltglass in a bow adds +25% damage on shots past 12 m; bog-iron in a greatsword leaves a poison cloud. The forge panel and the metal tooltips show the trait for the weapon on the anvil.
+- **Mastery:** each weapon form levels I–V from the foes it kills (+3% damage per level), with a perk at III and a stronger one at V. The Book shows each form's mastery.
+
+  | Form | III | V |
+  |---|---|---|
+  | Sword | cheaper blocks | ripostes +30% |
+  | Greatsword | no stagger mid-heavy | heavy hits throw foes back |
+  | Spear | +0.4 m reach | closing thrust +20% |
+  | Daggers | +10% speed | crits poison |
+  | Bow | charged shots +25% | +8% crit |
+- **Legendary metals:** each guardian drops one, forgeable into any weapon. **Cinderheart** (Ash Colossus): kills burst into flame. **Rimefang** (Rime Knight): a perfect dodge freezes foes around you. **Mirethorn** (Mire Hag): poisoned foes heal you as they die. **Cragcrown** (Crag Warlord): finishers send out a shockwave.
+
+## Settings worth knowing
+- **Alt** holds the HUD and minimap up for 8 s after you let go.
+- **Minimap turns with your heading** and **Minimap always visible** are in Settings.
+
 ## Villages, interiors and discovery
 - **Villages are paved:** Emberhold and every hub village have a cobbled square instead of grass.
 - **Interiors, each with a small story:**
@@ -190,6 +207,7 @@ Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise
 - **Rivers run downhill.** The Glass River crosses the world west to east. Four tributaries feed it from the high ground: **the Rimerun** (from the northern mountains, past Frostmere), **Cragwater** (out of the Highlands), **the Dimwater** (through Duskwood) and **Cinderbrook** (across the Ashen Barrens). **The Sallow** runs down from the southern rim into **Bogwater Mere** in the Mire. Water levels only ever fall downstream, and tributaries meet the Glass River at its level.
 - **Twelve lakes and ponds**, from Bogwater Mere and the High Tarn to small springs and oases in the Salt Wastes and a millpond by Hearthwick.
 - **Bridges** stand wherever a road or trail crosses a river; you walk over them instead of wading.
+- **Every road ends somewhere:** road and trail ends snap to a village square, a guardian's grounds, a lake shore or a gate, and roads run into the cobbled squares through openings in the village fences. Halfway along each long King's road stands a **ruined waystation**: a cobbled plaza, broken pillars and arches, and a waystone.
 - **The world map** draws the road kinds differently, every river at its width, the lakes and bridges, and names the waters as you zoom in.
 
 ## Puzzles that hide loot
