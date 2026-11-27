@@ -286,6 +286,8 @@
   { const R = RIVERS[5], n = Math.min(30, R.ys.length); for (let i = 0; i < n; i++) { const k = R.ys.length - n + i, t = i / (n - 1); R.ys[k] = Math.max(LAKES[0].y, GW.lerp(R.ys[k], LAKES[0].y, t * t)); } }
 
   // ---- placeholder (bridges are found once the roads exist) ----
+  // villages are paved: [x, z, radius] (Emberhold inside its fence, the hub villages inside their hut rings)
+  const VILLAGE_SQ = [[L.village.x, L.village.z, 14.5]].concat(HUBS.map(h => [L[h.at].x, L[h.at].z, 24]));
   // ---- roads bend around steep ground and keep out of lakes; the Vale's paths stay as laid out ----
   function relaxRoad(poly) {
     const out = [poly[0]];
@@ -399,6 +401,7 @@
     g *= GW.lerp(0.35, 1, ss(10, 18, Math.hypot(x - L.arena.x, z - L.arena.z)));
     g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
     g *= GW.lerp(1, 0.6, bw[0]) * GW.lerp(1, 0.75, bw[1]) * GW.lerp(1, 0.55, bw[2]) * GW.lerp(1, 0.25, bw[3]);   // frost, high, ash, salt: sparser
+    for (const V of VILLAGE_SQ) if (Math.hypot(x - V[0], z - V[1]) < V[2] + 0.5) { pd = 0; pk = 1; }
     for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - L[k].x, z - L[k].z)));
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;
     for (const b of (W.burns || [])) if (Math.hypot(x - b[0], z - b[1]) < b[2]) g = -2;
@@ -406,7 +409,7 @@
     return out;
   }
   // footpaths: a worn trail from a find to the nearest road, if one passes within 380 m and no river is in the way (made on demand, then kept)
-  const FOOT_TYPES = { camp: 1, ruin: 1, cave: 1, shrine: 1, waystone: 1, vista: 1, wanderer: 1, puzzle: 1, elite: 1 };
+  const FOOT_TYPES = { camp: 1, ruin: 1, cave: 1, shrine: 1, waystone: 1, vista: 1, wanderer: 1, puzzle: 1, elite: 1, unique: 1, moonwell: 1 };
   const footCache = new Map(), FIDX = new Map();
   function footFor(p) {
     if (footCache.has(p.id)) return footCache.get(p.id);
@@ -416,10 +419,10 @@
       for (const sg of segs) { if (sg.k === 0) continue; let t = ((p.x - sg.ax) * sg.dx + (p.z - sg.az) * sg.dz) / sg.l2; t = t < 0 ? 0 : t > 1 ? 1 : t; const qx = sg.ax + sg.dx * t, qz = sg.az + sg.dz * t, d = Math.hypot(qx - p.x, qz - p.z); if (d < bd) { bd = d; bp = [qx, qz]; } }
       if (bp && bd > 30) {
         const dx = (bp[0] - p.x) / bd, dz = (bp[1] - p.z) / bd, bend = (hsh(p.x * 0.01, p.z * 0.01) - 0.5) * 0.35 * bd;
-        const R0 = { camp: 17, ruin: 18, elite: 13, puzzle: 12, cave: 0, vista: 7, shrine: 4, waystone: 4, wanderer: 5 }[p.type] || 9;
+        const R0 = { camp: 17, ruin: 18, elite: 13, puzzle: 12, cave: 0, vista: 7, shrine: 4, waystone: 4, wanderer: 5, unique: 24, moonwell: 9 }[p.type] || 9;
         const a = p.type === 'cave' ? [p.x, p.z + 9.5] : [p.x + dx * R0, p.z + dz * R0], m = [p.x + dx * bd * 0.5 - dz * bend, p.z + dz * bd * 0.5 + dx * bend];
         // a cave's trail leaves from its mouth (+z); if the road lies behind the mound, step round its side first
-        const FOOT = { camp: 15, ruin: 16, elite: 12, puzzle: 11, cave: 8.5 }[p.type] || 5;
+        const FOOT = { camp: 15, ruin: 16, elite: 12, puzzle: 11, cave: 8.5, unique: 22, moonwell: 8 }[p.type] || 5;
         const clear = pts => pts.slice(1).every(q => Math.hypot(q[0] - p.x, q[1] - p.z) > FOOT);   // never back across the find itself
         let pts = null;
         for (const side of (p.type === 'cave' ? [dx >= 0 ? 1 : -1, dx >= 0 ? -1 : 1, 0] : [0])) {
@@ -590,6 +593,7 @@
   };
 
   W.build = function (scene, opts) {
+    W.uniques();
     W.scene = scene;
     W.lights = new GW.Lights();
     const rnd = GW.rand(1337);
@@ -898,6 +902,8 @@
     natureScatter(batch, place, rnd, free);
     kitScatter(scene, batch, place, rnd, free);
     buildCastle(scene);
+    buildSquares(scene);
+    furnish(scene);
     batch.build(scene);
     buildFireflies(scene);
     buildSky(scene);
@@ -1280,6 +1286,7 @@
       const p = W.poiAt(i, j); if (p && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     }
     if (Math.hypot(x, z) < 700 + r) for (const p of W.valePois()) if (p.type !== 'vein' && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
+    if (UNIQ) for (const p of UNIQ) if (Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     return out;
   };
   W.POI_CELL = POI_CELL;
@@ -1320,6 +1327,36 @@
     });
     return VALE_POIS;
   };
+  // ---------- one of a kind: landmarks worth the walk (and moonwells that only wake at night) ----------
+  const UNIQUE_PLAN = [
+    ['giant', 'THE FALLEN GIANT', 'high', 5300, -6200], ['belltower', 'THE SUNKEN BELLTOWER', 'mire', -5500, 6300], ['hermit', "THE HERMIT'S HUT", 'dusk', -8900, -5300],
+    ['eldertree', 'THE ELDER TREE', 'vale', -2700, -1600], ['colossus', 'THE BROKEN COLOSSUS', 'ash', 8900, 1900], ['saltship', 'THE STRANDED SHIP', 'salt', 2700, 9900],
+    ['frostgate', 'THE FROZEN GATE', 'frost', -3000, -10300], ['moonwell', 'MOONWELL', 'vale', 1900, 2600], ['moonwell', 'MOONWELL', 'dusk', -6100, -7100], ['moonwell', 'MOONWELL', 'frost', 1600, -9500],
+  ];
+  let UNIQ = null;
+  W.uniques = function () {
+    if (UNIQ) return UNIQ;
+    UNIQ = [];
+    const hh = (a, b) => rawHeight(a, b, biomeW(a, b));
+    const slope = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 12, b + Math.sin(t) * 12) - h0)); } return m; };
+    const bad = (x, z) => {
+      let pen = 0;
+      const rv = nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0], pa = nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0];
+      if (rv < 40) pen += 40 - rv; if (pa < 28) pen += 28 - pa;
+      for (const h of HUBS) { const d = Math.hypot(x - L[h.at].x, z - L[h.at].z); if (d < 160) pen += 160 - d; }
+      for (const a of ARENAS) { const d = Math.hypot(x - a.x, z - a.z); if (d < 180) pen += 180 - d; }
+      for (const q of UNIQ) { const d = Math.hypot(x - q.x, z - q.z); if (d < 400) pen += 400 - d; }
+      for (let i = Math.floor(x / POI_CELL) - 1; i <= Math.floor(x / POI_CELL) + 1; i++) for (let j = Math.floor(z / POI_CELL) - 1; j <= Math.floor(z / POI_CELL) + 1; j++) { const q = W.poiAt(i, j); if (q) { const d = Math.hypot(x - q.x, z - q.z); if (d < 70) pen += 70 - d; } }
+      const sl = slope(x, z); if (sl > 1.8) pen += (sl - 1.8) * 6;
+      return pen;
+    };
+    UNIQUE_PLAN.forEach(([kind, name, region, x0, z0], k) => {
+      let best = [x0, z0], bp = bad(x0, z0);
+      for (let r = 20; r <= 300 && bp > 0; r += 20) for (let q = 0; q < 12; q++) { const a = q / 12 * Math.PI * 2 + r * 0.01, x = x0 + Math.cos(a) * r, z = z0 + Math.sin(a) * r, pn = bad(x, z); if (pn < bp) { bp = pn; best = [x, z]; } }
+      UNIQ.push({ id: 'u' + k, uniq: true, kind, name, type: kind === 'moonwell' ? 'moonwell' : 'unique', region, x: best[0], z: best[1], lvl: 1 + Math.floor(Math.hypot(best[0], best[1]) / LVLD) + 1, seed: 9100 + k * 613 });
+    });
+    return UNIQ;
+  };
   // ---------- puzzles: one shared layout so the world (props) and the game (logic) agree ----------
   W.puzzleLayout = function (p) {
     const R = GW.rand(p.seed + 77), o = { kind: p.pz || (p.cache ? 'dig' : null) };
@@ -1334,6 +1371,34 @@
     if (p.cache) { const a = R() * Math.PI * 2, d = 45 + R() * 35; o.dig = { x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d }; }
     return o;
   };
+  function buildUnique(p, kit, ring, R, bio, chest, inter) {
+    const X = p.x, Z = p.z, grey = new THREE.Color(0.85, 0.83, 0.8);
+    if (p.kind === 'giant') {   // a giant's bones: a long ribcage of arches, a skull, a sword stuck in the ground
+      for (let k = 0; k < 7; k++) { kit('kit_arch', X - 14 + k * 4.2, Z + Math.sin(k * 0.7) * 0.8, 1.6 - Math.abs(k - 3) * 0.08, 0.7, bio, new THREE.Color(0.92, 0.9, 0.84)); }
+      kit('kit_rock_b', X + 17, Z + 1, 2.6, 2.2, bio, new THREE.Color(0.95, 0.93, 0.88)); kit('kit_rock_c', X + 19, Z - 2, 1.6, 1.2, bio, grey);
+      kit('kit_pillar_a', X - 20, Z - 6, 1.9, 0.6, bio, new THREE.Color(0.7, 0.72, 0.78)); chest(X + 2, Z + 5);
+    } else if (p.kind === 'belltower') {   // a tower sinking into the bog, its bell still hanging
+      for (let k = 0; k < 4; k++) kit('kit_pillar_a', X + k * 0.8, Z + k * 0.5, 1.4, 1.2, bio, grey);
+      kit('kit_crypt', X - 6, Z + 4, 1.4, 1.6, bio, new THREE.Color(0.6, 0.65, 0.55)); ring(8, 12, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 1.0 + R() * 0.5, 0.4, bio));
+      inter.push({ type: 'uniqbell', id: 'ub:' + p.id, x: X + 3, z: Z + 3.5, r: 2.4, label: 'Ring the drowned bell', poi: p });
+    } else if (p.kind === 'hermit') {   // a lone hut, a lantern, a hermit who trades in odd things
+      kit('kit_hut', X, Z, 1.25, 1.9, bio, new THREE.Color(0.7, 0.66, 0.6)); kit('kit_lantern', X + 4, Z + 3, 1.1, 0.2, bio); kit('kit_barrel', X - 4, Z + 2, 1, 0.35, bio); kit('kit_crate', X - 4.8, Z + 3.2, 0.9, 0.45, bio);
+      inter.push({ type: 'shop', x: X + 2, z: Z + 5, r: 2.6, label: 'Trade with the hermit', poi: Object.assign({}, p, { region: 'dusk' }) }); chest(X - 3, Z - 4);
+    } else if (p.kind === 'eldertree') {   // an oak older than the vale, a shrine in its roots
+      kit('kit_oak_a', X, Z, 4.2, 3.2, bio); ring(7, 9, (x, z) => kit('kit_rock_a', x, z, 0.5 + R() * 0.4, 0.5, bio));
+      kit('kit_shrine', X, Z + 6, 1.0, 0.7, bio); inter.push({ type: 'eldertree', id: 'et:' + p.id, x: X, z: Z + 7.6, r: 2.4, label: 'Rest a hand on the roots', poi: p });
+    } else if (p.kind === 'colossus') {   // a statue's head and fallen hands in the ash
+      kit('kit_rock_b', X, Z, 3.4, 2.8, bio, new THREE.Color(0.7, 0.68, 0.66)); kit('kit_pillar_a', X - 9, Z + 4, 2.2, 0.8, bio, grey); kit('kit_pillar_b', X + 9, Z + 5, 2.4, 0.9, bio, grey);
+      kit('kit_rock_c', X + 6, Z - 7, 1.8, 1.3, bio, grey); kit('kit_rock_c', X - 7, Z - 6, 1.6, 1.2, bio, grey); chest(X, Z + 6);
+    } else if (p.kind === 'saltship') {   // a ship run aground in the salt, a long way from any sea
+      for (let k = 0; k < 6; k++) kit('kit_crate', X - 7 + k * 2.6, Z + Math.sin(k) * 0.4, 1.4, 0.8, bio, new THREE.Color(0.75, 0.6, 0.45));
+      kit('kit_pillar_a', X, Z, 2.4, 0.5, bio, new THREE.Color(0.6, 0.48, 0.36)); kit('kit_cart', X + 9, Z + 3, 1.2, 1.0, bio); for (let k = 0; k < 4; k++) kit('kit_barrel', X - 8 + k * 1.1, Z + 4, 1, 0.35, bio);
+      chest(X + 2, Z + 4);
+    } else if (p.kind === 'frostgate') {   // a gate of arches through the drifts, leading nowhere
+      for (let k = 0; k < 5; k++) kit('kit_arch', X, Z - 12 + k * 6, 1.7, 0, bio, new THREE.Color(0.85, 0.92, 1.05));
+      ring(8, 9, (x, z) => kit('kit_rock_b', x, z, 0.7 + R() * 0.5, 0.7, bio, new THREE.Color(0.9, 0.95, 1.05))); chest(X + 4, Z);
+    }
+  }
   function buildPOI(p, kit, cols, inter) {
     const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
     const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
@@ -1373,6 +1438,11 @@
         kit('kit_rock_b', p.x, p.z - 1.5, 1.8, 1.6, bio);
         kit('kit_arch', p.x, p.z + 4.0, 1.45, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
         inter.push({ type: 'cave', x: p.x, z: p.z + 5.2, r: 3.0, label: 'Enter the cave', poi: p }); break;
+      case 'unique': buildUnique(p, kit, ring, R, bio, chest, inter); break;
+      case 'moonwell':
+        kit('kit_well', p.x, p.z, 1.2, 1.2, bio, new THREE.Color(0.75, 0.85, 1.05));
+        ring(6, 6, (x, z) => kit('kit_pillar_b', x, z, 0.5, 0.4, bio, new THREE.Color(0.7, 0.8, 1.0)));
+        inter.push({ type: 'moonwell', id: 'mw:' + p.id, x: p.x, z: p.z + 2.2, r: 2.6, label: 'Drink from the moonwell', poi: p }); break;
       default: break;   // ambush: nothing to see until it is too late
     }
   }
@@ -1582,6 +1652,83 @@
   // ----- The Ivy Watch (tools/blender/build_tower.py): walk in the door, come out on the roof -----
   const TW = { top: 13.1 * BS, r: 3.3 * BS };
   W.tower = TW;
+  // ---- cobbled village squares (a disc of glyph-textured stone that follows the ground) ----
+  function buildSquares(scene) {
+    const mat = GW.mat({ id: ID.MASONRY, tex: 8, color: 0xa8a49c, fill: 0.1, side: THREE.DoubleSide });
+    for (const [cx, cz, R] of VILLAGE_SQ) {
+      const P = [], U = [], idx = [], NR = 10, NA = 48;
+      P.push(cx, W.heightAt(cx, cz) + 0.06, cz); U.push(cx * 0.4, cz * 0.4);
+      for (let r = 1; r <= NR; r++) for (let a = 0; a < NA; a++) {
+        const rr = R * r / NR, an = a / NA * Math.PI * 2, wob = r === NR ? 1 + 0.06 * Math.sin(an * 5 + cx) : 1, x = cx + Math.cos(an) * rr * wob, z = cz + Math.sin(an) * rr * wob;
+        P.push(x, W.heightAt(x, z) + 0.06, z); U.push(x * 0.4, z * 0.4);
+      }
+      for (let a = 0; a < NA; a++) idx.push(0, 1 + a, 1 + (a + 1) % NA);
+      for (let r = 1; r < NR; r++) for (let a = 0; a < NA; a++) { const i0 = 1 + (r - 1) * NA + a, i1 = 1 + (r - 1) * NA + (a + 1) % NA, j0 = i0 + NA, j1 = i1 + NA; idx.push(i0, j0, i1, i1, j0, j1); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(idx); g.computeVertexNormals();
+      { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m);
+    }
+  }
+  // ---- furnished interiors: the Pale Chapel, Greymoss Keep, Rimeglass Abbey, and a camp on the Ivy Watch's roof ----
+  function furnish(scene) {
+    const plank = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.08 }), plankD = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x56402c, fill: 0.06 });
+    const stone = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x9a9a9e, fill: 0.08 }), cloth = GW.mat({ id: ID.CLOTH, color: 0x6a2a24, rim: 0.3 }), clothB = GW.mat({ id: ID.CLOTH, color: 0x2a3a5a, rim: 0.3 });
+    const iron = GW.mat({ id: ID.METAL, color: 0x5a5e68, rim: 0.4 }), wax = GW.mat({ id: ID.BODY, color: 0xe8dcc0 }), ice = GW.mat({ id: ID.RUNE, color: 0, emissive: 0x6ab0e0, unlit: true });
+    const box = (w, h, d, mat, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y + h / 2, z); m.rotation.y = ry || 0; scene.add(m); return m; };
+    const cyl = (r, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 8), mat); m.position.set(x, y + h / 2, z); scene.add(m); return m; };
+    W.candles = [];
+    // a church nave in a chapel-model building (local frame: x across, y from the door inward)
+    const nave = (C, frost) => {
+      const tw = (lx, ly) => [C.x + lx * BS, C.z - ly * BS], y0 = W.heightAt(C.x, C.z - 6 * BS);
+      for (const ly of [3.2, 4.8, 6.4, 8.0, 9.6]) for (const sd of [-1, 1]) {   // pews either side of the aisle
+        const [x, z] = tw(sd * 2.9, ly); box(3.4 * BS * 0.9, 0.48, 0.5, frost ? stone : plank, x, y0, z); box(3.4 * BS * 0.9, 0.62, 0.12, frost ? stone : plankD, x, y0 + 0.48, z - 0.3 * BS * -1 + 0.3);
+        W.addCollider(x - 1.4 * BS, z, 0.45, 'pew'); W.addCollider(x, z, 0.45, 'pew'); W.addCollider(x + 1.4 * BS, z, 0.45, 'pew');
+      }
+      const [ax, az] = tw(0, 11.6); box(3.2 * BS, 1.05, 1.1 * BS, frost ? ice : stone, ax, y0, az); W.addCollider(ax, az, 1.6 * BS * 0.7, 'altar');
+      const [lx, lz] = tw(-2.6, 10.5); box(0.5, 1.15, 0.45, plankD, lx, y0, lz); box(0.7, 0.08, 0.55, plank, lx, y0 + 1.15, lz);   // lectern
+      [[-4.4, 1.8], [4.4, 1.8], [-4.4, 11.8], [4.4, 11.8]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.12, 1.7, iron, x, y0, z); W.lights.add(x, y0 + 1.95, z, frost ? new THREE.Color(0.5, 0.75, 1.0) : new THREE.Color(1.0, 0.62, 0.3), 7, 0.5); });
+      return { tw, y0, ax, az };
+    };
+    // ---- the Pale Chapel: light the four altar candles and the reliquary opens ----
+    { const N = nave(L.chapel, false);
+      [-1.2, -0.4, 0.4, 1.2].forEach((qx, k) => { const [x, z] = N.tw(qx, 11.55); const c = cyl(0.07, 0.34, wax, x, N.y0 + 1.05, z);
+        const fl = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true })); fl.position.set(x, N.y0 + 1.5, z); fl.visible = false; scene.add(fl);
+        const it = { type: 'candle', idx: k, x, z: z + 1.6, r: 1.6, label: 'Light the candle', flame: fl, cx: x, cy: N.y0 + 1.5, cz: z }; W.candles.push(it); W.interact.push(it); void c; });
+      const [rx, rz] = N.tw(4.0, 10.6); box(0.9, 0.6, 0.6, plankD, rx, N.y0, rz); box(0.95, 0.12, 0.65, iron, rx, N.y0 + 0.6, rz);
+      W.interact.push({ type: 'reliquary', id: 'chapelRelic', x: rx, z: rz + 1.2, r: 1.6, label: 'A sealed reliquary' });
+    }
+    // ---- Rimeglass Abbey: an ice altar that only answers under the moon ----
+    { const N = nave(L.abbey, true);
+      W.interact.push({ type: 'pray', id: 'abbeyRelic', x: N.ax, z: N.az + 1.6 * BS, r: 1.8, label: 'Kneel at the ice altar' });
+    }
+    // ---- Greymoss Keep: the hall on the ground floor, the steward's room above, a yard outside ----
+    { const tw = (lx, ly) => [L.castle.x + lx * BS, L.castle.z - ly * BS], y0 = CL.base, y1 = CL.base + CL.floorY;
+      const [tx, tz] = tw(-2.6, 6.2); box(1.2 * BS, 0.78, 4.2 * BS, plank, tx, y0, tz); W.addCollider(tx, tz - 1.2 * BS, 0.8 * BS, 'table', 0); W.addCollider(tx, tz + 1.2 * BS, 0.8 * BS, 'table', 0);
+      for (const sd of [-1, 1]) { const [bx, bz] = tw(-2.6 + sd * 1.15, 6.2); box(0.4 * BS, 0.45, 3.8 * BS, plankD, bx, y0, bz); }
+      const [hx, hz] = tw(-5.0, 8.8); box(1.6 * BS, 1.2, 0.8 * BS, stone, hx, y0, hz); W.lights.add(hx, y0 + 1.4, hz, new THREE.Color(1.0, 0.5, 0.2), 8, 0.8); W.addCollider(hx, hz, 0.8 * BS, 'hearth', 0);
+      const fm = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 6), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xff8a30, unlit: true })); fm.position.set(hx, y0 + 1.25, hz); scene.add(fm); W.flames.push({ m: fm, s: 4, base: 1 });
+      [[4.6, 9.0], [4.9, 8.2], [4.6, 3.0]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.42, 1.0, plankD, x, y0, z); W.addCollider(x, z, 0.5, 'barrel', 0); });
+      const [wx, wz] = tw(-5.2, 3.2); box(0.3, 1.6, 1.6 * BS, plankD, wx, y0, wz); for (let k = 0; k < 4; k++) box(0.06, 1.4, 0.06, iron, wx + 0.12, y0 + 0.15, wz - 0.9 * BS + k * 0.6 * BS);   // weapon rack
+      const [sx, sz] = tw(2.6, 9.0); box(1.0, 0.7, 0.7, plankD, sx, y0, sz); box(1.05, 0.14, 0.75, iron, sx, y0 + 0.7, sz); W.addCollider(sx, sz, 0.6, 'strongbox', 0);
+      W.interact.push({ type: 'strongbox', id: 'keepBox', x: sx, z: sz + 1.1, r: 1.6, label: "The steward's strongbox" });
+      // the steward's room upstairs
+      const [ux, uz] = tw(-4.4, 8.6); box(1.0 * BS, 0.35, 2.0 * BS, cloth, ux, y1, uz);   // a bed
+      const [dx, dz] = tw(4.4, 3.6); box(1.2 * BS, 0.75, 0.7 * BS, plank, dx, y1, dz); W.addCollider(dx, dz, 0.7 * BS, 'desk', 1);
+      W.interact.push({ type: 'ledger', id: 'keepLedger', x: dx, z: dz + 1.1, r: 1.6, label: "Read the steward's ledger", floor: 1 });
+      const [nx, nz] = tw(0, 9.85); box(1.6 * BS, 2.2, 0.05, clothB, nx, y1 + 0.5, nz);   // banner on the back wall
+      // the yard: practice posts and a cart of firewood
+      [[-8, -2], [-8, 2]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.14, 1.7, plankD, x, y0, z); box(0.9, 0.12, 0.12, plankD, x, y0 + 1.3, z); W.addCollider(x, z, 0.35, 'post'); });
+      const [cx, cz] = tw(7.5, -7.5); box(1.4 * BS, 0.6, 0.9 * BS, plank, cx, y0 + 0.3, cz, 0.3); W.addCollider(cx, cz, 1.0 * BS, 'cart');
+    }
+    // ---- the Ivy Watch roof: a lookout's camp and a spyglass on a tripod ----
+    { const T = L.tower, y = TW.topY;
+      box(0.9, 0.18, 1.9, cloth, T.x - 1.6 * BS, y, T.z + 1.0 * BS, 0.4);
+      box(0.8, 0.7, 0.8, plankD, T.x + 1.5 * BS, y, T.z - 1.5 * BS, 0.2); W.addCollider(T.x + 1.5 * BS, T.z - 1.5 * BS, 0.6, 'crate', 2);
+      const sx = T.x + 0.4 * BS, sz = T.z - 2.4 * BS; for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2, leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 4), plankD); leg.position.set(sx + Math.cos(a) * 0.25, y + 0.65, sz + Math.sin(a) * 0.25); leg.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3); scene.add(leg); }
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.9, 8), iron); tube.position.set(sx, y + 1.45, sz); tube.rotation.x = Math.PI / 2.4; scene.add(tube);
+      W.interact.push({ type: 'spyglass', x: sx, z: sz + 0.9, r: 1.4, label: 'Look through the spyglass', floor: 2 });
+    }
+  }
   function buildTower(scene) {
     const g = GW.Assets.gltf.tower; if (!g) return;
     const T = L.tower, base = W.heightAt(T.x, T.z) - 0.05;
@@ -2055,6 +2202,21 @@
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
+  let TOTALS = null;
+  W.poiTotals = function () {
+    if (TOTALS) return TOTALS;
+    TOTALS = {}; const n = Math.ceil(HALF / POI_CELL);
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const p = W.poiAt(i, j); if (p && p.type !== 'ambush') TOTALS[p.region] = (TOTALS[p.region] || 0) + 1; }
+    for (const p of W.valePois()) if (p.type !== 'vein' && p.type !== 'ambush') TOTALS.vale = (TOTALS.vale || 0) + 1;
+    for (const p of W.uniques()) TOTALS[p.region] = (TOTALS[p.region] || 0) + 1;
+    return TOTALS;
+  };
+  // a find by its id ("i,j" on the grid, "vale3", "u4")
+  W.poiById = function (id) {
+    if (/^u\d+$/.test(id)) return W.uniques().find(p => p.id === id) || null;
+    if (/^vale\d+$/.test(id)) return W.valePois().find(p => p.id === id) || null;
+    const m = /^(-?\d+),(-?\d+)$/.exec(id); return m ? W.poiAt(+m[1], +m[2]) : null;
+  };
   W.enemyLevelAt = (x, z) => 1 + Math.floor(Math.hypot(x, z) / LVLD);
   W.regionLevels = key => { const D = W.mapData(), i = key === 'vale' ? 0 : BIOMES.indexOf(key) + 1; return D.levels[i] || [1, 1]; };
   // how dangerous a level is for the hero: green (easy) → gold → orange → red (deadly)

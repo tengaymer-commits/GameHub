@@ -258,6 +258,25 @@
     const open = on === undefined ? !UI.bookOpen() : on; $('book').classList.toggle('hidden', !open);
     if (open) UI.renderBook(G); else UI.refreshAbil();
   };
+  // ---- the Journal: what you've found, region by region, and the stories left half-told ----
+  UI.renderJournal = function (G, el) {
+    const W = GW.World, tot = W.poiTotals(), fnd = G.foundByRegion(), me = G.player.level, I = G.items || {}, O = G.opened || {};
+    let h = '<div class="sec2">THE LANDS · places found, region by region</div><table class="jr">';
+    for (const k of ['vale'].concat(W.BIOMES)) { const R = W.REGIONS[k], lv = W.regionLevels(k), t = tot[k] || 0, f = fnd[k] || 0, pc = t ? Math.round(f / t * 100) : 0;
+      h += `<tr><td style="color:${R.col}">${R.name}</td><td style="color:${W.dangerCol(lv[0], me)}">lv ${lv[0]}–${lv[1]}</td><td>${f} / ${t}</td><td><span class="jbar"><i style="width:${pc}%"></i></span></td></tr>`; }
+    h += '</table><div class="sec2">LANDMARKS</div><div class="jl">';
+    for (const p of W.uniques()) { const seen = G.poiSeen[p.id]; h += `<div class="${seen ? '' : 'dim'}">${p.type === 'moonwell' ? '☾' : '✪'} ${seen ? p.name.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' <span class="dim">· ' + W.REGIONS[p.region].name.toLowerCase() + '</span>' : '<span class="dim">unfound ' + (p.type === 'moonwell' ? 'moonwell (only at night)' : 'landmark') + ' · ' + W.REGIONS[p.region].name.toLowerCase() + '</span>'}</div>`; }
+    h += '</div><div class="sec2">HALF-TOLD STORIES</div><div class="jl">';
+    const candles = [0, 1, 2, 3].filter(k => G.candleLit(k)).length;
+    const row = (done, title, hint) => `<div class="${done ? 'done' : ''}">${done ? '✓' : '·'} <b>${title}</b> <span class="dim">${done ? '' : '· ' + hint}</span></div>`;
+    h += row(O.chapelRelic, 'The Pale Chapel', candles + ' of 4 altar candles lit; the reliquary waits');
+    h += row(O.keepBox, "The Steward's Strongbox", I.keepKey ? 'you carry the iron key: the strongbox is in the keep\'s hall' : 'a Hollow Captain in Greymoss Keep carries the key');
+    h += row(I.ledger, "The Steward's Ledger", 'upstairs in Greymoss Keep');
+    h += row(O.abbeyRelic, 'The Frozen Prayer', 'kneel at Rimeglass Abbey\'s ice altar, under the moon');
+    h += row(I.spyglass, 'The Ivy Watch', 'a spyglass waits on the roof');
+    const solved = Object.keys(G.solved || {}).length; h += `<div>· <b>Puzzles solved</b> <span class="dim">· ${solved}</span></div>`;
+    el.innerHTML = h + '</div>';
+  };
   UI.bookPick = function (G, i) { bookSel = i; UI.renderBook(G); };
   UI.renderBook = function (G) {
     const tab = UI._bookTab || 'load', pts = GW.Skills.points(G.player);
@@ -267,6 +286,7 @@
     $('book-close').onclick = () => UI.toggleBook(G, false);
     $('book-body').classList.toggle('skills', tab === 'skills');
     if (tab === 'skills') { GW.Skills.render(G, $('book-body')); return; }
+    if (tab === 'journal') { UI.renderJournal(G, $('book-body')); return; }
     const P = G.player, A = GW.Abil, b = A.ensure(P), atStation = G.craftStation && G.craftStation();
     // weapons: two carried, X swaps between them
     const AR = GW.Arms, ar = AR.ensure(P);

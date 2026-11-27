@@ -23,9 +23,9 @@
   const MOUNT = '▲^∧▲^', WATER = '≈~≈~', EDGE = '░';
   const hash = (i, j) => { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   const POI_ICON = { camp: ['x', '#e07a64', 'bandit camp'], ruin: ['#', '#b4b8c4', 'ruin'], chest: ['■', '#ffd860', 'cache'], shrine: ['†', '#9fd8ff', 'shrine'], waystone: ['◊', '#9fd8ff', 'waystone'],
-    vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'], puzzle: ['?', '#c8a0ff', 'puzzle'] };
+    vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'], puzzle: ['?', '#c8a0ff', 'puzzle'], unique: ['✪', '#ffe08a', 'landmark'], moonwell: ['☾', '#a8c8ff', 'moonwell'] };
 
-  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1 };
+  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1, unique: 1, moonwell: 1 };
   // ---------- map styles: V cycles them on the map ----------
   const STYLES = ['tour', 'ascii', 'ink', 'mosaic'];
   const STYLE_NAME = { tour: 'Touring map', ascii: 'ASCII relief', ink: "Explorer's ink", mosaic: 'Glyph mosaic' };
@@ -225,7 +225,9 @@
         halo(g, spaced(R.name.replace(/^THE /, '')), x, y, R.col, 6);
         g.font = `italic ${Math.round(GW.clamp(10 + WM.zoom, 11, 14))}px Georgia, serif`; halo(g, '— ' + R.sub + ' —', x, y + 22, 'rgba(230,224,206,.75)', 4);
         { const lv = W.regionLevels(k), me = G.player.level; g.font = `600 ${Math.round(GW.clamp(11 + WM.zoom, 12, 15))}px ui-monospace, Menlo, monospace`;
-          halo(g, 'lv ' + (lv[0] === lv[1] ? lv[0] : lv[0] + '–' + lv[1]), x, y + 40, W.dangerCol(lv[0], me), 4); }
+          halo(g, 'lv ' + (lv[0] === lv[1] ? lv[0] : lv[0] + '–' + lv[1]), x, y + 40, W.dangerCol(lv[0], me), 4);
+          const tot = (W.poiTotals() || {})[k] || 0, fnd = (G.foundByRegion ? G.foundByRegion()[k] : 0) || 0;
+          if (tot) { g.font = `${Math.round(GW.clamp(10 + WM.zoom, 11, 13))}px ui-monospace, Menlo, monospace`; halo(g, 'found ' + fnd + ' / ' + tot, x, y + 56, 'rgba(232,216,170,.85)', 3); } }
         g.globalAlpha = 1; });
     }
     // named places (zones) and villages
@@ -254,7 +256,7 @@
       const big = WM.zoom > 6;
       g.font = `bold ${big ? 14 : 12}px ui-monospace, Menlo, monospace`;
       const plist = []; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const q = W.poiAt(i, j); if (q) plist.push(q); }
-      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); });
+      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); }); W.uniques().forEach(q => plist.push(q));
       for (const p of plist) {
         if (!POI_ICON[p.type]) continue;
         if (WM.zoom < 5 && !LANDMARK[p.type]) continue;
@@ -267,7 +269,7 @@
         g.fillStyle = ic[1]; g.fillText(ic[0], x, y + 0.5);
         if (big) { g.font = '10px ui-monospace, Menlo, monospace'; halo(g, 'lv ' + p.lvl, x, y + 15, W.dangerCol(p.lvl, G.player.level), 3); g.font = 'bold 14px ui-monospace, Menlo, monospace'; }
         g.globalAlpha = 1;
-        feats.push({ x, y, name: ic[2].replace(/^./, s => s.toUpperCase()) + (p.name ? ': ' + p.name : ''), sub: (W.REGIONS[p.region] || {}).name.toLowerCase() + ' · level ' + p.lvl + ' (you: ' + G.player.level + ')' + (done ? ' · cleared' : ''), wx: p.x, wz: p.z });
+        feats.push({ x, y, name: ic[2].replace(/^./, s => s.toUpperCase()) + (p.name ? ': ' + p.name : ''), sub: (p.name ? p.name.toLowerCase() + ' · ' : '') + (W.REGIONS[p.region] || {}).name.toLowerCase() + ' · level ' + p.lvl + ' (you: ' + G.player.level + ')' + (done ? ' · cleared' : ''), wx: p.x, wz: p.z });
       }
     }
     // fires, forges, chests from the hand-placed world

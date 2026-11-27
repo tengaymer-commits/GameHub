@@ -256,3 +256,11 @@ body.touch #hotbar { display: none; }
 @keyframes fusepulse { from { filter: brightness(1); } to { filter: brightness(1.6); } }
 #f-side { max-height: calc(100vh - 150px); overflow-y: auto; }
 #f-smelt .chip.smelt { font-size: 11px; padding: 4px 7px; margin: 2px 0; width: 100%; text-align: left; }
+/* journal */
+table.jr { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 10px; }
+table.jr td { padding: 3px 6px; border-bottom: 1px solid rgba(200,205,220,.08); }
+.jbar { display: inline-block; width: 120px; height: 6px; background: rgba(200,205,220,.12); vertical-align: middle; }
+.jbar i { display: block; height: 100%; background: #c8a86a; }
+.jl { display: grid; gap: 3px; font-size: 13px; margin-bottom: 10px; }
+.jl .dim, .dim { color: #7a8090; }
+.jl .done { color: #9ad08a; }
