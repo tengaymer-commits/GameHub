@@ -1258,7 +1258,7 @@
   // ---------------- interaction ----------------
   function nearestInteract() {
     const P = G.player; let best = null, bd = 1e9;
-    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id)) || (it.type === 'pz' && G.solved[it.poi.id] && (it.role !== 'vault' || G.opened['puz:' + it.poi.id])) || (it.type === 'candle' && G.candleLit(it.idx)) || (it.id && ['reliquary', 'pray', 'strongbox', 'uniqbell', 'eldertree'].includes(it.type) && G.opened[it.id]) || (it.type === 'moonwell' && (!isNight() || G.opened[it.id + ':' + G.nightN()]))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
+    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id)) || (it.type === 'dgate' && it.gate.open) || (it.type === 'dlever' && G.dungeon && G.dungeon.lv && (G.dungeon.lv.gates.find(g => g.id === it.gate) || {}).open) || (it.type === 'pz' && G.solved[it.poi.id] && (it.role !== 'vault' || G.opened['puz:' + it.poi.id])) || (it.type === 'candle' && G.candleLit(it.idx)) || (it.id && ['reliquary', 'pray', 'strongbox', 'uniqbell', 'eldertree'].includes(it.type) && G.opened[it.id]) || (it.type === 'moonwell' && (!isNight() || G.opened[it.id + ':' + G.nightN()]))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
     return best;
   }
   function doInteract(it) {
@@ -1287,6 +1287,10 @@
     else if (it.type === 'castle') { const L = GW.World.L; enterLevel({ kind: 'castle', id: 'dunmaer', seed: 9137, region: 'high', lvl: 1 + Math.floor(Math.hypot(L.dunmaer.x, L.dunmaer.z) / GW.World.LVLD) + 3, floors: 3,
       names: ['THE GATEHALL', 'THE GREAT HALL', 'THE CROWN TOWER'], back: { x: it.x, z: it.z + 2.5 } }); }
     else if (it.type === 'dexit') fade(() => leaveLevel(false));
+    else if (it.type === 'dlever') { const g = GW.Dungeon.openGate(G.dungeon.lv, it.gate); it.arm.rotation.z = -0.6; GWAudio.sfx('anvil'); G.shake(0.2);
+      if (g) { UI.toast(it.gate === 'short' ? 'Somewhere back toward the entrance, a gate grinds open.' : 'Iron grinds: a portcullis lifts.', 2.6); G.dungeon.lv.inter.filter(q => q.type === 'dgate' && q.gate === g).forEach(q => { q.label = 'An open gate'; }); }
+      else UI.toast('The lever is already down.', 1.4); }
+    else if (it.type === 'dgate') { if (!it.gate.open) UI.toast(it.gate.fromFar ? 'Barred from the other side.' : 'A portcullis. There must be a lever somewhere.', 2.2); }
     else if (it.type === 'dstairs') fade(() => buildFloor(G.dungeon.floor + 1));
   }
   // ---------------- dungeons: caves and Castle Dunmaer are separate levels ----------------
@@ -1314,21 +1318,27 @@
     d.enemies.forEach(e => { e.alive = false; G.scene.remove(e.model); G.scene.remove(e.shadow); if (e.ring) G.scene.remove(e.ring); if (e.T.onDeath && e.light) e.T.onDeath(e); });
     G.enemies = G.enemies.filter(e => !d.enemies.includes(e)); d.enemies = []; d.lv = null;
   }
+  let it0 = null;
   function buildFloor(f) {
     const d = G.dungeon, P = G.player, W = GW.World; clearFloor();
     d.floor = f;
-    const lv = d.lv = GW.Dungeon.build(G.scene, d.seed + f * 977, d.kind, 0), last = lv.rooms.length - 1, pool = DPOOL[d.region] || DPOOL.vale, R = GW.rand(d.seed + f * 31);
-    // enemies in every room but the first; the last room is guarded harder
-    lv.rooms.forEach((r, i) => { if (i === 0) return;
-      const n = i === last ? 2 : 2 + Math.floor(R() * 3);
-      for (let k = 0; k < n; k++) { const tx = r.x0 + 1 + Math.floor(R() * (r.x1 - r.x0 - 1)), tz = r.z0 + 1 + Math.floor(R() * (r.z1 - r.z0 - 1)), [x, z] = lv.at(tx, tz);
-        const e = G.spawnEnemy(pool[Math.floor(R() * pool.length)], x, z, { x, z }, false, d.lvl + f, i === last && k === 0); e.dungeon = true; d.enemies.push(e); } });
+    const lv = d.lv = GW.Dungeon.build(G.scene, d.seed + f * 977, d.kind, 0, d.layout), pool = DPOOL[d.region] || DPOOL.vale, R = GW.rand(d.seed + f * 31);
+    // enemies where the layout put them: guards in the rooms, the dead asleep in their niches, a champion on the dais
+    for (const sp of lv.spawns) {
+      const e = G.spawnEnemy(pool[Math.floor(R() * pool.length)], sp.x, sp.z, { x: sp.x, z: sp.z }, false, d.lvl + f + (sp.boss ? 1 : 0), sp.boss);
+      e.dungeon = true; d.enemies.push(e);
+      if (sp.dormant) { e.sleep = true; e.aggro = false; }
+    }
+    // lesser chests in the side rooms
+    lv.chests.forEach((c, k) => { if (c.elite) return; const id = d.id + ':' + f + ':side' + k; if (G.opened[id]) return;
+      W.interact.push(it0 = { type: 'chest', x: c.x, z: c.z, r: 1.6, label: 'Open the chest', id, poi: { seed: d.seed + f * 13 + k, lvl: d.lvl + f, type: 'chest' } }); lv.inter.push(it0);
+      const bx = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.6), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x8a6438 })); bx.position.set(c.x, c.y + 0.28, c.z); G.scene.add(bx); lv.meshes.push(bx); });
     const top = f >= d.floors - 1, [ex, ez] = lv.end, [sx, sz] = lv.start;
-    const glow = (x, z, col) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24).rotateX(-Math.PI / 2), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true, side: THREE.DoubleSide })); m.position.set(x, 0.05, z); G.scene.add(m); lv.meshes.push(m); lv.lights.push(W.lights.add(x, 1.5, z, new THREE.Color(col).multiplyScalar(0.8), 6, 0.3)); };
+    const glow = (x, z, col) => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24).rotateX(-Math.PI / 2), GW.mat({ id: ID.RUNE, color: 0, emissive: col, unlit: true, side: THREE.DoubleSide })); m.position.set(x, GW.World.heightAt(x, z) + 0.05, z); G.scene.add(m); lv.meshes.push(m); lv.lights.push(W.lights.add(x, 1.5, z, new THREE.Color(col).multiplyScalar(0.8), 6, 0.3)); };
     const add = it => { W.interact.push(it); lv.inter.push(it); };
     glow(sx, sz, 0x6ab8ff); add({ type: 'dexit', x: sx, z: sz, r: 2.2, label: f === 0 ? 'Leave' : 'Leave the castle' });
     if (top && d.quest && !(G.items && G.items.seal)) {   // the quest's relic waits on the last floor
-      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), GW.mat({ id: ID.RUNE, color: 0, emissive: 0x9a7aff, unlit: true })); m.position.set(ex - 2, 1.3, ez); G.scene.add(m); lv.meshes.push(m);
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), GW.mat({ id: ID.RUNE, color: 0, emissive: 0x9a7aff, unlit: true })); m.position.set(ex - 2, (lv.endY || 0) + 1.3, ez); G.scene.add(m); lv.meshes.push(m);
       W.flames.push({ m, s: 2, base: 1 }); add({ type: 'relic', x: ex - 2, z: ez, r: 2.0, label: "Take the Scribe's Seal", mesh: m });
     }
     if (top && d.kind === 'castle' && !(G.items && G.items.crown)) {   // the crown's keeper waits in the last hall
@@ -1337,17 +1347,29 @@
       UI.hint('Something heavy stirs in the last hall.', 3);
     }
     if (top) { const id = d.id + ':chest'; if (!G.opened[id]) { add({ type: 'chest', x: ex, z: ez, r: 1.8, label: 'Open the chest', id, poi: { seed: d.seed + 5, lvl: d.lvl + f, type: 'elite' } });
-        const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.65), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x9a7040 })); box.position.set(ex, 0.3, ez); G.scene.add(box); lv.meshes.push(box); } }
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.65), GW.mat({ id: ID.PLANKS, tex: 2, color: 0x9a7040 })); box.position.set(ex, (lv.endY || 0) + 0.3, ez); G.scene.add(box); lv.meshes.push(box); } }
     else { glow(ex, ez, 0xffd070); add({ type: 'dstairs', x: ex, z: ez, r: 2.2, label: 'Climb to ' + (d.names[f + 1] || 'the next floor').toLowerCase() }); }
     P.place(sx + 2.5, sz); P.floor = 0; G.snapCam = true;
-    UI.banner(d.kind === 'castle' ? 'floor ' + (f + 1) + ' of ' + d.floors : 'level ' + d.lvl, d.names[f] || 'THE DEPTHS', 2.8);
+    UI.banner((d.kind === 'castle' ? 'floor ' + (f + 1) + ' of ' + d.floors : 'level ' + d.lvl) + ' · ' + (lv.title || '').toLowerCase(), d.names[f] || 'THE DEPTHS', 2.8);
   }
+  G.enterLevel = def => enterLevel(def); G.leaveLevel = s2 => leaveLevel(s2);   // for tests and tools
   function leaveLevel(silent) {
     const d = G.dungeon; if (!d) return;
     clearFloor(); (G.hiddenWorld || []).forEach(o => { o.visible = true; }); G.hiddenWorld = null;
     G.dungeon = null;
     if (!silent) { const P = G.player; P.place(d.back.x, d.back.z); G.snapCam = true; GW.World._streamBudget = 99; GW.World.dataWindow(d.back.x, d.back.z, true); GW.World.terrainRefresh(true, d.back.x, d.back.z); }
   }
+  G.dungeonTick = function (dt) {
+    const d = G.dungeon; if (!d || !d.lv) return; const lv = d.lv, P = G.player;
+    GW.Dungeon.update(lv, dt);
+    for (const e of d.enemies) if (e.alive && e.sleep && e.distTo(P.pos) < 7) {   // the dead rise from their niches
+      e.sleep = false; e.aggro = true; G.glyphRing(e.pos.x, e.pos.y + 0.6, e.pos.z, 0.5, 14, '†·%', '#a8b8d8', 3, 0.7, 14); GWAudio.sfx('howl'); UI.float('RISES', e.pos, { color: '#a8b8d8', size: 12, y: 2.6, life: 1 });
+    }
+    lv.plateT = (lv.plateT || 0) - dt;
+    if (lv.plateT <= 0) for (const pl of lv.plates) if (Math.abs(P.pos.x - pl.x) < 1.0 && Math.abs(P.pos.z - pl.z) < 1.0 && P.state !== 'roll') {
+      lv.plateT = 1.2; G.glyphRing(pl.x, pl.y + 0.2, pl.z, 0.3, 12, '^Λ', '#ff6050', 4, 0.4, 16); GWAudio.sfx('slam'); G.hurtPlayer(10 + d.lvl * 2, new V3(pl.x, pl.y, pl.z), { dot: true }); UI.float('TRAP', P.pos, { color: '#ff8060', size: 12, y: 2.6 }); break;
+    }
+  };
   // ---------------- travel targets: found fires and attuned waystones ----------------
   function travelList(x, z, exclude) {
     const out = GW.World.fires.filter(f => !f.out && !f.rest.own && G.discovered[f.rest.name] && f.rest !== exclude).map(f => ({ name: '▲ ' + f.rest.name, x: f.x, z: f.z }));
@@ -1861,14 +1883,14 @@
             UI.toast('<span style="color:#ff8a7a">debug</span> movement reset · ' + bad, 12); }
           const g = G._lastGood || G.respawn || GW.World.L.start; P.pos.set(g.x, GW.World.heightAt(g.x, g.z), g.z); if (P.vel) P.vel.set(0, 0, 0); if (P.mvel) { P.mvel.x = 0; P.mvel.z = 0; } P.state = 'move'; G.snapCam = true;
         } else G._lastGood = { x: P.pos.x, z: P.pos.z };
-        for (const e of G.enemies) e.update(sdt, G);
+        for (const e of G.enemies) if (!e.sleep) e.update(sdt, G);
         for (const n of G.npcs) n.update(sdt, G);
         updateProjectiles(sdt); updateBoulders(sdt); updatePickups(sdt);
         G.telegraphs = G.telegraphs.filter(t => { t.update(sdt); return !t.done; });
         // tutorial hints + boss trigger + zones
         world(sdt);
         // respawn timers
-        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.questTick(); G.pzUpdate(); G.landmarkFx(sdt);
+        updateSpawns(sdt); G.updateOwnFires(sdt); towerDoor(); G.updateHorse(sdt); tickPlayerDots(sdt); G.questTick(); G.dungeonTick(sdt); G.pzUpdate(); G.landmarkFx(sdt);
         if (frame % 15 === 0) explore();
         if (frame % 20 === 7) poiTick();
         if (G.t % 10 < sdt) G.enemies = G.enemies.filter(e => e.alive || !e.temp || G.t - (e.diedAt || 0) < 8 || (G.scene.remove(e.model), G.scene.remove(e.shadow), false));

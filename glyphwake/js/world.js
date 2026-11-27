@@ -546,14 +546,14 @@
     SIZE, L, ZONES, WATER_Y, BIOMES, HUBS,
     colliders: [], grid: new Map(), interact: [], spawns: [], flames: [], fires: [], occluders: [], lights: null, fireflies: null,
   };
-  W.heightAt = (x, z) => x > 9000 ? 0 : sample('H', x, z);
+  W.heightAt = (x, z) => x > 9000 ? (GW.Dungeon && GW.Dungeon.cur ? GW.Dungeon.cur.heightAt(x, z) : 0) : sample('H', x, z);
   W.riverAt = (x, z) => sample('R', x, z);
   W.waterYAt = (x, z) => sample('RY', x, z);
   W.biomeAt = (x, z) => { if (x > 9000) return { vale: 1, frost: 0, high: 0, ash: 0, salt: 0, mire: 0, dusk: 0 }; const b = biomeSample(x, z), o = { vale: 1 }; BIOMES.forEach((n, k) => { o[n] = b[k]; o.vale -= b[k]; }); return o; };
   W.regionAt = (x, z) => { if (x > 9000) return 'vale'; const b = biomeSample(x, z); let best = 'vale', bv = 0.5; b.forEach((v, k) => { if (v > bv) { bv = v; best = BIOMES[k]; } }); return best; };
   W.REGIONS = REGIONS; W.CORE = CORE;
   W.pathAt = (x, z) => x > 9000 ? 99 : sample('P', x, z);
-  W.inWater = (x, z) => x < 9000 && sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
+  W.inWater = (x, z) => x > 9000 ? !!(GW.Dungeon && GW.Dungeon.cur && GW.Dungeon.cur.inWater(x, z)) : sample('R', x, z) < RIVER_W - 0.6 && !W.onBridge(x, z);
   W.onBridge = (x, z) => {
     if (bridgeAt(x, z)) return true;
     const b = W.bridge; if (!b) return false;
@@ -2262,6 +2262,7 @@
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
+  W.kitGroup = (n, sc, tint) => kitGroup(n, sc, tint);   // a standalone kit piece (dungeons use these)
   let TOTALS = null;
   W.poiTotals = function () {
     if (TOTALS) return TOTALS;
