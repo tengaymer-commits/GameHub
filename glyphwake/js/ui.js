@@ -19,10 +19,12 @@
       I.keys[e.code] = true;
       if (KEYMAP[e.code]) { I.press(KEYMAP[e.code]); e.preventDefault(); }
       if (e.code === 'Escape' || e.code === 'Tab' || e.code === 'KeyP') { I.press('menu'); e.preventDefault(); }
+      if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();   // Alt shows the HUD; don't let the browser grab it for its menu
       I.touch = false; UI.showTouch(false);
       GWAudio.init();
     });
-    window.addEventListener('keyup', e => { I.keys[e.code] = false; });
+    window.addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault(); });
+    window.addEventListener('blur', () => { I.keys = {}; });   // alt-tab away: don't leave keys stuck down
     const cv = $('gl');
     cv.addEventListener('mousemove', e => { I.mouse.x = e.clientX; I.mouse.y = e.clientY; I.mouse.used = true; });
     // hold the middle button and drag: orbit (left/right) and tilt (up/down) the camera
@@ -293,7 +295,9 @@
     let wh = '<div class="sec2">WEAPONS · carry two, <b>X</b> swaps · click a carried slot, then a form</div><div class="wrow">';
     wh += ar.set.map((k, i) => { const c = k && AR.CLS[k]; return `<div class="bs w${UI._armSel === i ? ' sel' : ''}${ar.act === i ? ' act' : ''}" data-w="${i}"><span class="k">${i ? 'II' : 'I'}</span><span class="g" style="color:${c ? c.col : '#555a66'}">${c ? c.g : '·'}</span><span class="n">${c ? c.name : 'empty'}${ar.act === i ? ' · in hand' : ''}</span></div>`; }).join('') + '</div><div class="wlist">';
     for (const k in AR.CLS) { const c = AR.CLS[k], own = !!ar.owned[k];
-      wh += `<div class="wf${own ? '' : ' unk'}" data-f="${k}" title="${c.desc}${own ? '' : ' · ' + AR.where(k)}"><span class="g" style="color:${own ? c.col : '#4a4e5a'}">${c.g}</span> ${c.name}${own ? '' : ' <span class="dim">· ' + AR.where(k) + '</span>'}</div>`; }
+      const ms = AR.masteryOf(G.player, k), RN = ['', 'I', 'II', 'III', 'IV', 'V'][ms.l], nextPerk = ms.l < 3 ? AR.PERKS[k][0] : ms.l < 5 ? AR.PERKS[k][1] : 'mastered';
+      const mtxt = own ? ` <span class="dim">· mastery ${RN || '–'}${ms.l < 5 ? ' (' + ms.xp + '/' + ms.next + ')' : ''}</span>` : '';
+      wh += `<div class="wf${own ? '' : ' unk'}" data-f="${k}" title="${c.desc}${own ? '\nmastery ' + (RN || '0') + ' · next: ' + nextPerk : ' · ' + AR.where(k)}"><span class="g" style="color:${own ? c.col : '#4a4e5a'}">${c.g}</span> ${c.name}${mtxt}${own ? '' : ' <span class="dim">· ' + AR.where(k) + '</span>'}</div>`; }
     $('book-arms').innerHTML = wh + '</div>';
     if (UI._armSel === undefined) UI._armSel = 1;
     $('book-arms').querySelectorAll('[data-w]').forEach(el => el.onclick = () => { UI._armSel = +el.dataset.w; UI.renderBook(G); });
@@ -421,7 +425,11 @@
     g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
     if (G.dungeon) { g.fillStyle = '#5a6070'; g.font = '10px monospace'; g.textAlign = 'center'; g.fillText('underground', 64, 64); return; }
     const LM = GW.World.getLocalMap(); g.imageSmoothingEnabled = false;
-    g.drawImage(LM.canvas, (P.pos.x - span / 2 - LM.x0) / LM.mpp, (P.pos.z - span / 2 - LM.z0) / LM.mpp, span / LM.mpp, span / LM.mpp, 0, 0, 128, 128);
+    // heading-up: turn the whole map so the way you face points to the top (the corners need a wider patch)
+    const rot = UI.settings.mmRotate ? P.visYaw - Math.PI : 0;
+    g.save(); if (rot) { g.translate(64, 64); g.rotate(rot); g.translate(-64, -64); }
+    const sp2 = rot ? span * 1.45 : span, px2 = rot ? 128 * 1.45 : 128, o2 = (px2 - 128) / 2;
+    g.drawImage(LM.canvas, (P.pos.x - sp2 / 2 - LM.x0) / LM.mpp, (P.pos.z - sp2 / 2 - LM.z0) / LM.mpp, sp2 / LM.mpp, sp2 / LM.mpp, -o2, -o2, px2, px2);
     const to = (x, z) => [(x - P.pos.x) / span * 128 + 64, (z - P.pos.z) / span * 128 + 64];
     g.font = 'bold 10px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const it of GW.World.interact) { const [x, y] = to(it.x, it.z); if (x < 0 || y < 0 || x > 128 || y > 128) continue; g.fillStyle = it.type === 'rest' ? '#ff9a40' : '#ffcf6a'; g.fillText(it.type === 'rest' ? '▲' : it.type === 'forge' ? 'π' : '!', x, y); }
@@ -429,7 +437,9 @@
     if (G.waypoint) { let [x, y] = to(G.waypoint.x, G.waypoint.z); const dx = x - 64, dy = y - 64, d = Math.hypot(dx, dy); if (d > 56) { x = 64 + dx / d * 56; y = 64 + dy / d * 56; } g.fillStyle = '#6ae8ff'; g.fillText('✚', x, y); }
     const obj = G.objective();
     if (obj) { let [x, y] = to(obj.x, obj.z); const dx = x - 64, dy = y - 64, d = Math.hypot(dx, dy); if (d > 56) { x = 64 + dx / d * 56; y = 64 + dy / d * 56; } g.fillStyle = '#ffd860'; g.fillText('◆', x, y); }
-    g.save(); g.translate(64, 64); g.rotate(-P.visYaw + Math.PI); g.fillStyle = '#fff'; g.fillText('▲', 0, 0); g.restore();
+    g.restore();
+    g.save(); g.translate(64, 64); g.rotate(rot ? 0 : -P.visYaw + Math.PI); g.fillStyle = '#fff'; g.fillText('▲', 0, 0); g.restore();
+    if (rot) { const nx = 64 + Math.sin(rot) * 54, ny = 64 - Math.cos(rot) * 54; g.fillStyle = '#ffcf6a'; g.font = 'bold 11px monospace'; g.fillText('N', nx, ny); }   // where north is now
   };
 
   // the world map (M) lives in worldmap.js
@@ -496,6 +506,7 @@
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { prompt('Copy your save:', txt); });
       else prompt('Copy your save:', txt);
     };
+    const mr = $('o-mmrot'); if (mr) { mr.checked = !!S.mmRotate; mr.onchange = () => { S.mmRotate = mr.checked; UI.saveSettings(); }; }
     const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');
     rsp.checked = !!S.respawn; rsp.onchange = () => { S.respawn = rsp.checked; UI.saveSettings(); };

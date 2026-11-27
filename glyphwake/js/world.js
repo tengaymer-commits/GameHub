@@ -339,7 +339,7 @@
   // bridges: every crossing of a road or path with a river; the King's roads get stone, the rest timber
   const BRIDGES = [];
   function findBridges() {
-    const HW = [1.7, 2.4, 3.3];
+    const HW = [2.6, 3.6, 4.8];   // half-widths: paths, roads, King's roads
     PATHP.forEach((poly, pi) => { const kind = PATH_KIND[pi];
       for (let s = 0; s < poly.length - 1; s++) {
         const a = poly[s], b = poly[s + 1];

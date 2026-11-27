@@ -185,6 +185,10 @@
     s.dmg *= 1 + 0.06 * SK('b_edge'); s.crit += 0.04 * SK('b_keen'); s.focusRegen *= 1 + 0.15 * SK('y_well');
     this.maxFlasks = 3 + (this.extraFlasks || 0) + SK('g_flask'); this.flasks = Math.min(this.flasks, this.maxFlasks);
     this.moveMul = 1 + gs.move; this.stMul = 1 + gs.stam;
+    // weapon mastery for the form in hand
+    if (GW.Arms && this.inv) { const k = GW.Arms.curKey(this), ml = GW.Arms.masteryOf(this, k).l; s.dmg *= 1 + 0.03 * ml; s.flags = s.flags || {};
+      if (ml >= 3) { s.flags['m3_' + k] = 1; if (k === 'spear') s.reach = (s.reach || 0) + 0.4; if (k === 'daggers') s.speed += 0.1; }
+      if (ml >= 5) { s.flags['m5_' + k] = 1; if (k === 'bow') s.crit += 0.08; } this.mastery = ml; }
     // a save from an older build can leave a stat undefined: never let one poison movement or combat
     const fin = (v, d) => (Number.isFinite(v) ? v : d);
     this.moveMul = fin(this.moveMul, 1); this.stMul = fin(this.stMul, 1);
@@ -323,7 +327,7 @@
         this.cur.dmg *= 1 + 0.05 * GW.Skills.r(this, 'b_moment') * Math.min(3, next);
         this.st -= this.cur.st * (1 - 0.15 * GW.Skills.r(this, 'b_flow')); this.stDelay = 0.6;
         if (this.riposteT > 0 && GW.Skills.r(this, 'g_ripo')) { this.cur.dmg *= 4.5 / 3.5; this.st = Math.min(100, this.st + 20); }
-        if (this.riposteT > 0) { this.cur.dmg *= 3.5; this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
+        if (this.riposteT > 0) { this.cur.dmg *= 3.5 * (this.ws.flags && this.ws.flags.m5_sword ? 1.3 : 1); this.cur.riposte = true; this.cur.brk = 3; this.riposteT = 0; GWAudio.sfx('crit'); }
         GWAudio.sfx(this.cur.heavy ? 'heavy' : 'swing');
       } else if (/^a[1-4]$/.test(q)) {
         // an ability slot: whatever the player has slotted there
@@ -372,7 +376,7 @@
           if (this.t >= c.hitAt && !c.loosed) { c.loosed = true; const f = this.fwd(), sp = c.pierce ? 46 : 34;
             GWAudio.sfx('swing', 1.6);
             G.spawnProjectile({ from: 'player', x: this.pos.x + f.x * 0.9, y: this.pos.y + 1.35, z: this.pos.z + f.z * 0.9, vx: f.x * sp, vz: f.z * sp, r: c.pierce ? 0.42 : 0.3, dmg: this.ws.dmg * c.dmg, color: c.pierce ? 0xfff0a0 : this.ws.trail, aoe: 0, life: c.pierce ? 0.9 : 0.75, pierce: c.pierce, arrow: true, brk: c.brk, crit: this.critNext }); }
-        } else if (this.t >= c.h0 && this.t <= c.h1) this.meleeHits(G, c.range, c.cone, c.dmg, c.heavy);
+        } else if (this.t >= c.h0 && this.t <= c.h1) this.meleeHits(G, c.range + (this.ws.reach || 0), c.cone, c.dmg, c.heavy);
         if (this.t >= c.dur) { this.state = 'move'; this.t = 0; }
         break;
       }
@@ -1406,37 +1410,41 @@
     this.kind = kind; this.pos = new V3(x, GW.World.heightAt(x, z), z); this.yaw = 0; this.t = Math.random() * 5;
     const g = this.model = new THREE.Group(); scene.add(g); g.position.copy(this.pos);
     shadow(scene, 0.7).position.set(x, this.pos.y + 0.03, z);
-    if (kind === 'villager') {
-      // traders and quest-givers in the region villages: robe, hood, a pack or a staff
-      this.name = o.name;
-      const robe = GW.mat({ id: ID.CLOTH, color: o.col || 0x5a4a3a, rim: 0.4 }), skin = GW.mat({ id: ID.BODY, color: 0xc0a088 }), wood = GW.mat({ id: ID.WOOD, color: 0x5a3e26 });
-      part(g, new THREE.ConeGeometry(0.55, 1.6, 10), robe, 0, 0.8, 0);
-      part(g, new THREE.SphereGeometry(0.19, 8, 6), skin, 0, 1.75, 0.03);
-      part(g, new THREE.ConeGeometry(0.28, 0.45, 10), robe, 0, 1.95, -0.03);
-      if (o.role === 'trader') { part(g, box(0.5, 0.6, 0.3), wood, 0, 1.25, -0.35); }
-      else part(g, new THREE.CylinderGeometry(0.04, 0.05, 2.0, 5), wood, -0.42, 1.0, 0.15);
-    } else if (kind === 'elder') {
-      this.name = 'Mara, the Lamplighter';
-      const robe = GW.mat({ id: ID.CLOTH, color: 0x3a4a6a, rim: 0.4 }), skin = GW.mat({ id: ID.BODY, color: 0xc8b098 }), wood = GW.mat({ id: ID.WOOD, color: 0x5a3e26 }), lamp = GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffc070, unlit: true });
-      part(g, new THREE.ConeGeometry(0.6, 1.7, 10), robe, 0, 0.85, 0);
-      part(g, new THREE.SphereGeometry(0.2, 8, 6), skin, 0, 1.85, 0.03);
-      part(g, new THREE.ConeGeometry(0.3, 0.5, 10), robe, 0, 2.05, -0.03);
-      part(g, new THREE.CylinderGeometry(0.04, 0.05, 2.2, 5), wood, 0.45, 1.1, 0.2);
-      this.lamp = part(g, new THREE.OctahedronGeometry(0.16, 0), lamp, 0.45, 2.25, 0.2);
-      GW.World.lights.add(x + 0.4, this.pos.y + 2.3, z + 0.2, new THREE.Color(1, 0.75, 0.4), 6, 0.3);
-    } else {
-      this.name = 'Hesk, the Glyphsmith';
-      const apron = GW.mat({ id: ID.CLOTH, color: 0x4a3020, rim: 0.3 }), skin = GW.mat({ id: ID.BODY, color: 0xb89070, rim: 0.3 }), metal = GW.mat({ id: ID.METAL, color: 0x707680, rim: 0.4 });
-      part(g, box(0.36, 0.9, 0.3), apron, 0.2, 0.45, 0); part(g, box(0.36, 0.9, 0.3), apron, -0.2, 0.45, 0);
-      part(g, box(0.9, 0.9, 0.55), skin, 0, 1.35, 0);
-      part(g, box(0.92, 0.9, 0.1), apron, 0, 1.3, 0.25);
-      part(g, new THREE.SphereGeometry(0.26, 8, 6), skin, 0, 2.0, 0);
-      part(g, box(0.4, 0.3, 0.1), apron, 0, 1.85, 0.2);
-      this.arm = new THREE.Group(); this.arm.position.set(-0.55, 1.65, 0); g.add(this.arm);
-      part(this.arm, box(0.22, 0.7, 0.22), skin, 0, -0.35, 0);
-      part(this.arm, box(0.06, 0.06, 0.6), GW.mat({ id: ID.WOOD, color: 0x5a3e26 }), 0, -0.7, 0.25);
-      part(this.arm, box(0.25, 0.2, 0.18), metal, 0, -0.7, 0.55);
+    // a proper body: the same rigged humanoid as the hero, dressed as a villager (tunic, trim, skin, hair) with props on its bones
+    const LOOK = kind === 'elder' ? { robe: 0x2c3a5a, dark: 0x1e2840, trim: 0xc8a050, hair: 0xb8b8b0, hood: 0x2c3a5a, prop: 'lamp' }
+      : kind === 'smith' ? { robe: 0x6a4a34, dark: 0x3a2a1e, trim: 0x707680, hair: 0x3a2a20, apron: 1, prop: 'hammer' }
+      : { robe: o.col || 0x5a4a3a, dark: ((o.col || 0x5a4a3a) >> 1) & 0x7f7f7f, trim: 0xa08a5a, hair: [0x2a2018, 0x6a4a2a, 0x9a9a92, 0x3a2a1a][Math.floor(Math.random() * 4)], hood: Math.random() < 0.5 ? (o.col || 0x5a4a3a) : 0, prop: o.role === 'trader' ? 'pack' : 'staff' };
+    this.name = kind === 'elder' ? 'Mara, the Lamplighter' : kind === 'smith' ? 'Hesk, the Glyphsmith' : o.name;
+    const R = this.rig = new GW.Rig('monarch', kind === 'smith' ? 1.08 : 1.0, (mn, ob) => {
+      const head = /head/i.test(ob.name) || /head/i.test((ob.parent && ob.parent.name) || '');
+      switch (mn) {
+        case 'Metal': return { id: ID.CLOTH, color: LOOK.robe, rim: 0.3 };
+        case 'Metal_Dark': return { id: ID.CLOTH, color: LOOK.dark, rim: 0.25 };
+        case 'Blue': return { id: ID.TABARD, color: LOOK.dark, rim: 0.3 };
+        case 'DarkBrown': return { id: ID.LEATHER, color: 0x4a3020, rim: 0.3 };
+        case 'Beige': return { id: ID.CLOTH, color: 0x8a7a60, rim: 0.3 };
+        case 'Skin': return { id: ID.BODY, color: kind === 'smith' ? 0xb89070 : 0xd0b49a, rim: 0.4 };
+        case 'Hair_White': return LOOK.hood ? null : { id: ID.BODY, color: LOOK.hair };
+        case 'Eye': return { id: ID.BODY, color: 0x151515 };
+        case 'Gold': return head ? null : { id: ID.METAL, color: LOOK.trim, rim: 0.5 };
+        default: return { id: ID.CLOTH, color: LOOK.robe };
+      }
+    });
+    g.add(R.root); GW.Knight.bindPose(R);
+    const M4 = (px, py, pz, rx, ry) => new THREE.Matrix4().compose(new V3(px, py, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx || 0, ry || 0, 0)), new V3(1, 1, 1));
+    const hp = R.boneModel('Head'), cp = R.boneModel('Chest');
+    const cloth = GW.mat({ id: ID.CLOTH, color: LOOK.hood || LOOK.robe, rim: 0.3 }), wood = GW.mat({ id: ID.WOOD, color: 0x5a3e26 }), leather = GW.mat({ id: ID.LEATHER, color: 0x4a3020, rim: 0.3 }), metal = GW.mat({ id: ID.METAL, color: 0x707680, rim: 0.5 });
+    if (LOOK.hood) { const hood = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.36, 10, 1, true), GW.mat({ id: ID.CLOTH, color: LOOK.hood, rim: 0.3, side: THREE.DoubleSide })); R.attach('Head', hood, M4(hp.x, hp.y + 0.16, hp.z - 0.03, -0.25)); void cloth; }
+    if (LOOK.apron) { const ap = new THREE.Mesh(box(0.42, 0.62, 0.04), leather); R.attach('Chest', ap, M4(cp.x, cp.y - 0.28, cp.z + 0.17)); }
+    if (LOOK.prop === 'pack') { const pk = new THREE.Mesh(box(0.44, 0.52, 0.26), leather); R.attach('Chest', pk, M4(cp.x, cp.y - 0.05, cp.z - 0.24)); const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 6).rotateZ(Math.PI / 2), cloth); R.attach('Chest', roll, M4(cp.x, cp.y + 0.26, cp.z - 0.24)); }
+    const grip = GW.Knight.gripPlace(R, 'R');
+    if (LOOK.prop === 'staff' || LOOK.prop === 'lamp') {
+      const st = new THREE.Group(); const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 2.0, 5).rotateX(Math.PI / 2), wood); pole.position.z = 0.2; st.add(pole);
+      if (LOOK.prop === 'lamp') { this.lamp = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffc070, unlit: true })); this.lamp.position.z = 1.25; st.add(this.lamp); GW.World.lights.add(x + 0.4, this.pos.y + 2.3, z + 0.2, new THREE.Color(1, 0.75, 0.4), 6, 0.3); }
+      R.attach('Wrist.R', st, grip.clone().multiply(new THREE.Matrix4().makeRotationX(-1.35)));
     }
+    if (LOOK.prop === 'hammer') { const hm = new THREE.Group(); const hd = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.55, 5).rotateX(Math.PI / 2), wood); hd.position.z = 0.16; hm.add(hd); const he = new THREE.Mesh(box(0.2, 0.14, 0.12), metal); he.position.z = 0.44; hm.add(he); R.attach('Wrist.R', hm, grip); }
+    R.play('Idle', { fade: 0, at: Math.random() });
     GW.World.addCollider(x, z, 0.6, 'npc');
     GW.World.interact.push({ type: 'npc', npc: this, x, z, r: 3, label: 'Talk to ' + this.name.split(',')[0] });
   }
@@ -1446,11 +1454,16 @@
     const target = d < 7 ? Math.atan2(P.pos.x - this.pos.x, P.pos.z - this.pos.z) : (this.kind === 'smith' ? Math.atan2(GW.World.L.anvil.x - this.pos.x, GW.World.L.anvil.z - this.pos.z) : 0);
     this.yaw += GW.angDiff(this.yaw, target) * Math.min(1, dt * 3);
     this.model.rotation.y = this.yaw;
-    if (this.kind === 'smith' && d >= 7) {
-      const k = (this.t % 1.2) / 1.2; this.arm.rotation.x = k < 0.7 ? -2.2 * (k / 0.7) : GW.lerp(-2.2, 0.2, (k - 0.7) / 0.3);
-      if (k > 0.97 && !this.rang) { this.rang = true; if (d < 26) { GWAudio.sfx('anvil'); const L = GW.World.L.anvil; G.parts.spark.burst(L.x, GW.World.heightAt(L.x, L.z) + 1, L.z, 6, 3, 0xffb050, 0.4, 0.7, -6, 2); } }
-      if (k < 0.5) this.rang = false;
-    } else if (this.arm) this.arm.rotation.x = 0;
+    if (d < 70) {
+      const R = this.rig;
+      if (this.kind === 'smith' && d >= 7) {   // at work: a slow hammer swing, a ring and sparks at the end of each blow
+        if (R.curName !== 'Sword_Slash') R.play('Sword_Slash', { fade: 0.2, speed: 0.75 });
+        const D = R.dur('Sword_Slash') / 0.75, k = (this.t % D) / D;
+        if (k > 0.55 && !this.rang) { this.rang = true; if (d < 26) { GWAudio.sfx('anvil'); const L = GW.World.L.anvil; G.parts.spark.burst(L.x, GW.World.heightAt(L.x, L.z) + 1, L.z, 6, 3, 0xffb050, 0.4, 0.7, -6, 2); } }
+        if (k < 0.3) this.rang = false;
+      } else if (R.curName !== 'Idle') R.play('Idle', { fade: 0.3 });
+      R.update(dt);
+    }
     if (this.lamp) this.lamp.rotation.y += dt;
   };
   GW.NPC = NPC;

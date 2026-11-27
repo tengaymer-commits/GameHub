@@ -42,6 +42,21 @@
     P.weapon = w; return w;
   };
   A.cur = P => CLS[A.ensure(P).set[P.inv.arms.act]] || CLS.sword;
+  // mastery: each form levels I-V from the foes it kills; +3% damage per level, a perk at III and a stronger one at V
+  A.MASTERY_XP = [0, 150, 450, 1100, 2400, 4500];
+  A.PERKS = {
+    sword: ['Bulwark: blocking costs 30% less stamina', 'Counter: ripostes hit 30% harder'],
+    great: ['Unstoppable: you are not staggered mid-heavy', 'Earthshaker: heavy hits throw nearby foes back'],
+    spear: ['Long guard: +0.4 m reach', 'Skewer: the last thrust of a combo +20%'],
+    daggers: ['Flurry: +10% attack speed', 'Bleed: crits poison'],
+    bow: ['Steady aim: charged shots +25%', 'Hawkeye: +8% crit'],
+  };
+  A.masteryOf = (P, k) => { const xp = ((P.inv.mastery || {})[k] || 0); let l = 0; while (l < 5 && xp >= A.MASTERY_XP[l + 1]) l++; return { l, xp, next: A.MASTERY_XP[Math.min(5, l + 1)] }; };
+  A.gainMastery = function (P, n) {
+    const k = A.curKey(P); P.inv.mastery = P.inv.mastery || {};
+    const before = A.masteryOf(P, k).l; P.inv.mastery[k] = (P.inv.mastery[k] || 0) + n; const after = A.masteryOf(P, k).l;
+    return after > before ? after : 0;
+  };
   A.curKey = P => A.ensure(P).set[P.inv.arms.act] || 'sword';
   A.learn = function (P, k) { const a = A.ensure(P); if (a.owned[k]) return false; a.owned[k] = 1; if (!a.set[1]) a.set[1] = k; return true; };
   A.where = k => { const c = CLS[k]; return c.src === 'start' ? 'your first blade' : 'sold by traders in ' + ((GW.World.REGIONS[c.region] || {}).name || '?') + ', or found in elite chests'; };

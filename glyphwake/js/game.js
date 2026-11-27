@@ -324,6 +324,7 @@
     G.hitEnemy(e, dmg, { heavy: true, from: P.pos, melee: true, finisher: true });
     P.hp = Math.min(P.maxHp, P.hp + P.maxHp * (0.12 + 0.08 * ex)); G.hitstop = 0.16; G.shake(0.7); GWAudio.sfx('crit'); GWAudio.sfx('slam');
     G.fuseReady('finisher');
+    if (P.ws.flags && P.ws.flags.finisherQuake) { for (const n of G.enemies) if (n.alive && n !== e && Math.hypot(n.pos.x - e.pos.x, n.pos.z - e.pos.z) < 6) { G.hitEnemy(n, P.ws.dmg * 1.5, { heavy: true, from: e.pos, melee: true, brk: 2 }); n.status.shock = 3; } G.glyphRing(e.pos.x, e.pos.y + 0.3, e.pos.z, 1, 24, '#=*', '#ffe8a0', 8, 0.6, 18); }
     UI.float('FINISHER', e.pos, { color: '#ffd860', size: 17, y: e.T.radius * 2 + 1.6, life: 1.2 }); G.addHitGlyphs(e.pos.x, e.pos.y + 1.2, e.pos.z, 26, '#ffd860');
   };
   // attack tokens: only a few melee enemies may commit to an attack on the hero at once; the rest circle and wait
@@ -962,19 +963,23 @@
     }
     if (G.buff && G.buff.kind === 'might' && G.t < G.buff.until) dmg *= 1.25;
     if (P.mightT > 0) dmg *= 1.25;
+    const TF = (ws.flags || {});
+    if (TF.longShot && o.proj && Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z) > 12) dmg *= 1.25;   // saltglass bow: far shots bite
+    if (TF.m5_spear && o.heavy && o.melee) dmg *= 1.2;            // spear mastery V: the closing thrust
+    if (TF.m3_bow && o.heavy && o.proj) dmg *= 1.25;               // bow mastery III: charged shots
     if (!o.dot && !o.chain && !o.react && P.critNext) { P.critNext = false; if (!crit) { crit = true; dmg *= 1.8; } }
     if (e.brokenT > 0 && !o.finisher) dmg *= 1.3;   // broken enemies take more from every hit
     if (P.state === 'skill' && !o.dot && !o.react) dmg *= 1 + 0.12 * GW.Skills.r(P, 'y_potent');
     const fz = P.fuseActive && G.t < P.fuseActive.until && (P.state === 'skill' || o.proj) && !o.dot && !o.react ? P.fuseActive.el : null;
     if (fz) dmg *= 1.5;
     dmg = Math.max(1, Math.round(dmg));
-    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1) * (1 + 0.2 * GW.Skills.r(P, 'b_sunder')); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
+    if (!o.dot && !(e.brokenT > 0)) { e.brk = (e.brk || 0) + dmg * (o.brk || 0.6) * (o.riposte ? 2 : 1) * (1 + 0.2 * GW.Skills.r(P, 'b_sunder')) * (TF.brk ? 1.25 : 1) * (TF.critBreak && crit ? 2 : 1); if (e.brk >= G.brkMax(e)) G.breakEnemy(e); }
     if (o.chain) e.status.shock = 3;
     if (fz === 'fire') { e.status.burn = Math.max(e.status.burn, 3); e.status.burnD = Math.max(e.status.burnD || 0, dmg * 0.15); }
     if (fz === 'frost') e.status.slow = Math.max(e.status.slow, 4);
     if (fz === 'storm') e.status.shock = Math.max(e.status.shock || 0, 3);
     if (fz) G.addHitGlyphs(e.pos.x, e.pos.y + 1.1, e.pos.z, 6, G.FUSE[fz].col);
-    if ((o.heavy || o.finisher) && !o.dot && !o.react && e.status.slow > 0 && !((e.reactCd || 0) > 0)) G.react(e, 'shatter', dmg);
+    if ((o.heavy || o.finisher) && !o.dot && !o.react && e.status.slow > 0 && !((e.reactCd || 0) > 0)) G.react(e, 'shatter', dmg * (TF.shatterK ? 1.5 : 1));
     e.hp -= dmg; e.flash = 1; e.aggro = true; e.lastHit = G.t;
     const col = o.react ? o.reactCol : o.dot === 'burn' ? '#ff9a40' : o.dot === 'poison' ? '#8aff6a' : o.chain ? '#c8a0ff' : crit ? '#ffd040' : '#ffffff';
     UI.float(String(dmg) + (crit ? '!' : ''), e.pos, { color: col, size: crit ? 18 : o.dot ? 11 : 14, y: e.T.radius * 2 + 0.8, life: crit ? 1.1 : 0.85 });
@@ -1000,6 +1005,20 @@
         if (ws.poison) { e.status.poison = 4 * att; e.status.poisonD = Math.min(dmg, e.status.poisonD * 0.6 + dmg * ws.poison); }
         if (ws.steal) P.hp = Math.min(P.maxHp, P.hp + dmg * ws.steal);
         if (ws.chain && Math.random() < ws.chain) chain(e, dmg * 0.5);
+        // metal traits that act on the hit
+        if (TF.burnStack && ws.burn) e.status.burnD = (e.status.burnD || 0) + dmg * ws.burn / 8;
+        if (TF.critChill && crit) e.status.slow = Math.max(e.status.slow || 0, 2.5);
+        if (TF.m5_daggers && crit) { e.status.poison = Math.max(e.status.poison || 0, 4); e.status.poisonD = Math.max(e.status.poisonD || 0, dmg * 0.15); }
+        if (TF.m5_great && o.heavy && o.melee) for (const n of G.enemies) if (n.alive && n !== e && !n.T.boss && Math.hypot(n.pos.x - e.pos.x, n.pos.z - e.pos.z) < 4) { const dx = n.pos.x - P.pos.x, dz = n.pos.z - P.pos.z, d = Math.hypot(dx, dz) || 1; n.kb.set(dx / d * 8, 0, dz / d * 8); }
+        if (TF.critArc && crit && o.proj) chain(e, dmg * 0.4);
+        if ((TF.emberGround || TF.poisonCloud) && o.heavy && o.melee) {   // emberite / bog-iron greatsword: the heavy blow spreads
+          const fire = !!TF.emberGround;
+          for (const n of G.enemies) if (n.alive && n !== e && Math.hypot(n.pos.x - e.pos.x, n.pos.z - e.pos.z) < 3.8) {
+            if (fire) { n.status.burn = Math.max(n.status.burn || 0, 3); n.status.burnD = Math.max(n.status.burnD || 0, dmg * 0.12); }
+            else { n.status.poison = Math.max(n.status.poison || 0, 4); n.status.poisonD = Math.max(n.status.poisonD || 0, dmg * 0.1); }
+          }
+          G.glyphRing(e.pos.x, e.pos.y + 0.3, e.pos.z, 0.6, 16, fire ? '^~*' : '~%o', fire ? '#ff8a40' : '#8aff6a', 4.5, 0.6, 15);
+        }
       }
       // poise / stagger
       if (!e.T.boss) {
@@ -1068,6 +1087,11 @@
     G.parts.spark.burst(e.pos.x, e.pos.y + 1, e.pos.z, 18, 5, e.T.kind === 'undead' ? 0x80c0ff : 0xffb060, 0.8, 1, -4, 2);
     if (e.T.onDeath) e.T.onDeath(e);
     if (e.crown) crownFallen(e);
+    { const up = GW.Arms.gainMastery(P, Math.round((e.T.xp || 10) * (1 + 0.15 * ((e.lvl || 1) - 1)) * (e.elite ? 2 : 1)));
+      if (up) { const k = GW.Arms.curKey(P), c = GW.Arms.CLS[k], RN = ['', 'I', 'II', 'III', 'IV', 'V'][up]; P.recalc();
+        UI.banner(up === 3 || up === 5 ? GW.Arms.PERKS[k][up === 3 ? 0 : 1] : '+3% damage with it', c.name.toUpperCase() + ' MASTERY ' + RN, 3, c.col); GWAudio.sfx('level'); save(); } }
+    if (P.ws.flags && P.ws.flags.killBurst) { for (const n of G.enemies) if (n.alive && n !== e && Math.hypot(n.pos.x - e.pos.x, n.pos.z - e.pos.z) < 4.5) { n.status.burn = Math.max(n.status.burn || 0, 3); n.status.burnD = Math.max(n.status.burnD || 0, P.ws.dmg * 0.3); G.hitEnemy(n, P.ws.dmg * 0.6, { dot: 'burn' }); } G.glyphRing(e.pos.x, e.pos.y + 0.6, e.pos.z, 0.6, 20, '^*~', '#ff7a30', 6, 0.7, 18); }
+    if (P.ws.flags && P.ws.flags.drainKill && (e.status.poison || 0) > 0) { P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.06); UI.float('+' + Math.round(P.maxHp * 0.06), P.pos, { color: '#8aff6a', size: 12, y: 2.4 }); }
     if (e.keyDrop && !(G.items && G.items.keepKey)) { G.items = G.items || {}; G.items.keepKey = true; UI.toast('<span style="color:#c8ccd8">⚷</span> The Hollow Captain drops an iron key', 3); GWAudio.sfx('pickup'); save(); }
     if (e.type === 'husk') { count('husk'); if (QUESTS[G.stage].id !== 'wake') gainXP(1); else gainXP(e.T.xp); return; }
     gainXP(e.T.xp * (1 + P.ws.xp) * (1 + 0.15 * ((e.lvl || 1) - 1)) * (e.elite ? 3 : 1));
@@ -1126,6 +1150,7 @@
       if (P.state === 'roll' && P.t < (aft ? 0.32 : 0.22) && !o.dot && (!G.pdCd || G.t > G.pdCd)) {
         G.pdCd = G.t + 1.4; G.slowmo(0.3, aft ? 1.3 : 0.9); P.critNext = true; P.st = Math.min(100, P.st + 30);
         G.fuseReady('dodge');
+        if (P.ws.flags && P.ws.flags.dodgeFreeze) { for (const n of G.enemies) if (n.alive && Math.hypot(n.pos.x - P.pos.x, n.pos.z - P.pos.z) < 6) n.status.slow = Math.max(n.status.slow || 0, 4); G.glyphRing(P.pos.x, P.pos.y + 0.5, P.pos.z, 1, 22, '*❄·', '#bfefff', 7, 0.7, 16); }
         UI.float('PERFECT', P.pos, { color: '#ffd860', size: 15, y: 2.6, life: 1 }); GWAudio.sfx('socket'); G.addHitGlyphs(P.pos.x, P.pos.y + 1, P.pos.z, 14, '#9fd8ff');
       } else if (!G.dodgeT || G.t - G.dodgeT > 0.6) { G.dodgeT = G.t; UI.float('dodge', P.pos, { color: '#9ad', size: 10, y: 2.4 }); }
       return;
@@ -1143,7 +1168,7 @@
           return 'parry';
         }
         // blocked: most damage soaked, paid in stamina
-        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st * (1 - 0.2 * GW.Skills.r(P, 'g_wall')); P.stDelay = 0.8; GWAudio.sfx('block');
+        const soak = dmg * BK.soak; P.st -= (soak * 1.6 + 6) * BK.st * (1 - 0.2 * GW.Skills.r(P, 'g_wall')) * (P.ws.flags && P.ws.flags.m3_sword ? 0.7 : 1); P.stDelay = 0.8; GWAudio.sfx('block');
         G.parts.spark.burst(P.pos.x + Math.sin(P.yaw) * 0.7, P.pos.y + 1.2, P.pos.z + Math.cos(P.yaw) * 0.7, 8, 3, 0xffe0a0, 0.3, 0.7, -5);
         if (P.st <= 0) { P.st = 0; P.state = 'hurt'; P.t = 0; UI.float('GUARD BROKEN', P.pos, { color: '#ff8a60', size: 12, y: 2.5 }); dmg *= 0.5; }
         else { P.hp -= dmg - soak; P.hurtT = 0.1; if (P.hp <= 0) { P.hp = 1; } return 'block'; }
@@ -1156,6 +1181,7 @@
     G.parts.blood.burst(P.pos.x, P.pos.y + 1.2, P.pos.z, 8, 3, 0xa01010, 0.6, 1, -10);
     navigator.vibrate && navigator.vibrate(o.heavy ? 60 : 25);
     const dx = P.pos.x - from.x, dz = P.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
+    if (P.ws.flags && P.ws.flags.m3_great && P.state === 'attack' && P.cur && P.cur.heavy) o = Object.assign({}, o, { noStagger: true });   // greatsword mastery III
     if (!o.noStagger && (P.state !== 'skill' && P.state !== 'charge' && P.state !== 'finisher') || (o.heavy && P.state !== 'finisher')) { P.state = 'hurt'; P.t = 0; P.vel.set(dx / d * (o.heavy ? 11 : 6), 0, dz / d * (o.heavy ? 11 : 6)); }
     if (P.hp <= 0 && GW.Skills.r(P, 'g_wind') && !(P.swT > G.t)) {   // Second Wind
       P.hp = P.maxHp * 0.3; P.swT = G.t + 120; P.iframe = 1; G.slowmo(0.3, 0.8);
@@ -1210,6 +1236,7 @@
     if (left.length) spawnPickup('armor', left[Math.floor(Math.random() * left.length)], e.pos);
     spawnPickup('rune', 'thirst', e.pos); spawnPickup('ingot', 'starfall', e.pos);
     if (GW.Abil.BOSS[e.bossKey]) spawnPickup('abil', GW.Abil.BOSS[e.bossKey], e.pos);
+    { const LEG = { colossus: 'cinderheart', rimeknight: 'rimefang', mirehag: 'mirethorn', cragwarlord: 'cragcrown' }[e.bossKey]; if (LEG) { spawnPickup('ingot', LEG, e.pos); setTimeout(() => UI.toast(`<span style="color:#ffd860">★</span> A legendary metal: <b>${GW.Forge.METALS[LEG].name}</b>. Forge it into any weapon at an anvil.`, 6), 1500); } }
     for (const en of G.enemies) if (en.temp && en.alive) { en.hp = 1; G.hitEnemy(en, 99, { dot: 'burn' }); }
     UI.banner('the region breathes again', e.T.name + ' FALLS', 4);
     save();
@@ -1436,7 +1463,7 @@
     const P = G.player, y = P.pos.y, at = new V3(it.x, y, it.z);
     GWAudio.sfx('quest'); G.parts.spark.burst(it.x, y + 0.6, it.z, 30, 4, 0xffd070, 0.8, 1, -3, 2);
     if (it.poi) {   // wilderness chests: shards and a random find
-      const p = it.poi, R = GW.rand(p.seed + 3), F = GW.Forge, rk = Object.keys(F.RUNES), mk = Object.keys(F.METALS).filter(k => k !== 'iron');
+      const p = it.poi, R = GW.rand(p.seed + 3), F = GW.Forge, rk = Object.keys(F.RUNES), mk = Object.keys(F.METALS).filter(k => k !== 'iron' && !F.METALS[k].legendary);
       give('shards', 14 + p.lvl * 5 + Math.floor(R() * 10));
       const loot = [['kindling', 'kindling'], R() < 0.5 ? ['rune', rk[Math.floor(R() * rk.length)]] : ['ingot', mk[Math.floor(R() * mk.length)]]];
       const left = GW.Knight.SLOTS.flatMap(sl => Object.keys(GW.Knight.GEAR[sl])).filter(k => !P.inv.armor[k] && !/^none/.test(k));
@@ -1851,7 +1878,8 @@
       // minimal HUD: show while fighting, hurt, low on stamina/focus, just after a quest update, or while Alt is held
       if (frame % 6 === 0) {
         const fighting = G.enemies.some(e => e.alive && e.aggro && e.type !== 'husk') || G.bossActive;
-        const show = fighting || P.hp < P.maxHp * 0.98 || P.st < 99 || G.t - (G.questShownT || -99) < 6 || I.keys.AltLeft;
+        if (I.keys.AltLeft || I.keys.AltRight) G.hudUntil = performance.now() + 8000;   // Alt: the HUD (and minimap) stays up for 8 s after you let go
+        const show = fighting || P.hp < P.maxHp * 0.98 || P.st < 99 || G.t - (G.questShownT || -99) < 6 || performance.now() < (G.hudUntil || 0);
         document.body.classList.toggle('minhud', UI.settings.hud !== 'full');
         document.body.classList.toggle('hudshow', !!show);
       }

@@ -16,6 +16,25 @@
     rimesteel: { name: 'Rimesteel', glyph: '*%', color: 0xa8e0ff, glow: 0x8ad8ff, dmg: 19, slow: 1, desc: 'Frostmere ore. Hits chill: foes slow for 2s.' },
     saltglass: { name: 'Saltglass', glyph: '<>', color: 0xf4ecd8, glow: 0xfff4d0, dmg: 17, crit: 0.12, speed: 0.04, desc: 'Salt Wastes crystal. +12% crit, +4% speed.' },
     bogiron: { name: 'Bog-iron', glyph: '~#', color: 0x7a8a4a, glow: 0x9aff6a, dmg: 18, poison: 0.05, desc: 'Mire ore. Hits poison (stacks).' },
+    // legendary metals: one from each guardian of the outer lands, each with a power of its own
+    cinderheart: { name: 'Cinderheart', glyph: '♨', color: 0xff5a20, glow: 0xff3a10, dmg: 32, burn: 0.25, leg: 'killBurst', legendary: true, desc: "LEGENDARY · the Ash Colossus's heart. Burn 25%, and foes you kill burst into flame." },
+    rimefang: { name: 'Rimefang', glyph: '❄', color: 0xc8f0ff, glow: 0x9ae8ff, dmg: 30, slow: 2, crit: 0.06, leg: 'dodgeFreeze', legendary: true, desc: "LEGENDARY · the Rime Knight's tooth. Deep chill, and a perfect dodge freezes every foe around you." },
+    mirethorn: { name: 'Mirethorn', glyph: '♣', color: 0x8ad060, glow: 0x9aff6a, dmg: 29, poison: 0.1, leg: 'drainKill', legendary: true, desc: "LEGENDARY · the Mire Hag's thorn. Strong poison, and poisoned foes heal you when they die." },
+    cragcrown: { name: 'Cragcrown', glyph: '♛', color: 0xe8d8a0, glow: 0xffe8a0, dmg: 34, crit: 0.1, leg: 'finisherQuake', legendary: true, desc: "LEGENDARY · the Crag Warlord's crown-iron. +10% crit, and finishers send out a shockwave." },
+  };
+  // metal traits: each metal behaves differently in each weapon form. [short name, description, stat additions, flag]
+  const T = (t, d, add, flag) => ({ t, d, add: add || {}, flag });
+  const TRAITS = {
+    bronze: { sword: T('Quick', '+6% attack speed', { speed: 0.06 }), great: T('Swinging', '+10% attack speed', { speed: 0.1 }), spear: T('Darting', '+8% attack speed', { speed: 0.08 }), daggers: T('Flicker', '+6% attack speed', { speed: 0.06 }), bow: T('Quick draw', '+12% attack speed', { speed: 0.12 }) },
+    steel: { sword: T('True', '+4% crit', { crit: 0.04 }), great: T('Sundering', 'guards break 25% faster', {}, 'brk'), spear: T('Keen point', '+4% crit', { crit: 0.04 }), daggers: T('Needle', '+6% crit', { crit: 0.06 }), bow: T('Bodkin', '+4% crit', { crit: 0.04 }) },
+    silver: { sword: T('Hallowed', '+15% more vs undead', { undead: 0.15 }), great: T('Hallowed', '+10% more vs undead', { undead: 0.1 }), spear: T('Hallowed', '+15% more vs undead', { undead: 0.15 }), daggers: T('Hallowed', '+20% more vs undead', { undead: 0.2 }), bow: T('Silver-tipped', '+25% more vs undead', { undead: 0.25 }) },
+    gold: { sword: T('Lucky', '+10% xp & drops', { xp: 0.1 }), great: T('Lucky', '+10% xp & drops', { xp: 0.1 }), spear: T('Lucky', '+10% xp & drops', { xp: 0.1 }), daggers: T('Cutpurse', '+10% xp & drops, 2% life steal', { xp: 0.1, steal: 0.02 }), bow: T('Lucky', '+10% xp & drops', { xp: 0.1 }) },
+    duskglass: { sword: T('Inkwell', '+20% focus regen', { focusRegen: 0.2 }), great: T('Inkwell', '+20% focus regen', { focusRegen: 0.2 }), spear: T('Inkwell', '+20% focus regen', { focusRegen: 0.2 }), daggers: T('Inkwell', '+25% focus regen', { focusRegen: 0.25 }), bow: T('Glyph-string', '+40% focus regen', { focusRegen: 0.4 }) },
+    starfall: { sword: T('Starlit', '+5% crit', { crit: 0.05 }), great: T('Meteor', '+10% damage', {}, 'dmg10'), spear: T('Comet', '+5% crit, +0.4 m reach', { crit: 0.05, reach: 0.4 }), daggers: T('Shooting stars', '+7% crit', { crit: 0.07 }), bow: T('Falling star', '+5% crit, arcs on crits', { crit: 0.05 }, 'critArc') },
+    emberite: { sword: T('Smouldering', 'burn +10%', { burn: 0.1 }), great: T('Ashfall', 'heavy hits set nearby foes burning', {}, 'emberGround'), spear: T('Firebrand', 'burn +15%', { burn: 0.15 }), daggers: T('Kindling', 'burn +8%, and it stacks', { burn: 0.08 }, 'burnStack'), bow: T('Fire arrows', 'burn +20%', { burn: 0.2 }) },
+    rimesteel: { sword: T('Frostbite', 'chill lasts longer', { slow: 0.5 }), great: T('Glacier', 'heavy hits on chilled foes shatter 50% harder', {}, 'shatterK'), spear: T('Icicle', 'thrusts freeze deep (long chill)', { slow: 1.5 }), daggers: T('Cold snap', 'crits chill', {}, 'critChill'), bow: T('Frost arrows', 'arrows chill', { slow: 1 }) },
+    saltglass: { sword: T('Glassedge', '+4% crit', { crit: 0.04 }), great: T('Splinter', 'crits break guards twice as fast', {}, 'critBreak'), spear: T('Long glass', '+0.5 m reach', { reach: 0.5 }), daggers: T('Shard', '+8% crit', { crit: 0.08 }), bow: T('Far sight', '+25% damage on shots past 12 m', {}, 'longShot') },
+    bogiron: { sword: T('Rot', 'poison +3%', { poison: 0.03 }), great: T('Miasma', 'heavy hits leave a poison cloud', {}, 'poisonCloud'), spear: T('Barbed', 'poison +5%', { poison: 0.05 }), daggers: T('Venom', 'poison +6%', { poison: 0.06 }), bow: T('Bog arrows', 'poison +8%', { poison: 0.08 }) },
   };
   // ores: mined from veins (each region has its own mix), smelted at an anvil
   const ORES = {
@@ -63,6 +82,7 @@
   F.canSmelt = (P, r) => Object.entries(r.ore).every(([k, n]) => ((P.inv.ores || {})[k] || 0) >= n);
   F.smelt = (P, r) => { if (!F.canSmelt(P, r)) return false; for (const [k, n] of Object.entries(r.ore)) P.inv.ores[k] -= n; P.inv.ingots[r.out] = (P.inv.ingots[r.out] || 0) + 1; return true; };
 
+  F.TRAITS = TRAITS;
   F.weaponStats = function (w, level) {
     const m = METALS[w.metal];
     const s = { dmg: m.dmg * (1 + 0.08 * (level - 1)) * (1 + 0.08 * (w.up || 0)), crit: 0.05 + (m.crit || 0), speed: 1 + (m.speed || 0), undead: m.undead || 0, xp: m.xp || 0,
@@ -73,6 +93,9 @@
       if (r === 'ember') s.burn += 0.25; if (r === 'frost') s.slow += 1; if (r === 'storm') s.chain += 0.22; if (r === 'venom') s.poison += 0.08;
       if (r === 'keen') s.crit += 0.1; if (r === 'swift') s.speed += 0.1; if (r === 'ward') s.ward += 0.1; if (r === 'vigor') s.vigor += 20; if (r === 'thirst') s.steal += 0.03;
     }
+    const tr = w.cls && TRAITS[w.metal] && TRAITS[w.metal][w.cls];
+    s.reach = 0; s.flags = {}; if (m.leg) s.flags[m.leg] = 1;
+    if (tr) { for (const k in tr.add) s[k] = (s[k] || 0) + tr.add[k]; if (tr.flag) s.flags[tr.flag] = 1; if (tr.flag === 'dmg10') s.dmg *= 1.1; s.trait = tr; }
     const c = new THREE.Color(m.glow);
     if (cols.length) { c.setRGB(0, 0, 0); cols.forEach(h => c.add(new THREE.Color(h))); c.multiplyScalar(1 / cols.length); }
     s.trail = c.getHex(); s.glow = c.getHex(); s.trailParticles = cols.length > 0;
@@ -204,11 +227,12 @@
     const mm = document.getElementById('f-metals'); mm.innerHTML = '';
     Object.keys(METALS).forEach(k => {
       const M = METALS[k], n = k === 'iron' ? '∞' : (P.inv.ingots[k] || 0);
+      if (M.legendary && !n && k !== w.metal) return;   // legendaries only appear once a guardian has given you one
       const owned = k === 'iron' || n > 0 || k === w.metal;
       const b = document.createElement('button'); b.className = 'chip' + (k === sel ? ' sel' : '') + (owned ? '' : ' off');
       b.innerHTML = `<span style="color:#${M.color.toString(16).padStart(6, '0')}">${M.glyph}</span> ${k === w.metal ? 'as forged' : M.name}` + (k !== w.metal && k !== 'iron' ? `<span class="n">${n}</span>` : '');
       b.onclick = () => { sel = k; GWAudio.sfx('ui'); F.render(); };
-      tip(b, M.name + '\nbase damage ' + M.dmg + '\n' + M.desc + (k === 'iron' ? '' : '\ningots: ' + n));
+      { const tr = TRAITS[k] && TRAITS[k][w.cls]; tip(b, M.name + '\nbase damage ' + M.dmg + '\n' + M.desc + (tr ? '\nin your ' + (NOUN[w.cls] || 'blade').toLowerCase() + ': ' + tr.t + ' · ' + tr.d : '') + (k === 'iron' ? '' : '\ningots: ' + n)); }
       mm.appendChild(b);
     });
     // slots
@@ -241,6 +265,7 @@
     if (s.undead) lines.push('+' + pct(s.undead) + ' vs undead');
     if (s.xp) lines.push('+' + pct(s.xp) + ' xp & drops');
     if (s.focusRegen > 1) lines.push('Focus regen +' + pct(s.focusRegen - 1));
+    if (s.trait) lines.push(`<span style="color:#ffd88a">◈ ${s.trait.t}</span> <span style="color:#b8b0a0">(${METALS[sel].name} in a ${(NOUN[w.cls] || 'blade').toLowerCase()}): ${s.trait.d}</span>`);
     document.getElementById('f-stats').innerHTML = lines.join('\n');
     const tb = document.getElementById('f-temper');
     const can = sel !== w.metal && (sel === 'iron' || (P.inv.ingots[sel] || 0) > 0);
