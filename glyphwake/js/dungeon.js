@@ -186,11 +186,30 @@
     return { F, H, WA, ST, rooms, corridors, props, spawns, chests, plates, gates, levers, main, reward, name };
   }
 
+  // ---------------------------------------------------------------- is the route sound?
+  // With every gate shut the reward must be out of reach while the lever is not; with the middle gate open, the reward must be reachable.
+  function sound(pl) {
+    const { F } = pl, I = (x, z) => z * TN + x, gateT = id => new Set(pl.gates.filter(g => !id || g.id === id).flatMap(g => g.tiles.map(t => I(t[0], t[1]))));
+    const flood = blocked => { const seen = new Uint8Array(TN * TN), s0 = pl.rooms[0], q = [[s0.cx, s0.cz]]; seen[I(s0.cx, s0.cz)] = 1;
+      while (q.length) { const [x, z] = q.pop(); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const a = x + dx, b = z + dz, k = I(a, b); if (a < 0 || b < 0 || a >= TN || b >= TN || seen[k] || !F[k] || blocked.has(k)) continue; seen[k] = 1; q.push([a, b]); } }
+      return seen; };
+    const rw = pl.reward, lever = pl.levers.find(l => l.gate === 'mid'); if (!lever || !pl.gates.find(g => g.id === 'mid')) return false;
+    const shut = flood(gateT(null)); if (shut[I(rw.cx, rw.cz)] || !shut[I(lever.x, lever.z)]) return false;
+    const midOpen = flood(gateT('short')); return !!midOpen[I(rw.cx, rw.cz)];
+  }
   // ---------------------------------------------------------------- build the meshes
   D.build = function (scene, seed, kind, slot, layoutName) {
     const W = GW.World, st = STYLE[kind] || STYLE.tomb, rnd = GW.rand(seed);
     const name = layoutName || st.layouts[Math.floor(rnd() * st.layouts.length)];
-    const pl = plan(rnd, kind, name), { F, H, WA, ST } = pl;
+    let pl = null;
+    for (let tries = 0; tries < 10; tries++) {   // regenerate until the gate really guards the way (and the shortcut doesn't slip round it)
+      pl = plan(rnd, kind, name);
+      if (sound(pl)) break;
+      // try the gate on the corridor into the reward chamber instead
+      const c2 = pl.corridors.find(c => c.tag === 'main' && c.b === pl.reward), g = pl.gates.find(q => q.id === 'mid');
+      if (c2 && g && c2.tiles.length > 3) { const mid = c2.tiles[Math.floor(c2.tiles.length * 0.5)]; g.tiles = c2.tiles.filter(t => Math.max(Math.abs(t[0] - mid[0]), Math.abs(t[1] - mid[1])) <= 1); g.h = pl.H[mid[1] * TN + mid[0]]; if (sound(pl)) break; }
+    }
+    const { F, H, WA, ST } = pl;
     const ox = X0 + slot * 400, oz = 0, at = (tx, tz) => [ox + tx * TILE + TILE / 2, oz + tz * TILE + TILE / 2];
     const I = (x, z) => z * TN + x, isF = (x, z) => x >= 0 && z >= 0 && x < TN && z < TN && F[I(x, z)] > 0;
     const lv = { kind, name, title: D.LAYOUTS[name], rooms: pl.rooms, meshes: [], cols: [], lights: [], flames: [], inter: [], at, floor: F, gates: [], plates: pl.plates.map(p => ({ x: at(p.x, p.z)[0], z: at(p.x, p.z)[1], y: p.h })) };
