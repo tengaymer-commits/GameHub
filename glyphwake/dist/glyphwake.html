@@ -7216,8 +7216,35 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const waterYs = RIVERS.map(R => R.ys).concat(LAKES.map(Lk => [Lk.y, Lk.y]));
   const waterWo = RIVERS.map(R => R.w - RIVER_W).concat(LAKES.map(Lk => Lk.r - RIVER_W));
   const RIDX_ = null;
-  const RIDX = segIndex(waterPolys, 64, waterYs, waterWo, LAKES.reduce((m, Lk) => Math.max(m, Lk.r), 0)), PIDX = segIndex(PATHP, 32, null, PATHP.map((_, i) => ROAD_W[PATH_KIND[i]]), 4, PATHP.map((_, i) => PATH_KIND[i]));
   const EMPTY = [];
+  const RIDX = segIndex(waterPolys, 64, waterYs, waterWo, LAKES.reduce((m, Lk) => Math.max(m, Lk.r), 0));
+  // square every river crossing: the road turns to meet the river head-on, runs straight over the bridge and eases back onto its line
+  PATHP.forEach(poly => {
+    for (let s = 0; s < poly.length - 1; s++) {
+      const a = poly[s], b = poly[s + 1];
+      let hit = null;
+      for (const r of segsNear(RIDX, Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]))) {
+        if (r.l2 < 1) continue;
+        const ex = b[0] - a[0], ez = b[1] - a[1], den = ex * r.dz - ez * r.dx; if (Math.abs(den) < 1e-9) continue;
+        const t = ((r.ax - a[0]) * r.dz - (r.az - a[1]) * r.dx) / den, u = ((r.ax - a[0]) * ez - (r.az - a[1]) * ex) / den;
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) { hit = { r, x: a[0] + ex * t, z: a[1] + ez * t, ex, ez }; break; }
+      }
+      if (!hit) continue;
+      const rl = Math.sqrt(hit.r.l2); let nx = -hit.r.dz / rl, nz = hit.r.dx / rl; if (nx * hit.ex + nz * hit.ez < 0) { nx = -nx; nz = -nz; }
+      const H = RIVER_W + hit.r.wo + 3.2 + 5, RR = H + 14, P = [hit.x, hit.z];
+      let i0 = s; while (i0 > 0 && Math.hypot(poly[i0][0] - P[0], poly[i0][1] - P[1]) < RR) i0--;
+      let i1 = s + 1; while (i1 < poly.length - 1 && Math.hypot(poly[i1][0] - P[0], poly[i1][1] - P[1]) < RR) i1++;
+      const A = poly[i0], B = poly[i1], E1 = [P[0] - nx * H, P[1] - nz * H], E2 = [P[0] + nx * H, P[1] + nz * H];
+      const bez = (p0, c, p1, out) => { const n = Math.max(2, Math.ceil((Math.hypot(c[0] - p0[0], c[1] - p0[1]) + Math.hypot(p1[0] - c[0], p1[1] - c[1])) / 3)); for (let k = 1; k < n; k++) { const t = k / n, m = 1 - t; out.push([m * m * p0[0] + 2 * m * t * c[0] + t * t * p1[0], m * m * p0[1] + 2 * m * t * c[1] + t * t * p1[1]]); } };
+      const mid = [], dA = Math.hypot(A[0] - E1[0], A[1] - E1[1]) * 0.5, dB = Math.hypot(B[0] - E2[0], B[1] - E2[1]) * 0.5;
+      bez(A, [E1[0] - nx * dA, E1[1] - nz * dA], E1, mid); mid.push(E1);
+      const ns = Math.ceil(2 * H / 3); for (let k = 1; k < ns; k++) mid.push([GW.lerp(E1[0], E2[0], k / ns), GW.lerp(E1[1], E2[1], k / ns)]);
+      mid.push(E2); bez(E2, [E2[0] + nx * dB, E2[1] + nz * dB], B, mid);
+      poly.splice(i0 + 1, i1 - i0 - 1, ...mid);
+      s = i0 + mid.length;   // carry on past the new straight
+    }
+  });
+  const PIDX = segIndex(PATHP, 32, null, PATHP.map((_, i) => ROAD_W[PATH_KIND[i]]), 4, PATHP.map((_, i) => PATH_KIND[i]));
   // bridges: every crossing of a road or path with a river; the King's roads get stone, the rest timber
   const BRIDGES = [];
   function findBridges() {
@@ -7231,7 +7258,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           const t = ((r.ax - a[0]) * r.dz - (r.az - a[1]) * r.dx) / den, u = ((r.ax - a[0]) * ez - (r.az - a[1]) * ex) / den;
           if (t < 0 || t > 1 || u < 0 || u > 1) continue;
           const x = a[0] + ex * t, z = a[1] + ez * t;
-          if (Math.hypot(x - L.bridge.x, z - L.bridge.z) < 40 || BRIDGES.some(q => Math.hypot(q.x - x, q.z - z) < 30)) continue;
+          if (BRIDGES.some(q => Math.hypot(q.x - x, q.z - z) < 30)) continue;
           const l = Math.hypot(ex, ez), wr = RIVER_W + r.wo;
           BRIDGES.push({ x, z, dx: ex / l, dz: ez / l, y: r.ya + (r.yb - r.ya) * u, len: 2 * (wr + 3.2), half: HW[kind], kind });
         }
@@ -7592,48 +7619,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // ---- grass ----
     W.grass = buildGrass(scene, tMap, opts.grassCount || 26000);
 
-    // ---- bridge ----
-    {
-      const b = L.bridge;
-      const i = RIVER.reduce((bi, p, k) => (Math.hypot(p[0] - b.x, p[1] - b.z) < Math.hypot(RIVER[bi][0] - b.x, RIVER[bi][1] - b.z) ? k : bi), 0);
-      const t0 = RIVER[Math.max(0, i - 1)], t1 = RIVER[Math.min(RIVER.length - 1, i + 1)];
-      const ang = Math.atan2(t1[1] - t0[1], t1[0] - t0[0]); // river direction
-      W.bridge = { x: RIVER[i][0], z: RIVER[i][1], c: Math.cos(ang), s: Math.sin(ang), len: RIVER_W * 2 + 4 };
-      const wood = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.1 });
-      const plank = new THREE.BoxGeometry(0.5, 0.12, 3.2);
-      const grp = new THREE.Group();
-      for (let k = -9; k <= 9; k++) {
-        const m = new THREE.Mesh(plank, wood);
-        const arch = 0.35 + 0.35 * (1 - (k / 9) ** 2);
-        m.position.set(0, arch, k * 0.62); m.rotation.y = (rnd() - 0.5) * 0.08; grp.add(m);
-        if (k % 3 === 0) {
-          for (const sd of [-1.5, 1.5]) {
-            const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), wood); post.position.set(sd, arch + 0.5, k * 0.62); grp.add(post);
-          }
-        }
-      }
-      for (const sd of [-1.5, 1.5]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 11.6), wood); rail.position.set(sd, 1.25, 0); grp.add(rail); }
-      grp.position.set(W.bridge.x, 0, W.bridge.z);
-      grp.rotation.y = -ang; // local z axis perpendicular to river
-      scene.add(grp);
-      // let the bridge's local axes drive onBridge: u across river, v along bridge
-      W.bridge.c = Math.cos(ang); W.bridge.s = Math.sin(ang);
-      // recompute in terms of bridge length axis (perpendicular to river)
-      const bc = Math.cos(ang + Math.PI / 2), bs = Math.sin(ang + Math.PI / 2);
-      const valeOn = (x, z) => {
-        const dx = x - W.bridge.x, dz = z - W.bridge.z;
-        const along = dx * bc + dz * bs, across = -dx * bs + dz * bc;
-        return Math.abs(across) < 1.5 && Math.abs(along) < 6.2;
-      };
-      W.onBridge = (x, z) => valeOn(x, z) || !!bridgeAt(x, z);
-      W.groundY = (x, z) => {
-        const q = bridgeAt(x, z); if (q) return Math.max(W.heightAt(x, z), bridgeDeckY(q.b, q.along));
-        if (!valeOn(x, z)) return W.heightAt(x, z);
-        const dx = x - W.bridge.x, dz = z - W.bridge.z, along = (dx * bc + dz * bs) / 0.62;
-        return Math.max(W.heightAt(x, z), 0.4 + 0.35 * (1 - Math.min(1, (along / 9) ** 2)));
-      };
-    }
-
+    // (the Vale's crossing is one of the BRIDGES below, squared to its path like every other)
     // ---- bridges over the other rivers: stone on the King's roads, timber elsewhere ----
     {
       const wood = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.1 }), stone = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x8a8a8e, fill: 0.08 }), stoneD = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x606064, fill: 0.06 });
@@ -7649,7 +7635,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           for (let k = 0; k < n; k++) { const al = -b.len / 2 + (k + 0.5) * b.len / n, y = bridgeDeckY(b, al);
             const pl = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, 0.5), wood); pl.position.set(0, y - 0.06, al); pl.rotation.y = (rnd() - 0.5) * 0.06; grp.add(pl);
             if (k % 3 === 0) for (const sd of [-1, 1]) { const po = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), wood); po.position.set(sd * (b.half - 0.1), y + 0.45, al); grp.add(po); } }
-          for (const sd of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, b.len), wood); rail.position.set(sd * (b.half - 0.1), bridgeDeckY(b, 0) + 0.95, 0); grp.add(rail); }
+          { const m = Math.ceil(n / 3); for (let k = 0; k < m; k++) { const a0 = -b.len / 2 + (3 * k + 0.5) * b.len / n, a1 = Math.min(b.len / 2 - 0.5 * b.len / n, -b.len / 2 + (3 * k + 3.5) * b.len / n); if (a1 <= a0) continue;
+            const y0 = bridgeDeckY(b, a0) + 0.95, y1 = bridgeDeckY(b, a1) + 0.95, sl = Math.hypot(a1 - a0, y1 - y0);
+            for (const sd of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, sl), wood); rail.position.set(sd * (b.half - 0.1), (y0 + y1) / 2, (a0 + a1) / 2); rail.rotation.x = -Math.atan2(y1 - y0, a1 - a0); grp.add(rail); } } }
           for (const al of [-b.len * 0.25, b.len * 0.25]) for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 0.3), wood); st.position.set(sd * (b.half - 0.3), b.y - 0.4, al); grp.add(st); }
         }
         scene.add(grp);
