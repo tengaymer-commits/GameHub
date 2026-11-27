@@ -927,6 +927,7 @@
     kitScatter(scene, batch, place, rnd, free);
     buildCastle(scene);
     buildSquares(scene);
+    buildFloors(scene);
     furnish(scene);
     batch.build(scene);
     buildFireflies(scene);
@@ -1713,6 +1714,20 @@
       { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }
       const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m);
     }
+  }
+  // ---- stone floors where the grass was cleared: the keep's yard, the chapel and abbey naves ----
+  function buildFloors(scene) {
+    const mat = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x9c9a94, fill: 0.1, side: THREE.DoubleSide });
+    const rect = (x0, z0, x1, z1) => {
+      const nx = Math.max(2, Math.ceil((x1 - x0) / 1.5)), nz = Math.max(2, Math.ceil((z1 - z0) / 1.5)), P = [], U = [], idx = [];
+      for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) { const x = x0 + (x1 - x0) * i / nx, z = z0 + (z1 - z0) * j / nz; P.push(x, W.heightAt(x, z) + 0.05, z); U.push(x * 0.4, z * 0.4); }
+      for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(idx); g.computeVertexNormals();
+      { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m);
+    };
+    const C = L.castle; rect(C.x - 11 * KS, C.z - 11 * KS, C.x + 11 * KS, C.z + 11 * KS);
+    for (const N of [L.chapel, L.abbey]) rect(N.x - 6 * BS, N.z - 13 * BS, N.x + 6 * BS, N.z + 0.6 * BS);
   }
   // ---- furnished interiors: the Pale Chapel, Greymoss Keep, Rimeglass Abbey, and a camp on the Ivy Watch's roof ----
   function furnish(scene) {
