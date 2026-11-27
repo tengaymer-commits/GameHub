@@ -89,6 +89,7 @@
       if (prev) corridor(prev, r, P.cw, 'main');
       prev = r;
     }
+    if (rooms.length > 1 && rooms[rooms.length - 1].type !== 'reward') rooms[rooms.length - 1].type = 'reward';   // ran out of room: the last one becomes the reward chamber
     rooms[0].type = 'entry';
     const main = rooms.slice();
     const reward = main[main.length - 1];

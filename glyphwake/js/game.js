@@ -1982,7 +1982,9 @@
   function updateDayNight(dt) {
     const S = UI.settings, mode = S.time || 'cycle';
     if (G.dungeon) {   // underground: only torchlight
-      const LU = GW.LU; LU.uAmb.value.setRGB(0.1, 0.105, 0.125); LU.uMoonCol.value.setRGB(0.16, 0.17, 0.22); LU.uFogCol.value.setRGB(0, 0, 0); LU.uDayLight.value = 0.6;
+      // each layout has its own cold light (the cistern teal, the crypt blue, the mine warm), the torches stay warm on top
+      const LU = GW.LU, nm = G.dungeon.lv ? G.dungeon.lv.name : 'crypt', TINT = { crypt: [0.22, 0.26, 0.34], flooded: [0.2, 0.3, 0.34], pillared: [0.26, 0.27, 0.32], cavern: [0.25, 0.24, 0.24], descent: [0.24, 0.24, 0.3], mine: [0.28, 0.24, 0.2], chapel: [0.26, 0.26, 0.3] }[nm] || [0.24, 0.26, 0.3];
+      LU.uAmb.value.setRGB(TINT[0], TINT[1], TINT[2]); LU.uMoonCol.value.setRGB(TINT[0] * 1.3, TINT[1] * 1.3, TINT[2] * 1.35); LU.uFogCol.value.setRGB(0, 0, 0); LU.uDayLight.value = 0.85;
       if (GW.World.skyDome) GW.World.skyDome.visible = false; return;
     }
     if (GW.World.skyDome) GW.World.skyDome.visible = true;
