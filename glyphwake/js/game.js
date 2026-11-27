@@ -246,7 +246,7 @@
     G.regionBosses.forEach(b => { const A = GW.World.ARENAS.find(a => a.key === b.key); if (A) { b.x = A.x; b.z = A.z; }   // world.js owns the arena spots
       b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / GW.World.LVLD)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
-    { const BS = GW.World.BS; [[-4, -5], [4, -4], [0, -8], [-7, -2], [7, -7]].forEach(([lx, ly], i) => { const e = G.spawnEnemy('hollow', Lw.castle.x + lx * BS, Lw.castle.z - ly * BS, { x: Lw.castle.x, z: Lw.castle.z + 3 * BS }, false, i === 2 ? 2 : 1, i === 2); if (i === 2) { e.title = 'HOLLOW CAPTAIN'; e.keyDrop = true; } }); }
+    { const BS = GW.World.KS; [[-4, -5], [4, -4], [0, -8], [-7, -2], [7, -7]].forEach(([lx, ly], i) => { const e = G.spawnEnemy('hollow', Lw.castle.x + lx * BS, Lw.castle.z - ly * BS, { x: Lw.castle.x, z: Lw.castle.z + 3 * BS }, false, i === 2 ? 2 : 1, i === 2); if (i === 2) { e.title = 'HOLLOW CAPTAIN'; e.keyDrop = true; } }); }
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
@@ -1124,7 +1124,7 @@
   }
   G.castleLoot = function () {
     if (G.castleLooted) return;
-    const Lw = GW.World.L, BS = GW.World.BS, y = GW.World.levelAt(Lw.castle.x - 3 * BS, Lw.castle.z - 7 * BS, 1).y;
+    const Lw = GW.World.L, BS = GW.World.KS, y = GW.World.levelAt(Lw.castle.x - 3 * BS, Lw.castle.z - 7 * BS, 1).y;
     [['armor', 'scale'], ['ingot', 'gold'], ['rune', 'thirst']].forEach(([k, key], i) => {
       spawnPickup(k, key, new V3(Lw.castle.x - 3 * BS + i * 0.9, y, Lw.castle.z - 7.5 * BS), y, 'castle');
     });

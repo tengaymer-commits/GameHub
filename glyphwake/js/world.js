@@ -13,7 +13,7 @@
   // the hand-made Vale is laid out at VS× its original spacing (structures keep their size): more room to learn the basics
   const VS = 4.4;    // site spacing
   const VSC = 2.2;
-  const BS = 1.6;    // enterable buildings (keeps, chapels, towers) at a believable size next to the hero; colliders and floors follow   // the densely hand-scattered heart of the Vale (beyond it the streamed countryside takes over)
+  const BS = 1.6, KS = BS * 1.4;   // KS: Greymoss Keep, a little grander than the other buildings    // enterable buildings (keeps, chapels, towers) at a believable size next to the hero; colliders and floors follow   // the densely hand-scattered heart of the Vale (beyond it the streamed countryside takes over)
   const L = {
     start: { x: 0.0, z: 343.2 },
     village: { x: 0.0, z: 132.0 },
@@ -92,7 +92,7 @@
     [[0, 115], [-13.2, 17.6], [-17.6, -57.2], [8.8, -132], [35.2, -198], [52.8, -255.2], [35.2, -352], [13.2, -422.4], [10, -436]],
     [[-17, 132], [-132, 149.6], [-206, 121], [-262, 162], [-290, 174]],
     [[17, 132], [140.8, 118.8], [228.8, 145.2], [334.4, 158.4]],
-    [[61.6, -255.2], [132, -237.6], [193.6, -224.4], [242, -224.4], [242, -246.4]],
+    [[61.6, -255.2], [132, -237.6], [193.6, -224.4], [242, -224.4], [242, -258]],
     // roads beyond the Vale: to Hearthwick, then east to the Barrens and north to Frostmere
     [[242, -224.4], [320, -236], [750, -780], [1140, -1155], [1500, -1477.5]],
     // Hearthwick to the Highlands, the Barrens and Frostmere
@@ -214,7 +214,7 @@
     flatK(L.village.x, L.village.z, 12, 20, 0.15);
     flatK(L.arena.x, L.arena.z, 16, 24, 0.0);
     flatK(L.start.x, L.start.z, 6, 12, 0.3);
-    flatK(L.castle.x, L.castle.z, 16 * BS, 23 * BS, 0.4);
+    flatK(L.castle.x, L.castle.z, 16 * KS, 23 * KS, 0.4);
     flatK(L.chapel.x, L.chapel.z - 5 * BS, 10 * BS, 16 * BS, 0.3);
     flatK(L.tower.x, L.tower.z, 6 * BS, 11 * BS, 0.25);
     flatK(L.lair.x, L.lair.z, 14, 22, 0.1);
@@ -310,6 +310,16 @@
     }
     return out;
   }
+  const ANCH = HUBS.map(h => ({ x: L[h.at].x, z: L[h.at].z, r: 0 })).concat([{ x: L.cinder.x, z: L.cinder.z, r: 0 }, { x: L.abbey.x, z: L.abbey.z, r: 0 }, { x: L.dunmaer.x, z: L.dunmaer.z - 34.5, r: 0 }, { x: L.frostLake.x, z: L.frostLake.z, r: 78 }])
+    .concat(ARENAS.filter(a => a.key !== 'rimeknight').map(a => ({ x: a.x, z: a.z, r: 36 }))).concat(LAKES.map(Lk => ({ x: Lk.x, z: Lk.z, r: Lk.r + 4 })));
+  const snapEnd = (pt, toward) => {
+    if (Math.hypot(pt[0], pt[1]) < 760) return pt;   // the Vale's own paths are laid by hand
+    let best = null, bd = 260; for (const A of ANCH) { const d = Math.hypot(pt[0] - A.x, pt[1] - A.z) - A.r; if (Math.abs(d) < bd) { bd = Math.abs(d); best = A; } }
+    if (!best) return pt;
+    if (!best.r) return [best.x, best.z];
+    const dx = toward[0] - best.x, dz = toward[1] - best.z, l = Math.hypot(dx, dz) || 1; return [best.x + dx / l * best.r, best.z + dz / l * best.r];
+  };
+  PATHS.forEach((p, i) => { if (p.length < 2) return; p[0] = snapEnd(p[0], p[1]); p[p.length - 1] = snapEnd(p[p.length - 1], p[p.length - 2]); });
   const PATHP0 = PATHS.map((p, i) => catmull(PATH_KIND[i] ? relaxRoad(p) : p, PATH_KIND[i] ? 3 : 8));
   const STOPS = ['hearth', 'vfrost', 'high', 'vash', 'salt', 'mire', 'dusk'].map(k => [L[k].x, L[k].z, 21]).concat([[L.abbey.x, L.abbey.z, 29], [L.cinder.x, L.cinder.z, 27], [L.dunmaer.x, L.dunmaer.z, 34]]);
   const PATHP = [], PK = [];
@@ -414,6 +424,8 @@
     g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
     g *= GW.lerp(1, 0.6, bw[0]) * GW.lerp(1, 0.75, bw[1]) * GW.lerp(1, 0.55, bw[2]) * GW.lerp(1, 0.25, bw[3]);   // frost, high, ash, salt: sparser
     for (const V of VILLAGE_SQ) if (Math.hypot(x - V[0], z - V[1]) < V[2] + 0.5) { pd = 0; pk = 1; }
+    if (Math.abs(x - L.castle.x) < 11.5 * KS && Math.abs(z - L.castle.z) < 11.5 * KS) pd = 0;
+    for (const C of [L.chapel, L.abbey]) if (Math.abs(x - C.x) < 6.2 * BS && z < C.z + 0.5 * BS && z > C.z - 13.2 * BS) pd = 0;
     for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - L[k].x, z - L[k].z)));
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;
     for (const b of (W.burns || [])) if (Math.hypot(x - b[0], z - b[1]) < b[2]) g = -2;
@@ -837,7 +849,7 @@
       if (W.riverAt(x, z) < RIVER_W + 1.5 + r) return false;
       if (W.pathAt(x, z) < 2.5 + r) return false;
       for (const q of W.valePois()) if (Math.hypot(x - q.x, z - q.z) < (q.type === 'camp' || q.type === 'elite' || q.type === 'cave' ? 22 : 15) + r) return false;
-      for (const k of ['village', 'start', 'arena', 'castle', 'chapel', 'tower', 'lair']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 * BS : k === 'chapel' ? 13 * BS : k === 'tower' ? 8 * BS : k === 'lair' ? 17 : 18) + r) return false;
+      for (const k of ['village', 'start', 'arena', 'castle', 'chapel', 'tower', 'lair']) if (Math.hypot(x - L[k].x, z - L[k].z) < (k === 'arena' ? 21 : k === 'castle' ? 20 * KS : k === 'chapel' ? 13 * BS : k === 'tower' ? 8 * BS : k === 'lair' ? 17 : 18) + r) return false;
       return !W.blocked(x, z, r + 0.6);
     };
 
@@ -1237,7 +1249,7 @@
     const over = BIO_MAT[bio] && BIO_MAT[bio][mn]; if (!over) return kitMat(mn);
     const k = mn + '@' + bio; return bioMats[k] || (bioMats[k] = GW.mat(Object.assign({ side: THREE.DoubleSide }, KIT_MAT[mn], { color: over })));
   }
-  const VALE_CLEAR = [['start', 24], ['village', 30], ['meadow', 48], ['ruins', 52], ['arena', 32], ['castle', 40], ['chapel', 28], ['tower', 22], ['lair', 26], ['ruinFire', 14], ['meadowFire', 14]];
+  const VALE_CLEAR = [['start', 24], ['village', 30], ['meadow', 48], ['ruins', 52], ['arena', 32], ['castle', 56], ['chapel', 28], ['tower', 22], ['lair', 26], ['ruinFire', 14], ['meadowFire', 14]];
   function chunkFree(x, z, r) {
     if (Math.abs(x) < CORE + 4 && Math.abs(z) < CORE + 4) return false;
     if (Math.max(Math.abs(x), Math.abs(z)) > HALF - 200) return false;
@@ -1596,9 +1608,9 @@
   };
 
   // ----- Greymoss Keep (tools/blender/build_castle.py). Local coords: lx east, ly north (= game -z). -----
-  const CL = { u: 1.0, floorY: 3.4 * BS };
-  const toW = (lx, ly) => [L.castle.x + lx * BS, L.castle.z - ly * BS];
-  W.castleLocal = (x, z) => [(x - L.castle.x) / BS, -(z - L.castle.z) / BS];
+  const CL = { u: 1.0, floorY: 3.4 * KS };
+  const toW = (lx, ly) => [L.castle.x + lx * KS, L.castle.z - ly * KS];
+  W.castleLocal = (x, z) => [(x - L.castle.x) / KS, -(z - L.castle.z) / KS]; W.KS = KS;
   W.BS = BS;
   function buildCastle(scene) {
     const g = GW.Assets.gltf.castle; if (!g) return;
@@ -1618,20 +1630,20 @@
       const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let k = 0;
       geos.forEach(gg => { const ng = gg.index ? gg.toNonIndexed() : gg; const pa = ng.attributes.position.array, na = ng.attributes.normal.array; pos.set(pa, k); nor.set(na, k); k += pa.length; });
       merged.setAttribute('position', new THREE.BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-      const m = new THREE.Mesh(merged, cmat[mn] || cmat.cobble); m.position.set(L.castle.x, base, L.castle.z); m.scale.setScalar(BS); m.frustumCulled = false; scene.add(m);
+      const m = new THREE.Mesh(merged, cmat[mn] || cmat.cobble); m.position.set(L.castle.x, base, L.castle.z); m.scale.setScalar(KS); m.frustumCulled = false; scene.add(m);
       if (mn !== 'void') { merged.computeBoundingSphere(); m.updateMatrixWorld(); W.occluders.push(m); }
     }
     CL.base = base;
     // ---- colliders (level 0 = ground, 1 = upper floor; undefined = both) ----
     const seg = (x0, y0, x1, y1, r, lv, skip) => {
       const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(len / (r * 1.1)));
-      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; const [x, z] = toW(lx, ly); W.addCollider(x, z, r * BS, 'castle', lv); }
+      for (let i = 0; i <= n; i++) { const t = i / n, lx = x0 + (x1 - x0) * t, ly = y0 + (y1 - y0) * t; if (skip && skip(lx, ly)) continue; const [x, z] = toW(lx, ly); W.addCollider(x, z, r * KS, 'castle', lv); }
     };
     const R = 11;
     seg(-R, -R, R, -R, 0.7, undefined, (lx) => Math.abs(lx) < 1.6);                 // south wall, gate
-    seg(-R, -R, -R, R, 0.7, undefined, (lx, ly) => ly > -6 && ly < -1.5);         // west wall, breach (climb over rubble)
+    seg(-R, -R, -R, R, 0.7);                                                       // west wall
     seg(-R, R, R, R, 0.7); seg(R, -R, R, R, 0.7);
-    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => { const [x, z] = toW(lx, ly); W.addCollider(x, z, 2.7 * BS, 'castle'); });
+    [[-R, -R], [R, -R], [-R, R], [R, R]].forEach(([lx, ly]) => { const [x, z] = toW(lx, ly); W.addCollider(x, z, 2.7 * KS, 'castle'); });
     // keep: outer face x -6..6, y 2..10
     seg(-6, 2, -1.1, 2, 0.55); seg(1.1, 2, 6, 2, 0.55); seg(-1.1, 2, 1.1, 2, 0.55, 1);   // door only open on the ground
     seg(-6, 2, -6, 10, 0.55); seg(-6, 10, 6, 10, 0.55);
@@ -1639,7 +1651,7 @@
     seg(8.0, 0.2, 8.0, 8.4, 0.35);                                                 // stair's outer wall
     seg(6.2, 8.6, 7.8, 8.6, 0.35, 0);                                              // the stair's back (can't walk under it)
     seg(6.0, 9.4, 8.0, 9.4, 0.35, 1); seg(8.0, 8.4, 8.0, 9.4, 0.35, 1);              // landing walls at the top
-    W.addCollider(...toW(-5, -5), 1.0 * BS, 'castle');                                  // well
+    W.addCollider(...toW(-5, -5), 1.0 * KS, 'castle');                                  // well
   }
   // ----- The Pale Chapel (tools/blender/build_chapel.py): gothic facade with the arched black doorway -----
   function mergeByMat(g, mats, fallback, x, y, z, scene, sc) {
@@ -1735,23 +1747,23 @@
       W.interact.push({ type: 'pray', id: 'abbeyRelic', x: N.ax, z: N.az + 1.6 * BS, r: 1.8, label: 'Kneel at the ice altar' });
     }
     // ---- Greymoss Keep: the hall on the ground floor, the steward's room above, a yard outside ----
-    { const tw = (lx, ly) => [L.castle.x + lx * BS, L.castle.z - ly * BS], y0 = CL.base, y1 = CL.base + CL.floorY;
-      const [tx, tz] = tw(-2.6, 6.2); box(1.2 * BS, 0.78, 4.2 * BS, plank, tx, y0, tz); W.addCollider(tx, tz - 1.2 * BS, 0.8 * BS, 'table', 0); W.addCollider(tx, tz + 1.2 * BS, 0.8 * BS, 'table', 0);
-      for (const sd of [-1, 1]) { const [bx, bz] = tw(-2.6 + sd * 1.15, 6.2); box(0.4 * BS, 0.45, 3.8 * BS, plankD, bx, y0, bz); }
-      const [hx, hz] = tw(-5.0, 8.8); box(1.6 * BS, 1.2, 0.8 * BS, stone, hx, y0, hz); W.lights.add(hx, y0 + 1.4, hz, new THREE.Color(1.0, 0.5, 0.2), 8, 0.8); W.addCollider(hx, hz, 0.8 * BS, 'hearth', 0);
+    { const tw = (lx, ly) => [L.castle.x + lx * KS, L.castle.z - ly * KS], y0 = CL.base, y1 = CL.base + CL.floorY;
+      const [tx, tz] = tw(-2.6, 6.2); box(1.2 * KS, 0.78, 4.2 * KS, plank, tx, y0, tz); W.addCollider(tx, tz - 1.2 * KS, 0.8 * KS, 'table', 0); W.addCollider(tx, tz + 1.2 * KS, 0.8 * KS, 'table', 0);
+      for (const sd of [-1, 1]) { const [bx, bz] = tw(-2.6 + sd * 1.15, 6.2); box(0.4 * KS, 0.45, 3.8 * KS, plankD, bx, y0, bz); }
+      const [hx, hz] = tw(-5.0, 8.8); box(1.6 * KS, 1.2, 0.8 * KS, stone, hx, y0, hz); W.lights.add(hx, y0 + 1.4, hz, new THREE.Color(1.0, 0.5, 0.2), 8, 0.8); W.addCollider(hx, hz, 0.8 * KS, 'hearth', 0);
       const fm = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 6), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xff8a30, unlit: true })); fm.position.set(hx, y0 + 1.25, hz); scene.add(fm); W.flames.push({ m: fm, s: 4, base: 1 });
       [[4.6, 9.0], [4.9, 8.2], [4.6, 3.0]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.42, 1.0, plankD, x, y0, z); W.addCollider(x, z, 0.5, 'barrel', 0); });
-      const [wx, wz] = tw(-5.2, 3.2); box(0.3, 1.6, 1.6 * BS, plankD, wx, y0, wz); for (let k = 0; k < 4; k++) box(0.06, 1.4, 0.06, iron, wx + 0.12, y0 + 0.15, wz - 0.9 * BS + k * 0.6 * BS);   // weapon rack
+      const [wx, wz] = tw(-5.2, 3.2); box(0.3, 1.6, 1.6 * KS, plankD, wx, y0, wz); for (let k = 0; k < 4; k++) box(0.06, 1.4, 0.06, iron, wx + 0.12, y0 + 0.15, wz - 0.9 * KS + k * 0.6 * KS);   // weapon rack
       const [sx, sz] = tw(2.6, 9.0); box(1.0, 0.7, 0.7, plankD, sx, y0, sz); box(1.05, 0.14, 0.75, iron, sx, y0 + 0.7, sz); W.addCollider(sx, sz, 0.6, 'strongbox', 0);
       W.interact.push({ type: 'strongbox', id: 'keepBox', x: sx, z: sz + 1.1, r: 1.6, label: "The steward's strongbox" });
       // the steward's room upstairs
-      const [ux, uz] = tw(-4.4, 8.6); box(1.0 * BS, 0.35, 2.0 * BS, cloth, ux, y1, uz);   // a bed
-      const [dx, dz] = tw(4.4, 3.6); box(1.2 * BS, 0.75, 0.7 * BS, plank, dx, y1, dz); W.addCollider(dx, dz, 0.7 * BS, 'desk', 1);
+      const [ux, uz] = tw(-4.4, 8.6); box(1.0 * KS, 0.35, 2.0 * KS, cloth, ux, y1, uz);   // a bed
+      const [dx, dz] = tw(4.4, 3.6); box(1.2 * KS, 0.75, 0.7 * KS, plank, dx, y1, dz); W.addCollider(dx, dz, 0.7 * KS, 'desk', 1);
       W.interact.push({ type: 'ledger', id: 'keepLedger', x: dx, z: dz + 1.1, r: 1.6, label: "Read the steward's ledger", floor: 1 });
-      const [nx, nz] = tw(0, 9.85); box(1.6 * BS, 2.2, 0.05, clothB, nx, y1 + 0.5, nz);   // banner on the back wall
+      const [nx, nz] = tw(0, 9.85); box(1.6 * KS, 2.2, 0.05, clothB, nx, y1 + 0.5, nz);   // banner on the back wall
       // the yard: practice posts and a cart of firewood
       [[-8, -2], [-8, 2]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.14, 1.7, plankD, x, y0, z); box(0.9, 0.12, 0.12, plankD, x, y0 + 1.3, z); W.addCollider(x, z, 0.35, 'post'); });
-      const [cx, cz] = tw(7.5, -7.5); box(1.4 * BS, 0.6, 0.9 * BS, plank, cx, y0 + 0.3, cz, 0.3); W.addCollider(cx, cz, 1.0 * BS, 'cart');
+      const [cx, cz] = tw(7.5, -7.5); box(1.4 * KS, 0.6, 0.9 * KS, plank, cx, y0 + 0.3, cz, 0.3); W.addCollider(cx, cz, 1.0 * KS, 'cart');
     }
     // ---- the Ivy Watch roof: a lookout's camp and a spyglass on a tripod ----
     { const T = L.tower, y = TW.topY;
