@@ -267,6 +267,14 @@ body.touch #hotbar { display: none; }
 @keyframes fusepulse { from { filter: brightness(1); } to { filter: brightness(1.6); } }
 #f-side { max-height: calc(100vh - 150px); overflow-y: auto; }
 #f-smelt .chip.smelt { font-size: 11px; padding: 4px 7px; margin: 2px 0; width: 100%; text-align: left; }
+/* journal */
+table.jr { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 10px; }
+table.jr td { padding: 3px 6px; border-bottom: 1px solid rgba(200,205,220,.08); }
+.jbar { display: inline-block; width: 120px; height: 6px; background: rgba(200,205,220,.12); vertical-align: middle; }
+.jbar i { display: block; height: 100%; background: #c8a86a; }
+.jl { display: grid; gap: 3px; font-size: 13px; margin-bottom: 10px; }
+.jl .dim, .dim { color: #7a8090; }
+.jl .done { color: #9ad08a; }
 
 </style>
 </head>
@@ -462,7 +470,7 @@ body.touch #hotbar { display: none; }
 <canvas id="compass" width="720" height="44"></canvas>
 <div id="shop" class="panel hidden"><h2 id="shop-who">TRADER</h2><div class="s-note">Your shards: <b id="shop-shards" style="color:#9fd8ff"></b> ◈</div><div id="shop-list"></div><button class="btn ghost" id="shop-close">Leave</button></div>
 <div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
-<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-tabs"><button class="bt on" data-tab="load">Loadout</button><button class="bt" data-tab="skills">Skills <span id="bt-pts"></span></button></div><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
+<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-tabs"><button class="bt on" data-tab="load">Loadout</button><button class="bt" data-tab="skills">Skills <span id="bt-pts"></span></button><button class="bt" data-tab="journal">Journal</button></div><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
 <div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
 <div id="worldmap" class="hidden"><canvas id="wm"></canvas><button id="wm-style" class="btn ghost">◈ Touring map</button><div class="wm-foot">M / Esc close · wheel or + − zoom · drag to pan · click to set your mark · Space: back to you · V: map style</div></div>
 
@@ -7135,6 +7143,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   { const R = RIVERS[5], n = Math.min(30, R.ys.length); for (let i = 0; i < n; i++) { const k = R.ys.length - n + i, t = i / (n - 1); R.ys[k] = Math.max(LAKES[0].y, GW.lerp(R.ys[k], LAKES[0].y, t * t)); } }
 
   // ---- placeholder (bridges are found once the roads exist) ----
+  // villages are paved: [x, z, radius] (Emberhold inside its fence, the hub villages inside their hut rings)
+  const VILLAGE_SQ = [[L.village.x, L.village.z, 14.5]].concat(HUBS.map(h => [L[h.at].x, L[h.at].z, 24]));
   // ---- roads bend around steep ground and keep out of lakes; the Vale's paths stay as laid out ----
   function relaxRoad(poly) {
     const out = [poly[0]];
@@ -7248,6 +7258,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     g *= GW.lerp(0.35, 1, ss(10, 18, Math.hypot(x - L.arena.x, z - L.arena.z)));
     g *= 0.88 + 0.12 * Math.sin(x * 0.21) * Math.sin(z * 0.17);
     g *= GW.lerp(1, 0.6, bw[0]) * GW.lerp(1, 0.75, bw[1]) * GW.lerp(1, 0.55, bw[2]) * GW.lerp(1, 0.25, bw[3]);   // frost, high, ash, salt: sparser
+    for (const V of VILLAGE_SQ) if (Math.hypot(x - V[0], z - V[1]) < V[2] + 0.5) { pd = 0; pk = 1; }
     for (const k of ['hearth', 'cinder', 'abbey', 'high', 'salt', 'mire', 'dusk']) g *= GW.lerp(0.5, 1, ss(10, 22, Math.hypot(x - L[k].x, z - L[k].z)));
     if (Math.hypot(x - L.frostLake.x, z - L.frostLake.z) < 72) g = 0;
     for (const b of (W.burns || [])) if (Math.hypot(x - b[0], z - b[1]) < b[2]) g = -2;
@@ -7255,7 +7266,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     return out;
   }
   // footpaths: a worn trail from a find to the nearest road, if one passes within 380 m and no river is in the way (made on demand, then kept)
-  const FOOT_TYPES = { camp: 1, ruin: 1, cave: 1, shrine: 1, waystone: 1, vista: 1, wanderer: 1, puzzle: 1, elite: 1 };
+  const FOOT_TYPES = { camp: 1, ruin: 1, cave: 1, shrine: 1, waystone: 1, vista: 1, wanderer: 1, puzzle: 1, elite: 1, unique: 1, moonwell: 1 };
   const footCache = new Map(), FIDX = new Map();
   function footFor(p) {
     if (footCache.has(p.id)) return footCache.get(p.id);
@@ -7265,10 +7276,10 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       for (const sg of segs) { if (sg.k === 0) continue; let t = ((p.x - sg.ax) * sg.dx + (p.z - sg.az) * sg.dz) / sg.l2; t = t < 0 ? 0 : t > 1 ? 1 : t; const qx = sg.ax + sg.dx * t, qz = sg.az + sg.dz * t, d = Math.hypot(qx - p.x, qz - p.z); if (d < bd) { bd = d; bp = [qx, qz]; } }
       if (bp && bd > 30) {
         const dx = (bp[0] - p.x) / bd, dz = (bp[1] - p.z) / bd, bend = (hsh(p.x * 0.01, p.z * 0.01) - 0.5) * 0.35 * bd;
-        const R0 = { camp: 17, ruin: 18, elite: 13, puzzle: 12, cave: 0, vista: 7, shrine: 4, waystone: 4, wanderer: 5 }[p.type] || 9;
+        const R0 = { camp: 17, ruin: 18, elite: 13, puzzle: 12, cave: 0, vista: 7, shrine: 4, waystone: 4, wanderer: 5, unique: 24, moonwell: 9 }[p.type] || 9;
         const a = p.type === 'cave' ? [p.x, p.z + 9.5] : [p.x + dx * R0, p.z + dz * R0], m = [p.x + dx * bd * 0.5 - dz * bend, p.z + dz * bd * 0.5 + dx * bend];
         // a cave's trail leaves from its mouth (+z); if the road lies behind the mound, step round its side first
-        const FOOT = { camp: 15, ruin: 16, elite: 12, puzzle: 11, cave: 8.5 }[p.type] || 5;
+        const FOOT = { camp: 15, ruin: 16, elite: 12, puzzle: 11, cave: 8.5, unique: 22, moonwell: 8 }[p.type] || 5;
         const clear = pts => pts.slice(1).every(q => Math.hypot(q[0] - p.x, q[1] - p.z) > FOOT);   // never back across the find itself
         let pts = null;
         for (const side of (p.type === 'cave' ? [dx >= 0 ? 1 : -1, dx >= 0 ? -1 : 1, 0] : [0])) {
@@ -7439,6 +7450,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   };
 
   W.build = function (scene, opts) {
+    W.uniques();
     W.scene = scene;
     W.lights = new GW.Lights();
     const rnd = GW.rand(1337);
@@ -7747,6 +7759,8 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     natureScatter(batch, place, rnd, free);
     kitScatter(scene, batch, place, rnd, free);
     buildCastle(scene);
+    buildSquares(scene);
+    furnish(scene);
     batch.build(scene);
     buildFireflies(scene);
     buildSky(scene);
@@ -8129,6 +8143,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const p = W.poiAt(i, j); if (p && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     }
     if (Math.hypot(x, z) < 700 + r) for (const p of W.valePois()) if (p.type !== 'vein' && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
+    if (UNIQ) for (const p of UNIQ) if (Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     return out;
   };
   W.POI_CELL = POI_CELL;
@@ -8169,6 +8184,36 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     });
     return VALE_POIS;
   };
+  // ---------- one of a kind: landmarks worth the walk (and moonwells that only wake at night) ----------
+  const UNIQUE_PLAN = [
+    ['giant', 'THE FALLEN GIANT', 'high', 5300, -6200], ['belltower', 'THE SUNKEN BELLTOWER', 'mire', -5500, 6300], ['hermit', "THE HERMIT'S HUT", 'dusk', -8900, -5300],
+    ['eldertree', 'THE ELDER TREE', 'vale', -2700, -1600], ['colossus', 'THE BROKEN COLOSSUS', 'ash', 8900, 1900], ['saltship', 'THE STRANDED SHIP', 'salt', 2700, 9900],
+    ['frostgate', 'THE FROZEN GATE', 'frost', -3000, -10300], ['moonwell', 'MOONWELL', 'vale', 1900, 2600], ['moonwell', 'MOONWELL', 'dusk', -6100, -7100], ['moonwell', 'MOONWELL', 'frost', 1600, -9500],
+  ];
+  let UNIQ = null;
+  W.uniques = function () {
+    if (UNIQ) return UNIQ;
+    UNIQ = [];
+    const hh = (a, b) => rawHeight(a, b, biomeW(a, b));
+    const slope = (a, b) => { const h0 = hh(a, b); let m = 0; for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; m = Math.max(m, Math.abs(hh(a + Math.cos(t) * 12, b + Math.sin(t) * 12) - h0)); } return m; };
+    const bad = (x, z) => {
+      let pen = 0;
+      const rv = nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0], pa = nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0];
+      if (rv < 40) pen += 40 - rv; if (pa < 28) pen += 28 - pa;
+      for (const h of HUBS) { const d = Math.hypot(x - L[h.at].x, z - L[h.at].z); if (d < 160) pen += 160 - d; }
+      for (const a of ARENAS) { const d = Math.hypot(x - a.x, z - a.z); if (d < 180) pen += 180 - d; }
+      for (const q of UNIQ) { const d = Math.hypot(x - q.x, z - q.z); if (d < 400) pen += 400 - d; }
+      for (let i = Math.floor(x / POI_CELL) - 1; i <= Math.floor(x / POI_CELL) + 1; i++) for (let j = Math.floor(z / POI_CELL) - 1; j <= Math.floor(z / POI_CELL) + 1; j++) { const q = W.poiAt(i, j); if (q) { const d = Math.hypot(x - q.x, z - q.z); if (d < 70) pen += 70 - d; } }
+      const sl = slope(x, z); if (sl > 1.8) pen += (sl - 1.8) * 6;
+      return pen;
+    };
+    UNIQUE_PLAN.forEach(([kind, name, region, x0, z0], k) => {
+      let best = [x0, z0], bp = bad(x0, z0);
+      for (let r = 20; r <= 300 && bp > 0; r += 20) for (let q = 0; q < 12; q++) { const a = q / 12 * Math.PI * 2 + r * 0.01, x = x0 + Math.cos(a) * r, z = z0 + Math.sin(a) * r, pn = bad(x, z); if (pn < bp) { bp = pn; best = [x, z]; } }
+      UNIQ.push({ id: 'u' + k, uniq: true, kind, name, type: kind === 'moonwell' ? 'moonwell' : 'unique', region, x: best[0], z: best[1], lvl: 1 + Math.floor(Math.hypot(best[0], best[1]) / LVLD) + 1, seed: 9100 + k * 613 });
+    });
+    return UNIQ;
+  };
   // ---------- puzzles: one shared layout so the world (props) and the game (logic) agree ----------
   W.puzzleLayout = function (p) {
     const R = GW.rand(p.seed + 77), o = { kind: p.pz || (p.cache ? 'dig' : null) };
@@ -8183,6 +8228,34 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     if (p.cache) { const a = R() * Math.PI * 2, d = 45 + R() * 35; o.dig = { x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d }; }
     return o;
   };
+  function buildUnique(p, kit, ring, R, bio, chest, inter) {
+    const X = p.x, Z = p.z, grey = new THREE.Color(0.85, 0.83, 0.8);
+    if (p.kind === 'giant') {   // a giant's bones: a long ribcage of arches, a skull, a sword stuck in the ground
+      for (let k = 0; k < 7; k++) { kit('kit_arch', X - 14 + k * 4.2, Z + Math.sin(k * 0.7) * 0.8, 1.6 - Math.abs(k - 3) * 0.08, 0.7, bio, new THREE.Color(0.92, 0.9, 0.84)); }
+      kit('kit_rock_b', X + 17, Z + 1, 2.6, 2.2, bio, new THREE.Color(0.95, 0.93, 0.88)); kit('kit_rock_c', X + 19, Z - 2, 1.6, 1.2, bio, grey);
+      kit('kit_pillar_a', X - 20, Z - 6, 1.9, 0.6, bio, new THREE.Color(0.7, 0.72, 0.78)); chest(X + 2, Z + 5);
+    } else if (p.kind === 'belltower') {   // a tower sinking into the bog, its bell still hanging
+      for (let k = 0; k < 4; k++) kit('kit_pillar_a', X + k * 0.8, Z + k * 0.5, 1.4, 1.2, bio, grey);
+      kit('kit_crypt', X - 6, Z + 4, 1.4, 1.6, bio, new THREE.Color(0.6, 0.65, 0.55)); ring(8, 12, (x, z) => kit('kit_deadtree_' + 'abc'[Math.floor(R() * 3)], x, z, 1.0 + R() * 0.5, 0.4, bio));
+      inter.push({ type: 'uniqbell', id: 'ub:' + p.id, x: X + 3, z: Z + 3.5, r: 2.4, label: 'Ring the drowned bell', poi: p });
+    } else if (p.kind === 'hermit') {   // a lone hut, a lantern, a hermit who trades in odd things
+      kit('kit_hut', X, Z, 1.25, 1.9, bio, new THREE.Color(0.7, 0.66, 0.6)); kit('kit_lantern', X + 4, Z + 3, 1.1, 0.2, bio); kit('kit_barrel', X - 4, Z + 2, 1, 0.35, bio); kit('kit_crate', X - 4.8, Z + 3.2, 0.9, 0.45, bio);
+      inter.push({ type: 'shop', x: X + 2, z: Z + 5, r: 2.6, label: 'Trade with the hermit', poi: Object.assign({}, p, { region: 'dusk' }) }); chest(X - 3, Z - 4);
+    } else if (p.kind === 'eldertree') {   // an oak older than the vale, a shrine in its roots
+      kit('kit_oak_a', X, Z, 4.2, 3.2, bio); ring(7, 9, (x, z) => kit('kit_rock_a', x, z, 0.5 + R() * 0.4, 0.5, bio));
+      kit('kit_shrine', X, Z + 6, 1.0, 0.7, bio); inter.push({ type: 'eldertree', id: 'et:' + p.id, x: X, z: Z + 7.6, r: 2.4, label: 'Rest a hand on the roots', poi: p });
+    } else if (p.kind === 'colossus') {   // a statue's head and fallen hands in the ash
+      kit('kit_rock_b', X, Z, 3.4, 2.8, bio, new THREE.Color(0.7, 0.68, 0.66)); kit('kit_pillar_a', X - 9, Z + 4, 2.2, 0.8, bio, grey); kit('kit_pillar_b', X + 9, Z + 5, 2.4, 0.9, bio, grey);
+      kit('kit_rock_c', X + 6, Z - 7, 1.8, 1.3, bio, grey); kit('kit_rock_c', X - 7, Z - 6, 1.6, 1.2, bio, grey); chest(X, Z + 6);
+    } else if (p.kind === 'saltship') {   // a ship run aground in the salt, a long way from any sea
+      for (let k = 0; k < 6; k++) kit('kit_crate', X - 7 + k * 2.6, Z + Math.sin(k) * 0.4, 1.4, 0.8, bio, new THREE.Color(0.75, 0.6, 0.45));
+      kit('kit_pillar_a', X, Z, 2.4, 0.5, bio, new THREE.Color(0.6, 0.48, 0.36)); kit('kit_cart', X + 9, Z + 3, 1.2, 1.0, bio); for (let k = 0; k < 4; k++) kit('kit_barrel', X - 8 + k * 1.1, Z + 4, 1, 0.35, bio);
+      chest(X + 2, Z + 4);
+    } else if (p.kind === 'frostgate') {   // a gate of arches through the drifts, leading nowhere
+      for (let k = 0; k < 5; k++) kit('kit_arch', X, Z - 12 + k * 6, 1.7, 0, bio, new THREE.Color(0.85, 0.92, 1.05));
+      ring(8, 9, (x, z) => kit('kit_rock_b', x, z, 0.7 + R() * 0.5, 0.7, bio, new THREE.Color(0.9, 0.95, 1.05))); chest(X + 4, Z);
+    }
+  }
   function buildPOI(p, kit, cols, inter) {
     const R = GW.rand(p.seed + 1), bio = p.region, ring = (n, r, fn) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + R() * 0.5; fn(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a); } };
     const chest = (x, z) => { kit('kit_crate', x, z, 0.9, 0.5, bio, new THREE.Color(0.9, 0.7, 0.4)); inter.push({ type: 'chest', x, z, r: 1.8, label: 'Open the chest', id: 'poi:' + p.id, poi: p }); };
@@ -8222,6 +8295,11 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         kit('kit_rock_b', p.x, p.z - 1.5, 1.8, 1.6, bio);
         kit('kit_arch', p.x, p.z + 4.0, 1.45, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
         inter.push({ type: 'cave', x: p.x, z: p.z + 5.2, r: 3.0, label: 'Enter the cave', poi: p }); break;
+      case 'unique': buildUnique(p, kit, ring, R, bio, chest, inter); break;
+      case 'moonwell':
+        kit('kit_well', p.x, p.z, 1.2, 1.2, bio, new THREE.Color(0.75, 0.85, 1.05));
+        ring(6, 6, (x, z) => kit('kit_pillar_b', x, z, 0.5, 0.4, bio, new THREE.Color(0.7, 0.8, 1.0)));
+        inter.push({ type: 'moonwell', id: 'mw:' + p.id, x: p.x, z: p.z + 2.2, r: 2.6, label: 'Drink from the moonwell', poi: p }); break;
       default: break;   // ambush: nothing to see until it is too late
     }
   }
@@ -8431,6 +8509,83 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ----- The Ivy Watch (tools/blender/build_tower.py): walk in the door, come out on the roof -----
   const TW = { top: 13.1 * BS, r: 3.3 * BS };
   W.tower = TW;
+  // ---- cobbled village squares (a disc of glyph-textured stone that follows the ground) ----
+  function buildSquares(scene) {
+    const mat = GW.mat({ id: ID.MASONRY, tex: 8, color: 0xa8a49c, fill: 0.1, side: THREE.DoubleSide });
+    for (const [cx, cz, R] of VILLAGE_SQ) {
+      const P = [], U = [], idx = [], NR = 10, NA = 48;
+      P.push(cx, W.heightAt(cx, cz) + 0.06, cz); U.push(cx * 0.4, cz * 0.4);
+      for (let r = 1; r <= NR; r++) for (let a = 0; a < NA; a++) {
+        const rr = R * r / NR, an = a / NA * Math.PI * 2, wob = r === NR ? 1 + 0.06 * Math.sin(an * 5 + cx) : 1, x = cx + Math.cos(an) * rr * wob, z = cz + Math.sin(an) * rr * wob;
+        P.push(x, W.heightAt(x, z) + 0.06, z); U.push(x * 0.4, z * 0.4);
+      }
+      for (let a = 0; a < NA; a++) idx.push(0, 1 + a, 1 + (a + 1) % NA);
+      for (let r = 1; r < NR; r++) for (let a = 0; a < NA; a++) { const i0 = 1 + (r - 1) * NA + a, i1 = 1 + (r - 1) * NA + (a + 1) % NA, j0 = i0 + NA, j1 = i1 + NA; idx.push(i0, j0, i1, i1, j0, j1); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(idx); g.computeVertexNormals();
+      { const na = g.attributes.normal.array; for (let i = 1; i < na.length; i += 3) if (na[i] < 0) { na[i - 1] *= -1; na[i] *= -1; na[i + 1] *= -1; } }
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m);
+    }
+  }
+  // ---- furnished interiors: the Pale Chapel, Greymoss Keep, Rimeglass Abbey, and a camp on the Ivy Watch's roof ----
+  function furnish(scene) {
+    const plank = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x7a5a3e, fill: 0.08 }), plankD = GW.mat({ id: ID.PLANKS, tex: 2, color: 0x56402c, fill: 0.06 });
+    const stone = GW.mat({ id: ID.MASONRY, tex: 8, color: 0x9a9a9e, fill: 0.08 }), cloth = GW.mat({ id: ID.CLOTH, color: 0x6a2a24, rim: 0.3 }), clothB = GW.mat({ id: ID.CLOTH, color: 0x2a3a5a, rim: 0.3 });
+    const iron = GW.mat({ id: ID.METAL, color: 0x5a5e68, rim: 0.4 }), wax = GW.mat({ id: ID.BODY, color: 0xe8dcc0 }), ice = GW.mat({ id: ID.RUNE, color: 0, emissive: 0x6ab0e0, unlit: true });
+    const box = (w, h, d, mat, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y + h / 2, z); m.rotation.y = ry || 0; scene.add(m); return m; };
+    const cyl = (r, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 8), mat); m.position.set(x, y + h / 2, z); scene.add(m); return m; };
+    W.candles = [];
+    // a church nave in a chapel-model building (local frame: x across, y from the door inward)
+    const nave = (C, frost) => {
+      const tw = (lx, ly) => [C.x + lx * BS, C.z - ly * BS], y0 = W.heightAt(C.x, C.z - 6 * BS);
+      for (const ly of [3.2, 4.8, 6.4, 8.0, 9.6]) for (const sd of [-1, 1]) {   // pews either side of the aisle
+        const [x, z] = tw(sd * 2.9, ly); box(3.4 * BS * 0.9, 0.48, 0.5, frost ? stone : plank, x, y0, z); box(3.4 * BS * 0.9, 0.62, 0.12, frost ? stone : plankD, x, y0 + 0.48, z - 0.3 * BS * -1 + 0.3);
+        W.addCollider(x - 1.4 * BS, z, 0.45, 'pew'); W.addCollider(x, z, 0.45, 'pew'); W.addCollider(x + 1.4 * BS, z, 0.45, 'pew');
+      }
+      const [ax, az] = tw(0, 11.6); box(3.2 * BS, 1.05, 1.1 * BS, frost ? ice : stone, ax, y0, az); W.addCollider(ax, az, 1.6 * BS * 0.7, 'altar');
+      const [lx, lz] = tw(-2.6, 10.5); box(0.5, 1.15, 0.45, plankD, lx, y0, lz); box(0.7, 0.08, 0.55, plank, lx, y0 + 1.15, lz);   // lectern
+      [[-4.4, 1.8], [4.4, 1.8], [-4.4, 11.8], [4.4, 11.8]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.12, 1.7, iron, x, y0, z); W.lights.add(x, y0 + 1.95, z, frost ? new THREE.Color(0.5, 0.75, 1.0) : new THREE.Color(1.0, 0.62, 0.3), 7, 0.5); });
+      return { tw, y0, ax, az };
+    };
+    // ---- the Pale Chapel: light the four altar candles and the reliquary opens ----
+    { const N = nave(L.chapel, false);
+      [-1.2, -0.4, 0.4, 1.2].forEach((qx, k) => { const [x, z] = N.tw(qx, 11.55); const c = cyl(0.07, 0.34, wax, x, N.y0 + 1.05, z);
+        const fl = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 5), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xffb050, unlit: true })); fl.position.set(x, N.y0 + 1.5, z); fl.visible = false; scene.add(fl);
+        const it = { type: 'candle', idx: k, x, z: z + 1.6, r: 1.6, label: 'Light the candle', flame: fl, cx: x, cy: N.y0 + 1.5, cz: z }; W.candles.push(it); W.interact.push(it); void c; });
+      const [rx, rz] = N.tw(4.0, 10.6); box(0.9, 0.6, 0.6, plankD, rx, N.y0, rz); box(0.95, 0.12, 0.65, iron, rx, N.y0 + 0.6, rz);
+      W.interact.push({ type: 'reliquary', id: 'chapelRelic', x: rx, z: rz + 1.2, r: 1.6, label: 'A sealed reliquary' });
+    }
+    // ---- Rimeglass Abbey: an ice altar that only answers under the moon ----
+    { const N = nave(L.abbey, true);
+      W.interact.push({ type: 'pray', id: 'abbeyRelic', x: N.ax, z: N.az + 1.6 * BS, r: 1.8, label: 'Kneel at the ice altar' });
+    }
+    // ---- Greymoss Keep: the hall on the ground floor, the steward's room above, a yard outside ----
+    { const tw = (lx, ly) => [L.castle.x + lx * BS, L.castle.z - ly * BS], y0 = CL.base, y1 = CL.base + CL.floorY;
+      const [tx, tz] = tw(-2.6, 6.2); box(1.2 * BS, 0.78, 4.2 * BS, plank, tx, y0, tz); W.addCollider(tx, tz - 1.2 * BS, 0.8 * BS, 'table', 0); W.addCollider(tx, tz + 1.2 * BS, 0.8 * BS, 'table', 0);
+      for (const sd of [-1, 1]) { const [bx, bz] = tw(-2.6 + sd * 1.15, 6.2); box(0.4 * BS, 0.45, 3.8 * BS, plankD, bx, y0, bz); }
+      const [hx, hz] = tw(-5.0, 8.8); box(1.6 * BS, 1.2, 0.8 * BS, stone, hx, y0, hz); W.lights.add(hx, y0 + 1.4, hz, new THREE.Color(1.0, 0.5, 0.2), 8, 0.8); W.addCollider(hx, hz, 0.8 * BS, 'hearth', 0);
+      const fm = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 6), GW.mat({ id: ID.FIRE, color: 0, emissive: 0xff8a30, unlit: true })); fm.position.set(hx, y0 + 1.25, hz); scene.add(fm); W.flames.push({ m: fm, s: 4, base: 1 });
+      [[4.6, 9.0], [4.9, 8.2], [4.6, 3.0]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.42, 1.0, plankD, x, y0, z); W.addCollider(x, z, 0.5, 'barrel', 0); });
+      const [wx, wz] = tw(-5.2, 3.2); box(0.3, 1.6, 1.6 * BS, plankD, wx, y0, wz); for (let k = 0; k < 4; k++) box(0.06, 1.4, 0.06, iron, wx + 0.12, y0 + 0.15, wz - 0.9 * BS + k * 0.6 * BS);   // weapon rack
+      const [sx, sz] = tw(2.6, 9.0); box(1.0, 0.7, 0.7, plankD, sx, y0, sz); box(1.05, 0.14, 0.75, iron, sx, y0 + 0.7, sz); W.addCollider(sx, sz, 0.6, 'strongbox', 0);
+      W.interact.push({ type: 'strongbox', id: 'keepBox', x: sx, z: sz + 1.1, r: 1.6, label: "The steward's strongbox" });
+      // the steward's room upstairs
+      const [ux, uz] = tw(-4.4, 8.6); box(1.0 * BS, 0.35, 2.0 * BS, cloth, ux, y1, uz);   // a bed
+      const [dx, dz] = tw(4.4, 3.6); box(1.2 * BS, 0.75, 0.7 * BS, plank, dx, y1, dz); W.addCollider(dx, dz, 0.7 * BS, 'desk', 1);
+      W.interact.push({ type: 'ledger', id: 'keepLedger', x: dx, z: dz + 1.1, r: 1.6, label: "Read the steward's ledger", floor: 1 });
+      const [nx, nz] = tw(0, 9.85); box(1.6 * BS, 2.2, 0.05, clothB, nx, y1 + 0.5, nz);   // banner on the back wall
+      // the yard: practice posts and a cart of firewood
+      [[-8, -2], [-8, 2]].forEach(([qx, qy]) => { const [x, z] = tw(qx, qy); cyl(0.14, 1.7, plankD, x, y0, z); box(0.9, 0.12, 0.12, plankD, x, y0 + 1.3, z); W.addCollider(x, z, 0.35, 'post'); });
+      const [cx, cz] = tw(7.5, -7.5); box(1.4 * BS, 0.6, 0.9 * BS, plank, cx, y0 + 0.3, cz, 0.3); W.addCollider(cx, cz, 1.0 * BS, 'cart');
+    }
+    // ---- the Ivy Watch roof: a lookout's camp and a spyglass on a tripod ----
+    { const T = L.tower, y = TW.topY;
+      box(0.9, 0.18, 1.9, cloth, T.x - 1.6 * BS, y, T.z + 1.0 * BS, 0.4);
+      box(0.8, 0.7, 0.8, plankD, T.x + 1.5 * BS, y, T.z - 1.5 * BS, 0.2); W.addCollider(T.x + 1.5 * BS, T.z - 1.5 * BS, 0.6, 'crate', 2);
+      const sx = T.x + 0.4 * BS, sz = T.z - 2.4 * BS; for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2, leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 4), plankD); leg.position.set(sx + Math.cos(a) * 0.25, y + 0.65, sz + Math.sin(a) * 0.25); leg.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3); scene.add(leg); }
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.9, 8), iron); tube.position.set(sx, y + 1.45, sz); tube.rotation.x = Math.PI / 2.4; scene.add(tube);
+      W.interact.push({ type: 'spyglass', x: sx, z: sz + 0.9, r: 1.4, label: 'Look through the spyglass', floor: 2 });
+    }
+  }
   function buildTower(scene) {
     const g = GW.Assets.gltf.tower; if (!g) return;
     const T = L.tower, base = W.heightAt(T.x, T.z) - 0.05;
@@ -8904,6 +9059,21 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   }
   // ---------- data for the glyph world map: a 512² grid of the world's fields ----------
   W.kitParts = n => kitParts(n);   // for audits / tools
+  let TOTALS = null;
+  W.poiTotals = function () {
+    if (TOTALS) return TOTALS;
+    TOTALS = {}; const n = Math.ceil(HALF / POI_CELL);
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const p = W.poiAt(i, j); if (p && p.type !== 'ambush') TOTALS[p.region] = (TOTALS[p.region] || 0) + 1; }
+    for (const p of W.valePois()) if (p.type !== 'vein' && p.type !== 'ambush') TOTALS.vale = (TOTALS.vale || 0) + 1;
+    for (const p of W.uniques()) TOTALS[p.region] = (TOTALS[p.region] || 0) + 1;
+    return TOTALS;
+  };
+  // a find by its id ("i,j" on the grid, "vale3", "u4")
+  W.poiById = function (id) {
+    if (/^u\d+$/.test(id)) return W.uniques().find(p => p.id === id) || null;
+    if (/^vale\d+$/.test(id)) return W.valePois().find(p => p.id === id) || null;
+    const m = /^(-?\d+),(-?\d+)$/.exec(id); return m ? W.poiAt(+m[1], +m[2]) : null;
+  };
   W.enemyLevelAt = (x, z) => 1 + Math.floor(Math.hypot(x, z) / LVLD);
   W.regionLevels = key => { const D = W.mapData(), i = key === 'vale' ? 0 : BIOMES.indexOf(key) + 1; return D.levels[i] || [1, 1]; };
   // how dangerous a level is for the hero: green (easy) → gold → orange → red (deadly)
@@ -9496,7 +9666,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     for (const [k, d] of [['dmg', 10], ['crit', 0.05], ['speed', 1], ['focusRegen', 1], ['burn', 0], ['slow', 0], ['chain', 0], ['poison', 0], ['ward', 0], ['vigor', 0], ['steal', 0], ['xp', 0], ['undead', 0]]) s[k] = fin(s[k], d);
     for (const k in gs) gs[k] = fin(gs[k], 0);
     if (!(this.level >= 1)) this.level = 1;
-    const vig = (s.vigor || 0) + gs.hp + 15 * SK('g_vigor');
+    const vig = (s.vigor || 0) + gs.hp + 15 * SK('g_vigor') + (this.extraHp || 0);
     const old = this.maxHp;
     this.maxHp = Math.round(100 + (this.level - 1) * 12 + vig);
     if (this.maxHp > old) this.hp += this.maxHp - old;
@@ -11679,6 +11849,25 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     const open = on === undefined ? !UI.bookOpen() : on; $('book').classList.toggle('hidden', !open);
     if (open) UI.renderBook(G); else UI.refreshAbil();
   };
+  // ---- the Journal: what you've found, region by region, and the stories left half-told ----
+  UI.renderJournal = function (G, el) {
+    const W = GW.World, tot = W.poiTotals(), fnd = G.foundByRegion(), me = G.player.level, I = G.items || {}, O = G.opened || {};
+    let h = '<div class="sec2">THE LANDS · places found, region by region</div><table class="jr">';
+    for (const k of ['vale'].concat(W.BIOMES)) { const R = W.REGIONS[k], lv = W.regionLevels(k), t = tot[k] || 0, f = fnd[k] || 0, pc = t ? Math.round(f / t * 100) : 0;
+      h += `<tr><td style="color:${R.col}">${R.name}</td><td style="color:${W.dangerCol(lv[0], me)}">lv ${lv[0]}–${lv[1]}</td><td>${f} / ${t}</td><td><span class="jbar"><i style="width:${pc}%"></i></span></td></tr>`; }
+    h += '</table><div class="sec2">LANDMARKS</div><div class="jl">';
+    for (const p of W.uniques()) { const seen = G.poiSeen[p.id]; h += `<div class="${seen ? '' : 'dim'}">${p.type === 'moonwell' ? '☾' : '✪'} ${seen ? p.name.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase()) + ' <span class="dim">· ' + W.REGIONS[p.region].name.toLowerCase() + '</span>' : '<span class="dim">unfound ' + (p.type === 'moonwell' ? 'moonwell (only at night)' : 'landmark') + ' · ' + W.REGIONS[p.region].name.toLowerCase() + '</span>'}</div>`; }
+    h += '</div><div class="sec2">HALF-TOLD STORIES</div><div class="jl">';
+    const candles = [0, 1, 2, 3].filter(k => G.candleLit(k)).length;
+    const row = (done, title, hint) => `<div class="${done ? 'done' : ''}">${done ? '✓' : '·'} <b>${title}</b> <span class="dim">${done ? '' : '· ' + hint}</span></div>`;
+    h += row(O.chapelRelic, 'The Pale Chapel', candles + ' of 4 altar candles lit; the reliquary waits');
+    h += row(O.keepBox, "The Steward's Strongbox", I.keepKey ? 'you carry the iron key: the strongbox is in the keep\'s hall' : 'a Hollow Captain in Greymoss Keep carries the key');
+    h += row(I.ledger, "The Steward's Ledger", 'upstairs in Greymoss Keep');
+    h += row(O.abbeyRelic, 'The Frozen Prayer', 'kneel at Rimeglass Abbey\'s ice altar, under the moon');
+    h += row(I.spyglass, 'The Ivy Watch', 'a spyglass waits on the roof');
+    const solved = Object.keys(G.solved || {}).length; h += `<div>· <b>Puzzles solved</b> <span class="dim">· ${solved}</span></div>`;
+    el.innerHTML = h + '</div>';
+  };
   UI.bookPick = function (G, i) { bookSel = i; UI.renderBook(G); };
   UI.renderBook = function (G) {
     const tab = UI._bookTab || 'load', pts = GW.Skills.points(G.player);
@@ -11688,6 +11877,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     $('book-close').onclick = () => UI.toggleBook(G, false);
     $('book-body').classList.toggle('skills', tab === 'skills');
     if (tab === 'skills') { GW.Skills.render(G, $('book-body')); return; }
+    if (tab === 'journal') { UI.renderJournal(G, $('book-body')); return; }
     const P = G.player, A = GW.Abil, b = A.ensure(P), atStation = G.craftStation && G.craftStation();
     // weapons: two carried, X swaps between them
     const AR = GW.Arms, ar = AR.ensure(P);
@@ -11977,9 +12167,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   const MOUNT = '▲^∧▲^', WATER = '≈~≈~', EDGE = '░';
   const hash = (i, j) => { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   const POI_ICON = { camp: ['x', '#e07a64', 'bandit camp'], ruin: ['#', '#b4b8c4', 'ruin'], chest: ['■', '#ffd860', 'cache'], shrine: ['†', '#9fd8ff', 'shrine'], waystone: ['◊', '#9fd8ff', 'waystone'],
-    vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'], puzzle: ['?', '#c8a0ff', 'puzzle'] };
+    vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'], puzzle: ['?', '#c8a0ff', 'puzzle'], unique: ['✪', '#ffe08a', 'landmark'], moonwell: ['☾', '#a8c8ff', 'moonwell'] };
 
-  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1 };
+  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1, unique: 1, moonwell: 1 };
   // ---------- map styles: V cycles them on the map ----------
   const STYLES = ['tour', 'ascii', 'ink', 'mosaic'];
   const STYLE_NAME = { tour: 'Touring map', ascii: 'ASCII relief', ink: "Explorer's ink", mosaic: 'Glyph mosaic' };
@@ -12179,7 +12369,9 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         halo(g, spaced(R.name.replace(/^THE /, '')), x, y, R.col, 6);
         g.font = `italic ${Math.round(GW.clamp(10 + WM.zoom, 11, 14))}px Georgia, serif`; halo(g, '— ' + R.sub + ' —', x, y + 22, 'rgba(230,224,206,.75)', 4);
         { const lv = W.regionLevels(k), me = G.player.level; g.font = `600 ${Math.round(GW.clamp(11 + WM.zoom, 12, 15))}px ui-monospace, Menlo, monospace`;
-          halo(g, 'lv ' + (lv[0] === lv[1] ? lv[0] : lv[0] + '–' + lv[1]), x, y + 40, W.dangerCol(lv[0], me), 4); }
+          halo(g, 'lv ' + (lv[0] === lv[1] ? lv[0] : lv[0] + '–' + lv[1]), x, y + 40, W.dangerCol(lv[0], me), 4);
+          const tot = (W.poiTotals() || {})[k] || 0, fnd = (G.foundByRegion ? G.foundByRegion()[k] : 0) || 0;
+          if (tot) { g.font = `${Math.round(GW.clamp(10 + WM.zoom, 11, 13))}px ui-monospace, Menlo, monospace`; halo(g, 'found ' + fnd + ' / ' + tot, x, y + 56, 'rgba(232,216,170,.85)', 3); } }
         g.globalAlpha = 1; });
     }
     // named places (zones) and villages
@@ -12208,7 +12400,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const big = WM.zoom > 6;
       g.font = `bold ${big ? 14 : 12}px ui-monospace, Menlo, monospace`;
       const plist = []; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const q = W.poiAt(i, j); if (q) plist.push(q); }
-      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); });
+      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); }); W.uniques().forEach(q => plist.push(q));
       for (const p of plist) {
         if (!POI_ICON[p.type]) continue;
         if (WM.zoom < 5 && !LANDMARK[p.type]) continue;
@@ -12221,7 +12413,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         g.fillStyle = ic[1]; g.fillText(ic[0], x, y + 0.5);
         if (big) { g.font = '10px ui-monospace, Menlo, monospace'; halo(g, 'lv ' + p.lvl, x, y + 15, W.dangerCol(p.lvl, G.player.level), 3); g.font = 'bold 14px ui-monospace, Menlo, monospace'; }
         g.globalAlpha = 1;
-        feats.push({ x, y, name: ic[2].replace(/^./, s => s.toUpperCase()) + (p.name ? ': ' + p.name : ''), sub: (W.REGIONS[p.region] || {}).name.toLowerCase() + ' · level ' + p.lvl + ' (you: ' + G.player.level + ')' + (done ? ' · cleared' : ''), wx: p.x, wz: p.z });
+        feats.push({ x, y, name: ic[2].replace(/^./, s => s.toUpperCase()) + (p.name ? ': ' + p.name : ''), sub: (p.name ? p.name.toLowerCase() + ' · ' : '') + (W.REGIONS[p.region] || {}).name.toLowerCase() + ' · level ' + p.lvl + ' (you: ' + G.player.level + ')' + (done ? ' · cleared' : ''), wx: p.x, wz: p.z });
       }
     }
     // fires, forges, chests from the hand-placed world
@@ -12596,7 +12788,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.regionBosses.forEach(b => { const A = GW.World.ARENAS.find(a => a.key === b.key); if (A) { b.x = A.x; b.z = A.z; }   // world.js owns the arena spots
       b.e = G.spawnEnemy(b.type, b.x, b.z, { x: b.x, z: b.z }, false, 1 + Math.floor(Math.hypot(b.x, b.z) / GW.World.LVLD)); b.e.bossKey = b.key; });
     // Greymoss Keep: hollows guard the courtyard, loot waits on the broken upper floor
-    { const BS = GW.World.BS; [[-4, -5], [4, -4], [0, -8], [-7, -2], [7, -7]].forEach(([lx, ly]) => G.spawnEnemy('hollow', Lw.castle.x + lx * BS, Lw.castle.z - ly * BS, { x: Lw.castle.x, z: Lw.castle.z + 3 * BS })); }
+    { const BS = GW.World.BS; [[-4, -5], [4, -4], [0, -8], [-7, -2], [7, -7]].forEach(([lx, ly], i) => { const e = G.spawnEnemy('hollow', Lw.castle.x + lx * BS, Lw.castle.z - ly * BS, { x: Lw.castle.x, z: Lw.castle.z + 3 * BS }, false, i === 2 ? 2 : 1, i === 2); if (i === 2) { e.title = 'HOLLOW CAPTAIN'; e.keyDrop = true; } }); }
     // camps beyond the Vale: wolves in the outer Vale and Frostmere, hollows in the Ashen Barrens
     const pack = (type, x, z, n) => { for (let k = 0; k < n; k++) { const a = k * 2.1; G.spawnEnemy(type, x + Math.cos(a) * 2.5, z + Math.sin(a) * 2.5, { x, z }); } };
     [[-400, 150], [300, 200], [-250, -300], [520, -560], [-620, -180], [180, 420], [-380, 520]].forEach(([x, z]) => pack('wolf', x, z, 3));
@@ -12844,6 +13036,63 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     }
     return null;
   };
+  // ---------------- interiors: small quests inside the chapel, the keep, the abbey and on the watchtower ----------------
+  const isNight = () => G.tod < 0.22 || G.tod > 0.78;
+  G.isNight = isNight;
+  G.nightN = () => Math.floor((G.dayCount || 0) + (G.tod > 0.5 ? 0 : -1));   // which night it is (a moonwell can be drunk once a night)
+  G.candleLit = k => !!((G.items && G.items.candles || 0) & (1 << k));
+  G.relightCandles = function () { for (const c of (GW.World.candles || [])) if (G.candleLit(c.idx) && !c.lit) { c.lit = true; c.flame.visible = true; GW.World.flames.push({ m: c.flame, s: c.idx, base: 0.6 }); GW.World.lights.add(c.cx, c.cy + 0.2, c.cz, new THREE.Color(1.0, 0.7, 0.35), 4, 0.4); } };
+  G.interior = function (it) {
+    const P = G.player; G.items = G.items || {};
+    const relic = (id, lvl, extra) => { openChest({ id, x: it.x, z: it.z - 1, poi: { id, seed: id.length * 977 + 31, lvl: lvl || 3, type: 'elite' } }); (extra || []).forEach(([k, key]) => give(k, key)); gainXP(120); };
+    if (it.type === 'candle') {
+      G.items.candles = (G.items.candles || 0) | (1 << it.idx); G.relightCandles(); GWAudio.sfx('fire'); G.addHitGlyphs(it.cx, it.cy, it.cz, 6, '#ffc870');
+      const n = [0, 1, 2, 3].filter(k => G.candleLit(k)).length;
+      if (n < 4) UI.toast(`<span style="color:#ffc870">▲</span> ${n} of 4 candles lit`, 1.6);
+      else { UI.banner('something unlatches behind the altar', 'THE CHAPEL REMEMBERS', 3); GWAudio.sfx('quest'); }
+      save(); return;
+    }
+    if (it.type === 'reliquary') {
+      if ([0, 1, 2, 3].every(k => G.candleLit(k))) relic('chapelRelic', 3, [['rune', 'ward']]);
+      else { UI.toast('Sealed. Four candles stand cold on the altar.', 2.4); GWAudio.sfx('ui'); }
+      return;
+    }
+    if (it.type === 'pray') {
+      if (isNight()) { UI.banner('the ice gives back the moon', 'THE FROZEN PRAYER', 3); relic('abbeyRelic', 5, [['ingot', 'rimesteel'], ['rune', 'frost']]); }
+      else { UI.toast('The ice is silent. Come back under the moon.', 2.6); GWAudio.sfx('ui'); }
+      return;
+    }
+    if (it.type === 'strongbox') {
+      if (G.items.keepKey) { UI.toast('The iron key turns.', 1.6); relic('keepBox', 3, [['ingot', 'silver']]); }
+      else { UI.toast("Locked. The Hollow Captain in the yard carries the key.", 2.6); GWAudio.sfx('ui'); }
+      return;
+    }
+    if (it.type === 'ledger') {
+      UI.dialog([
+        { who: "THE STEWARD'S LEDGER", text: 'Grain, 40 measures. Salt, 6. Lamp-oil, none left. The Lamplighter will have to come herself.' },
+        { who: "THE STEWARD'S LEDGER", text: 'The captain keeps the strongbox key on his belt now. He does not sleep. None of them sleep any more.' },
+        { who: "THE STEWARD'S LEDGER", text: 'If anyone reads this: the stones in the north circle are not markers. They are a lock.' },
+      ], () => { if (!G.items.ledger) { G.items.ledger = true; gainXP(40); save(); } });
+      return;
+    }
+    if (it.type === 'uniqbell') {   // the drowned bell: one toll, and what the bog kept floats up
+      G.opened[it.id] = true; GWAudio.tone(196, 2.2); GWAudio.tone(293.7, 1.6); G.shake(0.2); UI.banner('something rises from the mud', 'THE DROWNED BELL', 3);
+      openChest({ id: 'poi:' + it.poi.id + ':bell', x: it.x, z: it.z, poi: Object.assign({}, it.poi, { type: 'elite', seed: it.poi.seed + 5 }) }); gainXP(150); save(); return;
+    }
+    if (it.type === 'eldertree') {   // the elder tree's blessing: a little more life, for good
+      G.opened[it.id] = true; P.extraHp = (P.extraHp || 0) + 15; P.recalc(); P.hp = P.maxHp; UI.banner('+15 maximum health, for good', 'THE ELDER TREE REMEMBERS YOU', 3.2, '#9ad08a'); GWAudio.sfx('level'); gainXP(150); save(); return;
+    }
+    if (it.type === 'moonwell') {   // moonwells only wake at night: drink once a night to mend completely and fill your flasks
+      G.opened[it.id + ':' + G.nightN()] = true; P.hp = P.maxHp; P.flasks = P.maxFlasks; P.fo = Math.max(P.fo, 60);
+      if (!G.opened[it.id]) { G.opened[it.id] = true; give('rune', 'vigor'); gainXP(100); }
+      UI.banner('mended, and your flasks are full', 'THE MOONWELL', 2.6, '#a8c8ff'); GWAudio.sfx('potion'); save(); return;
+    }
+    if (it.type === 'spyglass') {
+      revealFog(it.x, it.z, 1100); UI.banner('the whole vale, and the hills beyond', 'THE IVY WATCH', 2.6); GWAudio.sfx('quest');
+      G.vistaReport({ x: it.x, z: it.z, poi: null });
+      if (!G.items.spyglass) { G.items.spyglass = true; gainXP(60); save(); }
+    }
+  };
   G.slowmo = function (scale, dur) { G.ts = scale; G.tsT = dur; };
   // ---------------- burning / poison on the hero (from region enemies) ----------------
   G.pdot = { burn: 0, poison: 0, t: 0 };
@@ -13047,6 +13296,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
         if (d) {
           Object.assign(P, { level: d.level, xp: d.xp, flasks: d.flasks }); if (!(P.level >= 1)) P.level = 1;   // older saves stored the castle floor here
           G.opened = d.opened || {}; G.mined = d.mined || {}; G.solved = d.solved || {}; G.pzKnown = d.pzKnown || {}; for (const it of GW.World.interact) if (it.type === 'vein' && it.crystals) it.crystals.visible = !GW.World.isMined(it.id); G.discovered = d.discovered || {}; G.cleared = d.cleared || {}; G.poiSeen = d.poiSeen || {}; G.waystones = d.waystones || {}; G.bounty = d.bounty || {}; G.waypoint = d.waypoint || null;
+          P.extraHp = d.extraHp || 0; G.dayCount = d.dayCount || 0;
           if (d.extraFlasks) { P.extraFlasks = d.extraFlasks; P.maxFlasks = 3 + d.extraFlasks; } if (d.fog) fogUnpack(d.fog);
           P.weapon = d.weapon; P.inv = d.inv; if (P.inv.kindling === undefined) P.inv.kindling = 3;
           (d.fires || []).forEach(f => makeFire(f.x, f.z, f.left, true));
@@ -13063,7 +13313,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
           G.bossesDead = d.bossesDead || {}; G.regionBosses.forEach(b => { if (G.bossesDead[b.key]) killSilently(b.e); });
         }
       } else { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
-      G.castleLoot();
+      G.castleLoot(); G.relightCandles();
       GW.Abil.ensure(P); GW.Arms.ensure(P); GW.Knight.dress(P); UI.refreshAbil && UI.refreshAbil(); UI.refreshArms && UI.refreshArms();
       P.recalc(); P.hp = P.maxHp;
       // start from a clean stance whatever the save held
@@ -13148,14 +13398,14 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     // landmarks you'd notice from a distance (smoke over a camp, a waystone's glow...) pull you toward places you haven't found
     const P = G.player;
     if (!G.dungeon) for (const p of W.poisNear(P.pos.x, P.pos.z, 560)) {
-      const S = LM_SIGN[p.type]; if (!S || G.cleared[p.id] || G.opened['poi:' + p.id] || G.solved[p.id]) continue;
+      const S = LM_SIGN[p.type]; if (!S || G.cleared[p.id] || G.opened['poi:' + p.id] || G.solved[p.id] || (p.type === 'moonwell' && !isNight())) continue;
       out.push({ x: p.x, z: p.z, g: S[0], col: G.poiSeen[p.id] ? S[1] : S[1] + '99', range: G.poiSeen[p.id] ? 220 : S[2] });
     }
     return out;
   };
   // [compass glyph, colour, how far away you'd notice it]
   const LM_SIGN = { camp: ['≈', '#c8b8a0', 520], ruin: ['∩', '#a8b0c8', 360], cave: ['◘', '#c8b08a', 260], elite: ['☠', '#ff7060', 320], puzzle: ['?', '#c8a0ff', 300],
-    waystone: ['◊', '#8ad0ff', 480], shrine: ['✧', '#9fd8ff', 420], vista: ['△', '#d8d0b0', 380], wanderer: ['♦', '#ffcf6a', 280] };
+    waystone: ['◊', '#8ad0ff', 480], shrine: ['✧', '#9fd8ff', 420], vista: ['△', '#d8d0b0', 380], wanderer: ['♦', '#ffcf6a', 280], unique: ['✪', '#ffe08a', 700], moonwell: ['☾', '#a8c8ff', 600] };
   // world-side signs: smoke rising from unbroken camps, a slow glow over waystones and shrines
   G.landmarkFx = function (dt) {
     const P = G.player; if (G.dungeon) return;
@@ -13164,6 +13414,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       const y = GW.World.heightAt(p.x, p.z);
       if (p.type === 'camp' && !G.cleared[p.id] && Math.random() < 0.8)
         G.hitGlyphs.push({ x: p.x + (Math.random() - 0.5) * 1.2, y: y + 2.2, z: p.z + (Math.random() - 0.5) * 1.2, vx: 0.5 + Math.random() * 0.4, vy: 2.2 + Math.random(), vz: -0.2, ng: true, t: 0, life: 3.2, ch: '~≈°∘'[Math.floor(Math.random() * 4)], col: '#9a948c', size: 15 + Math.random() * 8 });
+      if (p.type === 'moonwell' && isNight() && Math.random() < 0.9) G.hitGlyphs.push({ x: p.x + (Math.random() - 0.5) * 1.6, y: y + 1.2, z: p.z + (Math.random() - 0.5) * 1.6, vy: 2.4, ng: true, t: 0, life: 2.2, ch: '·*☾'[Math.floor(Math.random() * 3)], col: '#b8d8ff', size: 13 });
       if ((p.type === 'waystone' || p.type === 'shrine') && Math.random() < 0.5)
         G.hitGlyphs.push({ x: p.x + (Math.random() - 0.5) * 0.8, y: y + 1.5, z: p.z + (Math.random() - 0.5) * 0.8, vy: 1.6, ng: true, t: 0, life: 1.8, ch: '·✧'[Math.floor(Math.random() * 2)], col: '#8ad0ff', size: 12 });
     }
@@ -13171,7 +13422,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   };
   // a vista names the three closest places you haven't found yet, and marks them on the map
   const LM_NAME = { camp: 'a camp', ruin: 'old ruins', cave: 'a cave mouth', elite: 'something strong', shrine: 'a shrine', waystone: 'a waystone', vista: 'another lookout', wanderer: "a trader's lantern", chest: 'a stash',
-    runes: 'a rune vault', lanterns: 'a lantern shrine', plates: 'a pressure crypt', bells: 'a ring of bells' };
+    unique: 'a landmark', moonwell: 'a moonwell', runes: 'a rune vault', lanterns: 'a lantern shrine', plates: 'a pressure crypt', bells: 'a ring of bells' };
   const DIRS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
   G.vistaReport = function (it) {
     const W = GW.World, list = W.poisNear(it.x, it.z, 1100).filter(p => p !== it.poi && p.type !== 'ambush' && !G.poiSeen[p.id])
@@ -13359,6 +13610,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
     G.parts.spark.burst(e.pos.x, e.pos.y + 1, e.pos.z, 18, 5, e.T.kind === 'undead' ? 0x80c0ff : 0xffb060, 0.8, 1, -4, 2);
     if (e.T.onDeath) e.T.onDeath(e);
     if (e.crown) crownFallen(e);
+    if (e.keyDrop && !(G.items && G.items.keepKey)) { G.items = G.items || {}; G.items.keepKey = true; UI.toast('<span style="color:#c8ccd8">⚷</span> The Hollow Captain drops an iron key', 3); GWAudio.sfx('pickup'); save(); }
     if (e.type === 'husk') { count('husk'); if (QUESTS[G.stage].id !== 'wake') gainXP(1); else gainXP(e.T.xp); return; }
     gainXP(e.T.xp * (1 + P.ws.xp) * (1 + 0.15 * ((e.lvl || 1) - 1)) * (e.elite ? 3 : 1));
     count(e.type);
@@ -13521,7 +13773,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------------- interaction ----------------
   function nearestInteract() {
     const P = G.player; let best = null, bd = 1e9;
-    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id)) || (it.type === 'pz' && G.solved[it.poi.id] && (it.role !== 'vault' || G.opened['puz:' + it.poi.id]))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
+    for (const it of GW.World.interact) { if ((it.floor || 0) !== (P.floor || 0) || (it.type === 'chest' && G.opened[it.id]) || (it.type === 'vein' && GW.World.isMined(it.id)) || (it.type === 'pz' && G.solved[it.poi.id] && (it.role !== 'vault' || G.opened['puz:' + it.poi.id])) || (it.type === 'candle' && G.candleLit(it.idx)) || (it.id && ['reliquary', 'pray', 'strongbox', 'uniqbell', 'eldertree'].includes(it.type) && G.opened[it.id]) || (it.type === 'moonwell' && (!isNight() || G.opened[it.id + ':' + G.nightN()]))) continue; if (it.type === 'vein' && it.crystals && !it.crystals.visible) it.crystals.visible = true; const d = Math.hypot(P.pos.x - it.x, P.pos.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
     return best;
   }
   function doInteract(it) {
@@ -13541,6 +13793,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (it.poi.cache && !G.solved[it.poi.id]) { const D = GW.World.puzzleLayout(it.poi).dig; G.pzKnown = G.pzKnown || {}; G.pzKnown[it.poi.id] = 1; G.waypoint = { x: D.x, z: D.z };
         setTimeout(() => UI.toast('<span style="color:#ffc870">✕</span> Something glints below: three stones over loose earth. Marked on your map.', 3.5), 1600); save(); } }
     else if (it.type === 'pz') G.pzUse(it);
+    else if (['candle', 'reliquary', 'pray', 'strongbox', 'ledger', 'spyglass', 'uniqbell', 'eldertree', 'moonwell'].includes(it.type)) G.interior(it);
     else if (it.type === 'shop') openShop(it.poi.region, 'A wandering trader');
     else if (it.type === 'tomb') enterLevel({ kind: 'tomb', id: it.id, seed: 7100 + it.id.length * 31 + (it.quest ? 5 : 0) + it.name.length, region: 'tomb', lvl: 2, floors: it.floors, quest: it.quest,
       names: it.floors > 1 ? [it.name, 'THE SCRIBE\'S REST'] : [it.name], back: { x: it.x, z: it.z } });
@@ -13669,12 +13922,23 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   // ---------------- points of interest: enemies appear as you approach, vanish when you leave ----------------
   G.cleared = {}; G.poiSeen = {}; G.poiLive = {}; G.waystones = {}; G.bounty = {};
   const POI_ENEMY = { vale: ['wolf', 'hollow', 'wisp'], frost: ['frostwolf', 'rimeshade'], high: ['cragwolf', 'highguard'], ash: ['ashhound', 'cinderling', 'hollow'], salt: ['dunehollow', 'saltwraith'], mire: ['mirehollow', 'bogwisp'], dusk: ['duskwolf', 'wisp'] };
+  G.discover = function (p) {
+    if (p.type === 'unique' || p.type === 'moonwell') { UI.banner('a landmark · ' + (GW.World.REGIONS[p.region] || {}).name.toLowerCase(), p.name, 3.4, '#ffe08a'); gainXP(120 + p.lvl * 15); GWAudio.sfx('quest'); }
+    else { const xp = 6 + (p.lvl || 1) * 2; gainXP(xp); UI.float('discovered · ' + (p.pz ? 'a puzzle' : p.type), G.player.pos, { color: '#c8ccd8', size: 10, y: 2.8, life: 1.4 }); }
+    G._found = null;
+  };
+  // places you have found, per region (for the map and the journal)
+  G.foundByRegion = function () {
+    if (G._found) return G._found; const out = {};
+    for (const id in G.poiSeen) { const p = GW.World.poiById(id); if (p && p.type !== 'ambush') out[p.region] = (out[p.region] || 0) + 1; }
+    return (G._found = out);
+  };
   function poiTick() {
     const P = G.player, W = GW.World;
     if (G.dungeon) return;
     for (const p of W.poisNear(P.pos.x, P.pos.z, 115)) {
       const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z);
-      if (d < 60 && p.type !== 'ambush' && !G.poiSeen[p.id]) G.poiSeen[p.id] = p.type;
+      if (d < 60 && p.type !== 'ambush' && !G.poiSeen[p.id]) { G.poiSeen[p.id] = p.type; G.discover(p); }
       if (!['camp', 'elite', 'ambush'].includes(p.type) || G.cleared[p.id] || G.poiLive[p.id]) continue;
       if (p.type === 'ambush' && d > 26) continue;
       const pool = POI_ENEMY[p.region] || POI_ENEMY.vale, R = GW.rand(p.seed + 7), list = [];
@@ -13733,7 +13997,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
   function save() {
     if (G.state === 'title') return;
     const P = G.player;
-    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, items: G.items || {}, opened: G.opened, mined: G.mined, solved: G.solved, pzKnown: G.pzKnown || {}, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, discovered: G.discovered, fog: fogPack(),
+    const d = { v: 1, tod: G.tod, gear: P.gear, level: P.level, xp: P.xp, flasks: P.flasks, weapon: P.weapon, inv: P.inv, stage: G.stage, counters: G.counters, respawn: G.respawn, bossDead: !!G.bossDead, castleLooted: !!G.castleLooted, items: G.items || {}, opened: G.opened, mined: G.mined, solved: G.solved, pzKnown: G.pzKnown || {}, widowDead: !!G.widowDead, bossesDead: G.bossesDead, cleared: G.cleared, poiSeen: G.poiSeen, waystones: G.waystones, bounty: G.bounty, waypoint: G.waypoint || null, extraFlasks: G.player.extraFlasks || 0, extraHp: G.player.extraHp || 0, dayCount: G.dayCount || 0, discovered: G.discovered, fog: fogPack(),
       fires: G.ownFires.map(f => ({ x: f.x, z: f.z, left: f.left })) };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) { /* storage blocked */ }
   }
@@ -14214,7 +14478,7 @@ THREE.SkeletonUtils = { retarget, retargetClip, clone };
       if (GW.World.skyDome) GW.World.skyDome.visible = false; return;
     }
     if (GW.World.skyDome) GW.World.skyDome.visible = true;
-    if (mode === 'cycle' && G.state === 'play') G.tod = (G.tod + dt / ((S.dayLen || 16) * 60)) % 1;
+    if (mode === 'cycle' && G.state === 'play') { const t0 = G.tod; G.tod = (G.tod + dt / ((S.dayLen || 16) * 60)) % 1; if (G.tod < t0) G.dayCount = (G.dayCount || 0) + 1; }
     const tod = mode === 'day' ? 0.5 : mode === 'night' ? 0.0 : G.tod;
     const sunH = -Math.cos(tod * Math.PI * 2);                    // -1 midnight .. 1 noon
     const day = GW.clamp((sunH + 0.15) / 0.4, 0, 1), k = day * day * (3 - 2 * day);

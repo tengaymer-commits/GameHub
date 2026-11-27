@@ -166,6 +166,25 @@ Change `VS` to stretch or shrink it: sites, river, paths, zones, the forest rise
 - **Hollow Ruins** is 1.7× wider, with five walls, 20 pillars, six arches and 12 Hollows. **Points of interest** are bigger too: camps have 4 huts and a cart with 4–6 enemies, ruins have wider rings, and caves sit in a big rock mound with a 1.45× arch.
 - **Three tombs** surround Hollow Ruins: *the Nameless*, *the Scribe's* (2 floors) and *the Sexton's*. Walk to the lanterns and press **E** to go underground. A new quest step, **Beneath the Scriptorium**, sends you to find **the Scribe's Seal** on the Scribe's Tomb's second floor, which introduces dungeons early.
 
+## Villages, interiors and discovery
+- **Villages are paved:** Emberhold and every hub village have a cobbled square instead of grass.
+- **Interiors, each with a small story:**
+  - **The Pale Chapel:** pews, a lectern, lamp stands and an altar. Light the four altar candles and the reliquary behind it opens.
+  - **Greymoss Keep:** a hall with a long table, a hearth, barrels, a weapon rack and the steward's strongbox; the steward's room upstairs with his bed, a banner and his ledger; practice posts and a firewood cart in the yard. A **Hollow Captain** among the guards carries the strongbox key.
+  - **Rimeglass Abbey:** a frozen nave with an ice altar that only answers at night.
+  - **The Ivy Watch roof:** a lookout's camp and a spyglass that reveals the land around and names the three nearest unfound places.
+- **Discovery XP:** a little XP the first time you come upon any place.
+- **Landmarks:** seven one-of-a-kind places, each with a banner and a big XP reward:
+  - the Fallen Giant (Highlands);
+  - the Sunken Belltower (Mire), whose drowned bell you can ring;
+  - the Hermit's Hut (Duskwood), a trader;
+  - the Elder Tree, whose blessing gives +15 maximum health for good;
+  - the Broken Colossus (Barrens);
+  - the Stranded Ship (Salt Wastes);
+  - the Frozen Gate (Frostmere).
+- **Moonwells:** three of them, which only wake at night. Drink once a night to heal fully and refill your flasks; the first drink also gives a rune.
+- **The Journal (Book → Journal):** places found per region, every landmark found or still missing, and the state of each interior story. The world map shows **found x / y** under each region's name.
+
 ## Roads, rivers and lakes
 - **Three kinds of road.** The **King's roads** run from the Vale and Hearthwick to every region hub: wide grey cobbles, with stone bridges. The **roads** are packed dirt with timber bridges; they include the ring road between the hubs and the castle road up to Dunmaer. **Paths** are the Vale's footpaths, the trails from each hub to its guardian's grounds and to the water, and worn trails from the roads out to nearby camps, ruins, caves, shrines and puzzles. Roads are drawn as glyph-textured strips on the ground, grass wears away on them, and long roads bend around steep ground and lakes.
 - **Rivers run downhill.** The Glass River crosses the world west to east. Four tributaries feed it from the high ground: **the Rimerun** (from the northern mountains, past Frostmere), **Cragwater** (out of the Highlands), **the Dimwater** (through Duskwood) and **Cinderbrook** (across the Ashen Barrens). **The Sallow** runs down from the southern rim into **Bogwater Mere** in the Mire. Water levels only ever fall downstream, and tributaries meet the Glass River at its level.
