@@ -506,6 +506,7 @@
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { prompt('Copy your save:', txt); });
       else prompt('Copy your save:', txt);
     };
+    const ma = $('o-mmalways'); if (ma) { ma.checked = !!S.mapAlways; ma.onchange = () => { S.mapAlways = ma.checked; UI.saveSettings(); }; }
     const mr = $('o-mmrot'); if (mr) { mr.checked = !!S.mmRotate; mr.onchange = () => { S.mmRotate = mr.checked; UI.saveSettings(); }; }
     const rv = $('o-reveal'); if (rv) { rv.checked = S.revealMap !== false; rv.onchange = () => { S.revealMap = rv.checked; UI.saveSettings(); }; }
     const rsp = $('o-respawn'), hun = $('o-hunts');

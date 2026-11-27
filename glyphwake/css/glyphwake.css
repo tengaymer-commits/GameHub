@@ -264,3 +264,4 @@ table.jr td { padding: 3px 6px; border-bottom: 1px solid rgba(200,205,220,.08); 
 .jl { display: grid; gap: 3px; font-size: 13px; margin-bottom: 10px; }
 .jl .dim, .dim { color: #7a8090; }
 .jl .done { color: #9ad08a; }
+body.minhud.mapalways #minimap-wrap { opacity: 1; }

@@ -864,7 +864,7 @@
   };
   // [compass glyph, colour, how far away you'd notice it]
   const LM_SIGN = { camp: ['≈', '#c8b8a0', 520], ruin: ['∩', '#a8b0c8', 360], cave: ['◘', '#c8b08a', 260], elite: ['☠', '#ff7060', 320], puzzle: ['?', '#c8a0ff', 300],
-    waystone: ['◊', '#8ad0ff', 480], shrine: ['✧', '#9fd8ff', 420], vista: ['△', '#d8d0b0', 380], wanderer: ['♦', '#ffcf6a', 280], unique: ['✪', '#ffe08a', 700], moonwell: ['☾', '#a8c8ff', 600] };
+    waystone: ['◊', '#8ad0ff', 480], shrine: ['✧', '#9fd8ff', 420], vista: ['△', '#d8d0b0', 380], wanderer: ['♦', '#ffcf6a', 280], unique: ['✪', '#ffe08a', 700], moonwell: ['☾', '#a8c8ff', 600], waystation: ['⌂', '#d8c8a0', 650] };
   // world-side signs: smoke rising from unbroken camps, a slow glow over waystones and shrines
   G.landmarkFx = function (dt) {
     const P = G.player; if (G.dungeon) return;
@@ -881,7 +881,7 @@
   };
   // a vista names the three closest places you haven't found yet, and marks them on the map
   const LM_NAME = { camp: 'a camp', ruin: 'old ruins', cave: 'a cave mouth', elite: 'something strong', shrine: 'a shrine', waystone: 'a waystone', vista: 'another lookout', wanderer: "a trader's lantern", chest: 'a stash',
-    unique: 'a landmark', moonwell: 'a moonwell', runes: 'a rune vault', lanterns: 'a lantern shrine', plates: 'a pressure crypt', bells: 'a ring of bells' };
+    unique: 'a landmark', moonwell: 'a moonwell', waystation: 'an old waystation', runes: 'a rune vault', lanterns: 'a lantern shrine', plates: 'a pressure crypt', bells: 'a ring of bells' };
   const DIRS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
   G.vistaReport = function (it) {
     const W = GW.World, list = W.poisNear(it.x, it.z, 1100).filter(p => p !== it.poi && p.type !== 'ambush' && !G.poiSeen[p.id])
@@ -1881,7 +1881,7 @@
         if (I.keys.AltLeft || I.keys.AltRight) G.hudUntil = performance.now() + 8000;   // Alt: the HUD (and minimap) stays up for 8 s after you let go
         const show = fighting || P.hp < P.maxHp * 0.98 || P.st < 99 || G.t - (G.questShownT || -99) < 6 || performance.now() < (G.hudUntil || 0);
         document.body.classList.toggle('minhud', UI.settings.hud !== 'full');
-        document.body.classList.toggle('hudshow', !!show);
+        document.body.classList.toggle('hudshow', !!show); document.body.classList.toggle('mapalways', !!UI.settings.mapAlways);
       }
       if (frame % 3 === 0) UI.drawMinimap(G);
       objectiveArrow();

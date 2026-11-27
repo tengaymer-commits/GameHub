@@ -23,9 +23,9 @@
   const MOUNT = '▲^∧▲^', WATER = '≈~≈~', EDGE = '░';
   const hash = (i, j) => { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   const POI_ICON = { camp: ['x', '#e07a64', 'bandit camp'], ruin: ['#', '#b4b8c4', 'ruin'], chest: ['■', '#ffd860', 'cache'], shrine: ['†', '#9fd8ff', 'shrine'], waystone: ['◊', '#9fd8ff', 'waystone'],
-    vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'], puzzle: ['?', '#c8a0ff', 'puzzle'], unique: ['✪', '#ffe08a', 'landmark'], moonwell: ['☾', '#a8c8ff', 'moonwell'] };
+    vista: ['^', '#ece4cc', 'vista'], wanderer: ['@', '#e0c080', 'wanderer'], elite: ['!', '#ffb040', 'elite'], cave: ['◘', '#c8b08a', 'cave'], puzzle: ['?', '#c8a0ff', 'puzzle'], unique: ['✪', '#ffe08a', 'landmark'], moonwell: ['☾', '#a8c8ff', 'moonwell'], waystation: ['⌂', '#d8c8a0', 'old waystation'] };
 
-  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1, unique: 1, moonwell: 1 };
+  const LANDMARK = { elite: 1, cave: 1, waystone: 1, vista: 1, unique: 1, moonwell: 1, waystation: 1 };
   // ---------- map styles: V cycles them on the map ----------
   const STYLES = ['tour', 'ascii', 'ink', 'mosaic'];
   const STYLE_NAME = { tour: 'Touring map', ascii: 'ASCII relief', ink: "Explorer's ink", mosaic: 'Glyph mosaic' };
@@ -256,7 +256,7 @@
       const big = WM.zoom > 6;
       g.font = `bold ${big ? 14 : 12}px ui-monospace, Menlo, monospace`;
       const plist = []; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const q = W.poiAt(i, j); if (q) plist.push(q); }
-      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); }); W.uniques().forEach(q => plist.push(q));
+      W.valePois().forEach(q => { if (q.type !== 'vein') plist.push(q); }); W.uniques().forEach(q => plist.push(q)); (W.WAYSTATIONS || []).forEach(q => plist.push(q));
       for (const p of plist) {
         if (!POI_ICON[p.type]) continue;
         if (WM.zoom < 5 && !LANDMARK[p.type]) continue;

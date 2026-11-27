@@ -311,7 +311,7 @@
     return out;
   }
   const PATHP0 = PATHS.map((p, i) => catmull(PATH_KIND[i] ? relaxRoad(p) : p, PATH_KIND[i] ? 3 : 8));
-  const STOPS = ['hearth', 'abbey', 'vfrost', 'high', 'cinder', 'vash', 'salt', 'mire', 'dusk'].map(k => [L[k].x, L[k].z, 29]).concat([[L.dunmaer.x, L.dunmaer.z, 34]]);
+  const STOPS = ['hearth', 'vfrost', 'high', 'vash', 'salt', 'mire', 'dusk'].map(k => [L[k].x, L[k].z, 21]).concat([[L.abbey.x, L.abbey.z, 29], [L.cinder.x, L.cinder.z, 27], [L.dunmaer.x, L.dunmaer.z, 34]]);
   const PATHP = [], PK = [];
   PATHP0.forEach((poly, i) => {
     let run = [];
@@ -329,6 +329,18 @@
   });
   PATH_KIND.length = 0; PK.forEach(k => PATH_KIND.push(k));
 
+  // ---- ruined waystations: halfway along each long King's road, a cobbled plaza where the old road towns stood ----
+  const WAYST = [];
+  PATHP.forEach((poly, i) => { if (PATH_KIND[i] !== 2) return;
+    let len = 0; for (let k = 1; k < poly.length; k++) len += Math.hypot(poly[k][0] - poly[k - 1][0], poly[k][1] - poly[k - 1][1]);
+    if (len < 2400) return;
+    let acc = 0, k = 1; for (; k < poly.length; k++) { acc += Math.hypot(poly[k][0] - poly[k - 1][0], poly[k][1] - poly[k - 1][1]); if (acc > len * 0.5) break; }
+    const q = poly[Math.min(k, poly.length - 1)];
+    if (Math.hypot(q[0], q[1]) < 900 || WAYST.some(w => Math.hypot(w.x - q[0], w.z - q[1]) < 900)) return;
+    const bw = biomeW(q[0], q[1]); let region = 'vale', rb = 0.5; bw.forEach((v, j) => { if (v > rb) { rb = v; region = BIOMES[j]; } });
+    WAYST.push({ id: 'wst' + WAYST.length, type: 'waystation', region, x: q[0], z: q[1], lvl: 1 + Math.floor(Math.hypot(q[0], q[1]) / LVLD), seed: 7700 + WAYST.length * 331, name: 'THE OLD WAYSTATION' });
+  });
+  WAYST.forEach(w => VILLAGE_SQ.push([w.x, w.z, 15]));
   // rivers and lakes share one index: each segment knows its water level and how much wider (or narrower) than the Glass River it is
   const waterPolys = RIVERS.map(R => R.pts).concat(LAKES.map(Lk => [[Lk.x, Lk.z], [Lk.x + 0.01, Lk.z]]));
   const waterYs = RIVERS.map(R => R.ys).concat(LAKES.map(Lk => [Lk.y, Lk.y]));
@@ -1096,7 +1108,7 @@
       put('kit_cart', V.x - 11, V.z + 9, 1.1, 2.4, 1.1);
       [[10, 9], [10.6, 9.8], [11.4, 9.1]].forEach(([dx, dz]) => put('kit_barrel', V.x + dx, V.z + dz, 1, rnd() * 6, 0.35));
       [[-12, -9], [-12.8, -8.4]].forEach(([dx, dz]) => put('kit_crate', V.x + dx, V.z + dz, 1, rnd() * 6, 0.45));
-      for (let k = 0; k < 18; k++) { const a = k / 18 * Math.PI * 2; if (k % 6 === 0) continue; put('kit_fence', V.x + Math.cos(a) * 27, V.z + Math.sin(a) * 27, 1, -a + Math.PI / 2, 0); }
+      for (let k = 0; k < 18; k++) { const a = k / 18 * Math.PI * 2; if (k % 6 === 0) continue; { const fx = V.x + Math.cos(a) * 27, fz = V.z + Math.sin(a) * 27; if (nearest(segsNear(PIDX, fx - 1, fz - 1, fx + 1, fz + 1), fx, fz, 30)[0] < 4.5) continue; } put('kit_fence', V.x + Math.cos(a) * 27, V.z + Math.sin(a) * 27, 1, -a + Math.PI / 2, 0); }
     }
     // ---- Cinder Watch: burnt huts and dead trees around the burning tower ----
     { const C = L.cinder;
@@ -1266,7 +1278,7 @@
     }
     const ok = r0 < 0.84 && Math.hypot(x, z) > 640 && Math.max(Math.abs(x), Math.abs(z)) < HALF - 350
       && !HUBS.some(h => Math.hypot(x - L[h.at].x, z - L[h.at].z) < 95) && Math.hypot(x - L.cinder.x, z - L.cinder.z) > 60 && Math.hypot(x - L.abbey.x, z - L.abbey.z) > 60
-      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
+      && Math.hypot(x - L.frostLake.x, z - L.frostLake.z) > 100 && !WAYST.some(w => Math.hypot(x - w.x, z - w.z) < 110) && Math.hypot(x - L.dunmaer.x, z - L.dunmaer.z) > 80 && !ARENAS.some(a => Math.hypot(x - a.x, z - a.z) < 140)
       && nearest(segsNear(RIDX, x - 1, z - 1, x + 1, z + 1), x, z, 60)[0] > 18 && nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] > 26;   // exact distances: no chunk needs computing   // exact distances: no chunk needs computing
     if (ok) {
       const bwp = biomeW(x, z); let region = 'vale', rbv = 0.5; bwp.forEach((v, q) => { if (v > rbv) { rbv = v; region = BIOMES[q]; } });   // straight from the formula: no data chunk needed
@@ -1287,6 +1299,7 @@
     }
     if (Math.hypot(x, z) < 700 + r) for (const p of W.valePois()) if (p.type !== 'vein' && Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     if (UNIQ) for (const p of UNIQ) if (Math.hypot(p.x - x, p.z - z) < r) out.push(p);
+    for (const p of WAYST) if (Math.hypot(p.x - x, p.z - z) < r) out.push(p);
     return out;
   };
   W.POI_CELL = POI_CELL;
@@ -1439,6 +1452,15 @@
         kit('kit_arch', p.x, p.z + 4.0, 1.45, 0, bio, new THREE.Color(0.55, 0.52, 0.5));
         inter.push({ type: 'cave', x: p.x, z: p.z + 5.2, r: 3.0, label: 'Enter the cave', poi: p }); break;
       case 'unique': buildUnique(p, kit, ring, R, bio, chest, inter); break;
+      case 'waystation': {   // broken pillars and arches round a plaza, the road running through; a waystone at its heart
+        const grey = new THREE.Color(0.85, 0.84, 0.82);
+        for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, x = p.x + Math.cos(a) * 14, z = p.z + Math.sin(a) * 14;
+          if (nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] < 5) continue;   // the road keeps its way through
+          kit(k % 5 === 0 ? 'kit_arch' : R() < 0.5 ? 'kit_pillar_a' : 'kit_pillar_b', x, z, 1.1 + R() * 0.4, 0.6, bio, grey); }
+        for (let k = 0; k < 8; k++) { const a = R() * Math.PI * 2, d = 17 + R() * 8, x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d; if (nearest(segsNear(PIDX, x - 1, z - 1, x + 1, z + 1), x, z, 30)[0] < 5) continue; kit('kit_rock_' + 'abc'[k % 3], x, z, 0.4 + R() * 0.4, 0.5, bio, grey); }
+        const wx = p.x + 7, wz = p.z + 4; kit('kit_pillar_a', wx, wz, 1.35, 0.6, bio, new THREE.Color(0.75, 0.85, 1.0));
+        inter.push({ type: 'waystone', x: wx, z: wz + 1.4, r: 2.6, label: 'Touch the waystone', poi: p }); break;
+      }
       case 'moonwell':
         kit('kit_well', p.x, p.z, 1.2, 1.2, bio, new THREE.Color(0.75, 0.85, 1.05));
         ring(6, 6, (x, z) => kit('kit_pillar_b', x, z, 0.5, 0.4, bio, new THREE.Color(0.7, 0.8, 1.0)));
@@ -1461,14 +1483,25 @@
         const inside = x > x0 - 2 && x < x1 + 2 && z > z0 - 2 && z < z1 + 2 && !W.onBridge(x, z) && sample('R', x, z) > RIVER_W + 0.3;
         if (!inside) { prev = null; continue; }
         const y = W.heightAt(x, z) + 0.07, A = P[kind], base = A.length / 3;
-        A.push(x - nx * hw, W.heightAt(x - nx * hw, z - nz * hw) + 0.07, z - nz * hw, x + nx * hw, W.heightAt(x + nx * hw, z + nz * hw) + 0.07, z + nz * hw);
+        const wl = hw * (1 + 0.07 * Math.sin((seg.ax + L0 * t) * 0.37 + seg.az * 0.11)), wr = hw * (1 + 0.07 * Math.sin((seg.az + L0 * t) * 0.41 + seg.ax * 0.13));   // worn, uneven edges
+        A.push(x - nx * wl, W.heightAt(x - nx * wl, z - nz * wl) + 0.07, z - nz * wl, x + nx * wr, W.heightAt(x + nx * wr, z + nz * wr) + 0.07, z + nz * wr);
         const along = (seg.ax * 0.37 + seg.az * 0.61 + L0 * t) * 0.5; UV[kind].push(0, along, hw, along);   // letters run along the road
         if (prev !== null) idx[kind].push(prev, base, prev + 1, prev + 1, base, base + 1);
         prev = base; void y;
       }
     };
-    for (const sg of segsNear(PIDX, x0, z0, x1, z1)) lay(sg, sg.k, ROAD_HW[sg.k]);
-    for (const sg of segsNear(FIDX, x0, z0, x1, z1)) lay(sg, 0, 1.15);
+    const disc = (cx, cz, R, kind) => {   // a round patch: joints, bends and road ends blend instead of stopping square
+      if (cx < x0 - 2 || cx > x1 + 2 || cz < z0 - 2 || cz > z1 + 2 || W.onBridge(cx, cz) || sample('R', cx, cz) < RIVER_W + 0.3) return;
+      const A = P[kind], base = A.length / 3, N = 12; A.push(cx, W.heightAt(cx, cz) + 0.075, cz); UV[kind].push(0, 0);
+      for (let k = 0; k <= N; k++) { const a = k / N * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R; A.push(x, W.heightAt(x, z) + 0.075, z); UV[kind].push(Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.5); }
+      for (let k = 0; k < N; k++) idx[kind].push(base, base + 1 + k, base + 2 + k);
+    };
+    for (const sg of segsNear(PIDX, x0, z0, x1, z1)) { lay(sg, sg.k, ROAD_HW[sg.k]); disc(sg.ax, sg.az, ROAD_HW[sg.k], sg.k); disc(sg.ax + sg.dx, sg.az + sg.dz, ROAD_HW[sg.k], sg.k); }
+    for (const sg of segsNear(FIDX, x0, z0, x1, z1)) { lay(sg, 0, 1.15); disc(sg.ax, sg.az, 1.15, 0); }
+    for (const w of WAYST) if (Math.abs(w.x - (x0 + x1) / 2) < (x1 - x0) / 2 + 16 && Math.abs(w.z - (z0 + z1) / 2) < (z1 - z0) / 2 + 16) {   // the plaza
+      for (let r = 3; r <= 15; r += 3) for (let k = 0; k < Math.round(r * 1.2); k++) { const a = k / Math.round(r * 1.2) * Math.PI * 2; disc(w.x + Math.cos(a) * (r - 1.5), w.z + Math.sin(a) * (r - 1.5), 3.2, 2); }
+      disc(w.x, w.z, 3.2, 2);
+    }
     for (let k = 0; k < 3; k++) {
       if (!idx[k].length) continue;
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P[k], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV[k], 2)); g.setIndex(idx[k]); g.computeVertexNormals();
@@ -2050,7 +2083,7 @@
           float clump = vn(wp * 1.1 + 3.7) * 0.55 + vn(wp * 2.9 + 9.1) * 0.45;
           float keep = uTurf > 0.5 ? edgeF * step(fract(sd * 7.31), min(0.75, m.g * 4.0 + 0.5)) * step(4.4, m.b) : step(0.12, clump) * vis * edgeF;
           keep *= step(-0.3, m.g);   // burnt ground: no grass
-          keep *= max(smoothstep(0.9, 2.2, m.a) > fract(sd * 2.9) ? 1.0 : 0.0, step(0.93, fract(sd * 3.7)));   // roads and paths: worn bare, a few stray blades
+          keep *= max(smoothstep(1.7, 2.9, m.a) > fract(sd * 2.9) ? 1.0 : 0.0, step(0.985, fract(sd * 3.7)));   // roads and paths: worn bare, a few stray blades
           // dark earth patches (matching the ground shader's o 0 8 letters): only a few straws survive there
           float thr = 1.0 - 0.32 * uGroundO, pv = vn(wp * 0.11 + 5.0) * 0.7 + vn(wp * 0.37 + 1.7) * 0.3;
           float patchK = smoothstep(thr - 0.05, thr + 0.03, pv) * step(0.01, uGroundO);
@@ -2223,6 +2256,7 @@
   W.dangerCol = (lvl, me) => { const d = lvl - me; return d <= 0 ? '#8ad08a' : d <= 2 ? '#e8d070' : d <= 4 ? '#ff9a50' : '#ff5040'; };
   W.ARENAS = ARENAS; W.VS = VS; W.WS = WS; W.LVLD = LVLD; W.HALF = HALF;
   findBridges();
+  W.WAYSTATIONS = WAYST;
   W.lakeAt = (x, z) => LAKES.find(Lk => Math.hypot(x - Lk.x, z - Lk.z) < Lk.r + 4) || null; W.footFor = footFor;
   W.RIVER_LINE = RIVER; W.RIVER_LINES = RIVERS; W.LAKES = LAKES; W.BRIDGES = BRIDGES; W.ROAD_KINDS = PATH_KIND; W.ROAD_LINES = PATHP; W.HUBS = HUBS; W.POI_CELL = POI_CELL; W.BIOMES = BIOMES; W.RIVER_W = RIVER_W;
   let MAPD = null;
