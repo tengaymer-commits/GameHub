@@ -848,6 +848,13 @@
   }
   G.compassPOIs = function () {
     const W = GW.World, out = [];
+    if (G.dungeon && G.dungeon.lv) {   // underground: the way out (and the way on), not the world's markers
+      const d = G.dungeon, lv = d.lv, last = d.floor >= d.floors - 1;
+      out.push({ x: lv.start[0], z: lv.start[1], g: '⇧', col: '#6ab8ff', range: 99999 });
+      if (!last) out.push({ x: lv.end[0], z: lv.end[1], g: '⇡', col: '#ffd070', range: 99999 });
+      for (const e of G.enemies) if (e.alive && e.T.boss && e.dungeon) out.push({ x: e.pos.x, z: e.pos.z, g: 'Ω', col: '#ff5040', range: 260 });
+      return out;
+    }
     for (const z of W.ZONES) out.push({ x: z.x, z: z.z, g: '◇', col: '#c8ccd8', range: 520 });
     for (const f of W.fires) if (!f.out && (f.rest.own || G.discovered[f.rest.name])) out.push({ x: f.x, z: f.z, g: '▲', col: '#ff9a40', range: 700 });
     const o = G.objective(); if (o) out.push({ x: o.x, z: o.z, g: '◆', col: '#ffd860', range: 99999 });
@@ -1290,7 +1297,11 @@
     else if (it.type === 'dlever') { const g = GW.Dungeon.openGate(G.dungeon.lv, it.gate); it.arm.rotation.z = -0.6; GWAudio.sfx('anvil'); G.shake(0.2);
       if (g) { UI.toast(it.gate === 'short' ? 'Somewhere back toward the entrance, a gate grinds open.' : 'Iron grinds: a portcullis lifts.', 2.6); G.dungeon.lv.inter.filter(q => q.type === 'dgate' && q.gate === g).forEach(q => { q.label = 'An open gate'; }); }
       else UI.toast('The lever is already down.', 1.4); }
-    else if (it.type === 'dgate') { if (!it.gate.open) UI.toast(it.gate.fromFar ? 'Barred from the other side.' : 'A portcullis. There must be a lever somewhere.', 2.2); }
+    else if (it.type === 'dgate') { const g = it.gate; if (g.open) return;
+      // the shortcut: from the lane side you lift the bar yourself; from the entry side it's barred
+      const P = G.player, mine = g.lane && ((P.pos.x - g.x) * (g.lane[0] - g.x) + (P.pos.z - g.z) * (g.lane[1] - g.z)) > 0;
+      if (mine) { GW.Dungeon.openGate(G.dungeon.lv, g.id); GWAudio.sfx('anvil'); G.shake(0.2); it.label = 'An open gate'; UI.toast('You lift the bar. The way back to the entrance is open.', 2.6); }
+      else UI.toast(g.fromFar ? 'Barred from the other side. It must open from beyond.' : 'A portcullis. There must be a lever somewhere.', 2.4); }
     else if (it.type === 'dstairs') fade(() => buildFloor(G.dungeon.floor + 1));
   }
   // ---------------- dungeons: caves and Castle Dunmaer are separate levels ----------------
@@ -1352,7 +1363,7 @@
     P.place(sx + 2.5, sz); P.floor = 0; G.snapCam = true;
     UI.banner((d.kind === 'castle' ? 'floor ' + (f + 1) + ' of ' + d.floors : 'level ' + d.lvl) + ' · ' + (lv.title || '').toLowerCase(), d.names[f] || 'THE DEPTHS', 2.8);
   }
-  G.enterLevel = def => enterLevel(def); G.leaveLevel = s2 => leaveLevel(s2);   // for tests and tools
+  G.enterLevel = def => enterLevel(def); G.leaveLevel = s2 => leaveLevel(s2); G.doInteract = it => doInteract(it);   // for tests and tools
   function leaveLevel(silent) {
     const d = G.dungeon; if (!d) return;
     clearFloor(); (G.hiddenWorld || []).forEach(o => { o.visible = true; }); G.hiddenWorld = null;
@@ -2115,7 +2126,9 @@
   }
   const _o = {};
   function objectiveArrow() {
-    const obj = G.objective(), P = G.player;
+    const P = G.player, d0 = G.dungeon;
+    // underground the world's objective means nothing: once the hoard is taken, the arrow points the way out
+    const obj = d0 ? (d0.lv && d0.floor >= d0.floors - 1 && G.opened[d0.id + ':chest'] ? { x: d0.lv.start[0], z: d0.lv.start[1] } : null) : G.objective();
     if (!obj || UI.inDialog()) { UI.arrow(false); return; }
     const d = Math.hypot(obj.x - P.pos.x, obj.z - P.pos.z);
     if (d < 10) { UI.arrow(false); return; }

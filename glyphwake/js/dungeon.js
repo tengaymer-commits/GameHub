@@ -176,11 +176,13 @@
       const lr = leverRoom || main[Math.max(0, gateAt - 1)];
       levers.push({ x: lr === leverRoom ? lr.cx : lr.x0 + 1, z: lr === leverRoom ? lr.cz : lr.z0 + 1, gate: 'mid', h: lr.h });
     }
-    // the shortcut gate sits at the entry end; its lever is in the reward chamber
+    // the shortcut gate sits at the entry end and is barred on the lane side
     if (short.length > 3) {
       const e = short[short.length - 1];
       gates.push({ id: 'short', tiles: short.filter(t => Math.hypot(t[0] - e[0], t[1] - e[1]) <= 1.5), h: H[I(e[0], e[1])], fromFar: true });
-      const s0 = short[0]; levers.push({ x: s0[0], z: s0[1], gate: 'short', h: H[I(s0[0], s0[1])], short: true });
+      // no far-off lever: you lift the bar from the lane side when you come round the loop (from the entry side it stays shut)
+      const lp = short[Math.max(0, short.length - 5)];
+      gates[gates.length - 1].lane = lp;
     }
     // pressure plates in the main corridors (not mines or caves: those get falling rubble instead... kept simple: plates)
     for (const c of corridors) if (c.tag === 'main' && c.tiles.length > 8 && rnd() < 0.6) { const k = R(3, c.tiles.length - 4), t = c.tiles[k]; if (!ST[I(t[0], t[1])]) plates.push({ x: t[0], z: t[1], h: H[I(t[0], t[1])] }); }
@@ -284,9 +286,9 @@
       const cols = [];
       for (const [x, z] of ws) { for (let k = 0; k < 3; k++) { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 0.1), iron); bar.position.set(x - 0.66 + k * 0.66, gt.h + 1.6, z); grp.add(bar); } const cr = new THREE.Mesh(new THREE.BoxGeometry(TILE, 0.12, 0.12), iron); cr.position.set(x, gt.h + 1.2, z); grp.add(cr); cols.push(W.addCollider(x, z, 1.1, 'dgate')); }
       add(grp);
-      const g = { id: gt.id, mesh: grp, cols, open: false, x: cx, z: cz, fromFar: gt.fromFar };
+      const g = { id: gt.id, mesh: grp, cols, open: false, x: cx, z: cz, fromFar: gt.fromFar, lane: gt.lane ? at(gt.lane[0], gt.lane[1]) : null };
       lv.gates.push(g); lv.cols.push(...cols);
-      lv.inter.push({ type: 'dgate', gate: g, x: cx, z: cz, r: 2.6, label: gt.fromFar ? 'A gate, barred from the other side' : 'A portcullis bars the way' });
+      lv.inter.push({ type: 'dgate', gate: g, x: cx, z: cz, r: 2.6, label: gt.fromFar ? 'A barred gate' : 'A portcullis bars the way' });
     }
     for (const lvr of pl.levers) if (lvr.gate === 'mid' || pl.gates.some(g => g.id === lvr.gate)) {
       const [x, z] = at(lvr.x, lvr.z), y = lvr.h, base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), trim); base.position.set(x, y + 0.3, z); add(base);
@@ -296,6 +298,13 @@
     // ---- what the game places: start, reward, spawns, chests
     const r0 = pl.rooms[0], rw = pl.reward;
     lv.start = at(r0.x0 + 2, r0.cz); lv.startY = r0.h;
+    // the way out: an arch in the entry room's back wall, steps climbing into pale daylight
+    { const paleStone = GW.mat({ id: ID.MASONRY, tex: 8, color: 0xb0bcc8, emissive: 0x18222c, fill: 0.08 }); const [ax, az] = at(r0.x0, r0.cz), y = r0.h, wx = ax - TILE * 0.5 + 0.3;
+      for (const sd of [-1, 1]) { const pil = new THREE.Mesh(new THREE.BoxGeometry(0.7, 4.0, 0.7), trim); pil.position.set(wx + 0.2, y + 2.0, az + sd * 2.1); add(pil); }
+      const lin = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 5.0), trim); lin.position.set(wx + 0.2, y + 4.2, az); add(lin);
+      for (let k = 0; k < 4; k++) { const stp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3 * (k + 1), 3.4), paleStone); stp.position.set(wx + 1.6 - k * 0.5, y + 0.15 * (k + 1), az); add(stp); }
+      const sky = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.4), GW.mat({ id: ID.RUNE, color: 0, emissive: 0x3a5a78, unlit: true, side: THREE.DoubleSide })); sky.rotation.x = -Math.PI / 2; sky.position.set(wx + 3.4, y + 0.04, az); add(sky);
+      lv.lights.push(W.lights.add(wx + 1.5, y + 2.4, az, new THREE.Color(0.55, 0.72, 0.95), 12, 1.0)); }
     lv.end = at(rw.daisX || rw.cx, rw.cz); lv.endY = rw.h2 !== undefined ? rw.h2 : rw.h;
     lv.spawns = pl.spawns.map(s => ({ x: at(s.x, s.z)[0], z: at(s.x, s.z)[1], room: s.room, dormant: !!s.dormant, boss: !!s.boss }));
     lv.chests = pl.chests.map(c => ({ x: at(c.x, c.z)[0], z: at(c.x, c.z)[1], elite: c.elite, y: c.h }));

@@ -191,7 +191,7 @@ Every cave, tomb and castle floor is built from one of seven layouts, with a new
 - **The Old Mine**: timber frames, carts and ore veins you can mine.
 - **The Descent**: stairs that drop floor by floor between rooms lit by braziers.
 
-The structure follows the classic delve: the way to the reward room is barred by a portcullis whose lever sits in a side room, there are pressure plates in the corridors, and the reward room (a raised dais with a boss and an elite chest) has a lever that opens a shortcut gate back by the entrance. Each layout is checked when built so the gates can't be walked around. Each layout also has its own cold light (crypt blue, cistern teal, mine amber) under warm torches.
+The structure follows the classic delve: the way to the reward room is barred by a portcullis whose lever sits in a side room, there are pressure plates in the corridors, and from the reward room a lane loops back to a barred gate by the entrance: from the lane side you lift the bar yourself, from the entrance side it stays shut. The exit is a lit stairway in the entry room; underground the compass shows the exit (⇧) and the next floor's stairs (⇡) instead of the world's markers, and once the last chest is taken the arrow points the way out. Each layout is checked when built so the gates can't be walked around. Each layout also has its own cold light (crypt blue, cistern teal, mine amber) under warm torches.
 
 ## Settings worth knowing
 - **Alt** holds the HUD and minimap up for 8 s after you let go.
