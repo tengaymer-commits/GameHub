@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#05060a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Glyphwake</title>
+<link rel="stylesheet" href="css/glyphwake.css" />
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- ================= HUD ================= -->
+<div id="hud" class="hidden">
+  <div id="bars">
+    <div class="bar-row"><span class="lbl">HP</span><span id="hp-bar" class="abar hp"></span><span id="hp-num" class="num"></span></div>
+    <div class="bar-row"><span class="lbl">ST</span><span id="st-bar" class="abar st"></span></div>
+    <div class="bar-row"><span class="lbl">FO</span><span id="fo-bar" class="abar fo"></span></div>
+  </div>
+  <div id="minimap-wrap"><canvas id="minimap" width="128" height="128"></canvas><div id="mm-n">N</div></div>
+  <div id="quest"><div class="q-title" id="q-title"></div><div class="q-text" id="q-text"></div></div>
+  <div id="hint"></div>
+  <div id="zone-banner"><div class="zb-small" id="zb-small"></div><div class="zb-big" id="zb-big"></div></div>
+  <div id="boss-bar" class="hidden"><div id="boss-name"></div><div id="boss-hp"><i></i><b></b><s style="left:33.3%"></s><s style="left:66.6%"></s></div></div>
+  <div id="obj-arrow">▲<span id="obj-dist"></span></div>
+  <div id="floaters"></div>
+  <div id="fps"></div>
+  <div id="interact" class="hidden"></div>
+  <div id="bottom">
+    <div id="xp"><i id="xp-fill"></i><span id="xp-text"></span></div>
+    <div id="hotbar"></div>
+  </div>
+  <button id="menu-btn" aria-label="Menu">≡</button>
+  <button id="gear-btn" aria-label="Gear">⛨</button>
+  <!-- touch controls -->
+  <div id="touch" class="hidden">
+    <div id="stick"><div id="stick-knob"></div></div>
+    <div id="tbtns">
+      <button class="tb big" data-act="attack">⚔</button>
+      <button class="tb" data-act="roll">⟲</button>
+      <button class="tb" data-act="block">⛉</button>
+      <button class="tb sk" data-act="a1"><b>·</b><i></i></button>
+      <button class="tb sk" data-act="a2"><b>◎</b><i></i></button>
+      <button class="tb sk" data-act="a3"><b>»</b><i></i></button>
+      <button class="tb sk" data-act="a4"><b>✶</b><i></i></button>
+      <button class="tb sm" data-act="potion">♥<em id="t-pots"></em></button>
+      <button class="tb sm act" data-act="interact" id="t-interact">E</button>
+      <button class="tb sm" data-act="fire">♨<em id="t-kind"></em></button>
+      <button class="tb sm" data-act="map">⌖</button>
+      <button class="tb sm" data-act="book">✎</button>
+      <button class="tb sm" data-act="swap">⇄</button>
+      <button class="tb sm" data-act="horse">♞</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DIALOGUE ================= -->
+<div id="dialog" class="hidden">
+  <div class="d-who" id="d-who"></div>
+  <div class="d-text" id="d-text"></div>
+  <div class="d-next">▼ <span class="kbd">E</span> / tap</div>
+</div>
+
+<!-- ================= FORGE ================= -->
+<div id="forge" class="hidden">
+  <div class="f-head"><span>FORGE · <b id="f-name"></b></span><button id="f-close">close (Esc)</button></div>
+  <div class="f-sec">Runes: tap to socket</div>
+  <div id="f-runes" class="f-row"></div>
+  <div class="f-sec">Blade metal: 1 ingot to reforge</div>
+  <div id="f-metals" class="f-row"></div>
+  <div id="f-side">
+    <div class="f-sec">On the anvil</div>
+    <div id="f-arms" class="f-row"></div>
+    <div class="f-sec">Rune slots</div>
+    <div id="f-slots"></div>
+    <div id="f-stats"></div>
+    <button id="f-temper" class="btn">Temper blade</button>
+    <button id="f-up" class="btn">Upgrade</button>
+    <div class="f-sec">Smelt ore into ingots</div>
+    <div id="f-smelt" class="f-row"></div>
+  </div>
+  <div class="f-foot">drag: turn · wheel / pinch: zoom · tap a slot to remove a rune</div>
+  <div id="f-tip" class="hidden"></div>
+</div>
+
+<!-- ================= GEAR ================= -->
+<div id="gear" class="hidden">
+  <div class="f-head"><span>GEAR · <b>knight of the vale</b></span><button id="g-close">close (C)</button></div>
+  <div id="g-side">
+    <div id="g-lists"></div>
+    <div id="g-stats"></div>
+  </div>
+  <div class="f-foot">drag to turn · tap a piece to wear it</div>
+</div>
+
+<!-- ================= TITLE ================= -->
+<div id="title">
+  <pre id="logo"></pre>
+  <div class="t-sub">a glyph-rendered action RPG · vertical slice</div>
+  <div id="t-menu">
+    <button class="btn" id="t-continue">Continue</button>
+    <button class="btn" id="t-new">New journey</button>
+    <button class="btn ghost" id="t-settings">Settings</button>
+  </div>
+  <div class="t-foot" id="t-foot">WASD move · mouse aim · LMB attack (hold: heavy) · RMB block (tap on impact: parry) · Space roll · X swap weapon · 1-4 abilities · B book · Q flask · E interact · F make fire · M map · I inventory · H horse · Shift sprint</div>
+</div>
+
+<!-- ================= MENUS ================= -->
+<div id="pause" class="panel hidden">
+  <h2>PAUSED</h2>
+  <div id="char-sheet"></div>
+  <button class="btn" id="p-resume">Resume</button>
+  <button class="btn" id="p-gear">Gear (C)</button>
+  <button class="btn" id="p-map">Map (M)</button>
+  <button class="btn ghost" id="p-settings">Settings</button>
+  <button class="btn ghost" id="p-quit">Save &amp; quit to title</button>
+</div>
+
+<div id="settings" class="panel hidden">
+  <h2>SETTINGS</h2>
+  <div class="s-sec">Look</div>
+  <button class="btn" id="o-source">Apply "Source look" (PC, 1080p+)</button>
+  <div class="s-note">Matches the reference clips: high far camera, knight about 8% of screen height, tiny dense glyphs, swirling stroke grass, dark nights, bright silver heroes. Everything below stays adjustable.</div>
+  <label>Hero light <input type="range" id="o-heroPop" min="0" max="1" step="0.05" /><span id="o-heroPop-v"></span></label>
+  <label>Darkness <input type="range" id="o-dark" min="0" max="1" step="0.05" /><span id="o-dark-v"></span></label>
+  <label>Grass swirl <input type="range" id="o-swirl" min="0" max="1" step="0.05" /><span id="o-swirl-v"></span></label>
+  <label>ASCII on grass <input type="range" id="o-grassAscii" min="0" max="1" step="0.05" /><span id="o-grassAscii-v"></span></label>
+  <label>Dark earth patches <input type="range" id="o-groundO" min="0" max="1" step="0.05" /><span id="o-groundO-v"></span></label>
+  <div class="s-sec">Controls</div>
+  <label>Control style
+    <select id="o-control"><option value="free">Free aim: camera stays</option><option value="follow">Follow camera</option></select>
+  </label>
+  <div class="s-note" id="o-control-note"></div>
+  <div class="s-sec">Camera</div>
+  <label>Lens
+    <select id="o-lens"><option value="flat">Flat (telephoto, like the reference)</option><option value="normal">Normal perspective</option></select>
+  </label>
+  <label>HUD
+    <select id="o-hud"><option value="min">Minimal: bars show in combat</option><option value="full">Full: always visible</option></select>
+  </label>
+  <label>Camera distance <input type="range" id="o-zoom" min="0.35" max="2.2" step="0.05" /><span id="o-zoom-v"></span></label>
+  <label>See the hero inside / behind things
+    <select id="o-see">
+      <option value="2">Dollhouse: roof off, near walls knee-high</option>
+      <option value="1">Roof lift: roof off, walls stay</option>
+      <option value="3">Thin ink: walls print sparse, light glyphs</option>
+      <option value="4">Ghost walls: faint outlines only</option>
+      <option value="5">Dark outside: roof off, the world beyond dims</option>
+      <option value="6">Lantern: a warm pool of light dissolves walls</option>
+      <option value="0">Outline only: never cut anything</option>
+    </select>
+  </label>
+  <label>Camera tilt <input type="range" id="o-tilt" min="0.16" max="1.45" step="0.01" /><span id="o-tilt-v"></span></label>
+  <label>Screen shake <input type="checkbox" id="o-shake" /></label>
+  <div class="s-sec">World</div>
+  <label>Enemies respawn when you rest (souls-like) <input type="checkbox" id="o-respawn" /></label>
+  <label>Night hunts (packs roam after dark) <input type="checkbox" id="o-hunts" /></label>
+  <label>Reveal the whole map (testing; off = fog of war) <input type="checkbox" id="o-reveal" /></label>
+  <label>Minimap turns with your heading (off = north up) <input type="checkbox" id="o-mmrot" /></label>
+  <label>Minimap always visible (even when the HUD hides) <input type="checkbox" id="o-mmalways" /></label>
+  <label>Copy your save (to send for a bug report) <button class="btn sm ghost" id="o-copysave" type="button">Copy save</button></label>
+  <label>Map style <select id="o-mapstyle"><option value="tour">Touring map</option><option value="ascii">ASCII relief</option><option value="ink">Explorer's ink</option><option value="mosaic">Glyph mosaic</option></select></label>
+  <label>Time of day
+    <select id="o-time"><option value="cycle">Day / night cycle</option><option value="day">Always day</option><option value="night">Always night</option></select>
+  </label>
+  <label>Day length <input type="range" id="o-daylen" min="4" max="60" step="1" /><span id="o-daylen-v"></span></label>
+  <div class="s-sec">Glyph density (smaller = denser)</div>
+  <label>Characters <input type="range" id="o-glyphA" min="1" max="12" step="0.5" /><span id="o-glyphA-v"></span></label>
+  <label>Environment <input type="range" id="o-glyph" min="1" max="12" step="0.5" /><span id="o-glyph-v"></span></label>
+  <label>Structures <input type="range" id="o-glyphT" min="3" max="20" step="0.5" /><span id="o-glyphT-v"></span></label>
+  <label>Water &amp; sky <input type="range" id="o-glyphS" min="1" max="12" step="0.5" /><span id="o-glyphS-v"></span></label>
+  <label>Grass blade size <input type="range" id="o-grass" min="0.4" max="1.8" step="0.05" /><span id="o-grass-v"></span></label>
+  <label>Dandelions <input type="range" id="o-flowers" min="0" max="2" step="0.05" /><span id="o-flowers-v"></span></label>
+  <label>Grass turns ASCII when zoomed in <input type="checkbox" id="o-gblend" /></label>
+  <label>Pure ASCII grass <input type="checkbox" id="o-pure" /></label>
+  <div class="s-sec">Graphics &amp; audio</div>
+  <label>Quality
+    <select id="o-quality"><option value="0">Low</option><option value="1">Medium</option><option value="2">High</option></select>
+  </label>
+  <label>Shadows
+    <select id="o-shadows"><option value="soft">Soft</option><option value="sharp">Sharp</option><option value="off">Off</option></select>
+  </label>
+  <label>Zoomed-out blend <input type="range" id="o-farblend" min="0" max="1" step="0.05" /><span id="o-farblend-v"></span></label>
+  <label>Render resolution
+    <select id="o-res"><option value="auto">Auto (sharp glyphs)</option><option value="1">1× (fastest)</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="2.5">2.5×</option><option value="3">3×</option><option value="4">4× (sharpest, strong GPU)</option></select>
+  </label>
+  <div class="s-note" id="o-res-note"></div>
+  <label>Render distance
+    <select id="o-viewdist"><option value="0.6">Near (fastest)</option><option value="1">Normal</option><option value="1.5">Far</option><option value="2.2">Very far (strong PC)</option></select>
+  </label>
+  <label>Show FPS <input type="checkbox" id="o-fps" /></label>
+  <label>Weather (rain, snow, ash) <input type="checkbox" id="o-weather" /></label>
+  <label>Volume <input type="range" id="o-vol" min="0" max="1" step="0.05" /></label>
+  <label>Music <input type="range" id="o-mus" min="0" max="1" step="0.05" /></label>
+  <button class="btn" id="s-back">Back</button>
+</div>
+
+<div id="death" class="hidden"><div class="dt">YOU FELL</div><div class="ds">the glyphs remember you…</div><button class="btn" id="death-btn">Rise at the campfire</button></div>
+<div id="fade"></div>
+<div id="toast"></div>
+<canvas id="compass" width="720" height="44"></canvas>
+<div id="shop" class="panel hidden"><h2 id="shop-who">TRADER</h2><div class="s-note">Your shards: <b id="shop-shards" style="color:#9fd8ff"></b> ◈</div><div id="shop-list"></div><button class="btn ghost" id="shop-close">Leave</button></div>
+<div id="inv" class="panel hidden"><h2>INVENTORY</h2><div id="inv-body"></div><button class="btn" id="inv-close">Close (I)</button></div>
+<div id="book" class="panel hidden"><h2>BOOK OF GLYPHS</h2><div id="book-tabs"><button class="bt on" data-tab="load">Loadout</button><button class="bt" data-tab="skills">Skills <span id="bt-pts"></span></button><button class="bt" data-tab="journal">Journal</button></div><div id="book-arms"></div><div id="book-slots"></div><div id="book-body"></div><button class="btn" id="book-close">Close (B)</button></div>
+<div id="travel" class="panel hidden"><h2>TRAVEL</h2><div class="s-note">Fires you have found. The road remembers.</div><div id="travel-list"></div><button class="btn ghost" id="travel-stay">Stay here</button></div>
+<div id="worldmap" class="hidden"><canvas id="wm"></canvas><button id="wm-style" class="btn ghost">◈ Touring map</button><div class="wm-foot">M / Esc close · wheel or + − zoom · drag to pan · click to set your mark · Space: back to you · V: map style</div></div>
+
+<script src="../js/vendor/three.min.js"></script>
+<script src="js/vendor/GLTFLoader.js"></script>
+<script src="js/vendor/SkeletonUtils.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/rig.js"></script>
+<script src="js/knight.js"></script>
+<script src="js/world.js"></script>
+<script src="js/dungeon.js"></script>
+<script src="js/arms.js"></script>
+<script src="js/moves.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/abilities.js"></script>
+<script src="js/skills.js"></script>
+<script src="js/forge.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/worldmap.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
